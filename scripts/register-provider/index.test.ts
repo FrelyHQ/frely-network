@@ -6,7 +6,7 @@ const manifest = {
   capabilities: ["vision"],
   identity: { ens: "vision.example.eth" },
   interfaces: [{ protocol: "responses", endpoint: "https://provider.example/v1/responses" }],
-  payment: { protocol: "x402", network: "hedera-testnet" },
+  payment: { protocol: "x402", network: "hedera:testnet" },
 };
 
 function adapter(endpoint = "https://provider.example/v1/responses"): ProviderRegistrationAdapter {

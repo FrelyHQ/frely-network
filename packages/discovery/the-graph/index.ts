@@ -9,7 +9,19 @@ export interface GraphConfig {
   query?: string;
   network?: string;
   paymentNetwork: string;
+  /** Optional HTTP gateway for agentURI values using ipfs://. */
+  metadataGateway?: string;
   requestTimeoutMs?: number;
+}
+
+export interface GraphRegistrationFile {
+  ens?: string;
+  active?: boolean;
+  x402Support?: boolean;
+  oasfSkills?: unknown;
+  oasfDomains?: unknown;
+  endpointsRawJson?: unknown;
+  [key: string]: unknown;
 }
 
 export interface GraphProviderRow {
@@ -23,6 +35,8 @@ export interface GraphProviderRow {
   payment?: { protocol?: string; network?: string };
   reputation?: number;
   metadataUri?: string;
+  agentURI?: string;
+  registrationFile?: GraphRegistrationFile;
   metadata?: { capabilities?: unknown; endpoint?: string; protocol?: string; payment?: { protocol?: string; network?: string } };
   [key: string]: unknown;
 }
@@ -31,7 +45,7 @@ export interface GraphFetcher {
   (endpoint: string, init: RequestInit): Promise<Response>;
 }
 
-const defaultQuery = `query Providers { agents(first: 1000, where: { active: true }) { id agentId ensName ens active capabilities supportsX402 reputation metadataUri metadata { capabilities endpoint protocol payment { protocol network } } } }`;
+const defaultQuery = `query Providers { agents(first: 1000) { id agentId agentURI registrationFile { ens active x402Support oasfSkills oasfDomains endpointsRawJson } } }`;
 
 function asCapabilities(value: unknown): string[] {
   if (!Array.isArray(value) || !value.every((item) => typeof item === "string")) return [];
@@ -40,6 +54,47 @@ function asCapabilities(value: unknown): string[] {
 
 function validUri(value: string): boolean {
   try { return ["https:", "http:"].includes(new URL(value).protocol); } catch { return false; }
+}
+
+function metadataUri(value: string, gateway?: string): string | undefined {
+  try {
+    const parsed = new URL(value);
+    if (parsed.protocol === "http:" || parsed.protocol === "https:") return parsed.toString();
+    if (parsed.protocol !== "ipfs:" || !gateway) return undefined;
+    const base = gateway.endsWith("/") ? gateway : `${gateway}/`;
+    return base.includes("{cid}")
+      ? base.replace("{cid}", parsed.pathname.replace(/^\/+/, ""))
+      : `${base}${parsed.pathname.replace(/^\/+/, "")}`;
+  } catch { return undefined; }
+}
+
+function indexedManifest(row: GraphProviderRow, ensName: string, paymentNetwork: string): unknown | undefined {
+  const file = row.registrationFile;
+  if (!file) return undefined;
+  const capabilities = [
+    ...asCapabilities(file.oasfSkills),
+    ...asCapabilities(file.oasfDomains),
+  ];
+  let interfaces: unknown;
+  try {
+    const parsed = typeof file.endpointsRawJson === "string" ? JSON.parse(file.endpointsRawJson) : file.endpointsRawJson;
+    const entries = Array.isArray(parsed) ? parsed : parsed && typeof parsed === "object" ? Object.values(parsed) : [];
+    interfaces = entries.map((entry) => {
+      if (typeof entry === "string") return { protocol: "responses", endpoint: entry };
+      if (entry && typeof entry === "object") {
+        const value = entry as { endpoint?: unknown; url?: unknown; protocol?: unknown };
+        return { protocol: value.protocol ?? "responses", endpoint: value.endpoint ?? value.url };
+      }
+      return entry;
+    });
+  } catch { return undefined; }
+  return {
+    name: ensName,
+    capabilities,
+    identity: { ens: file.ens ?? ensName, ...(row.agentId !== undefined ? { agentId: String(row.agentId) } : {}) },
+    interfaces,
+    payment: { protocol: "x402", network: paymentNetwork },
+  };
 }
 
 export class TheGraphDiscovery {
@@ -75,22 +130,33 @@ export class TheGraphDiscovery {
     const rows = this.extractRows(payload);
     const result: ProviderCandidate[] = [];
     for (const row of rows) {
-      if (row.active !== true) continue;
-      const ensName = typeof row.ensName === "string" ? row.ensName : typeof row.ens === "string" ? row.ens : undefined;
+      const registration = row.registrationFile;
+      if (row.active !== true && registration?.active !== true) continue;
+      const ensName = typeof registration?.ens === "string"
+        ? registration.ens
+        : typeof row.ensName === "string" ? row.ensName : typeof row.ens === "string" ? row.ens : undefined;
       if (!ensName) continue;
       const rowPayment = row.payment ?? row.metadata?.payment;
-      const supportsX402 = row.supportsX402 === true || rowPayment?.protocol?.toLowerCase() === "x402";
+      const supportsX402 = registration?.x402Support === true || row.supportsX402 === true || rowPayment?.protocol?.toLowerCase() === "x402";
       if (!supportsX402 || (rowPayment?.network && rowPayment.network !== this.config.paymentNetwork)) continue;
       // A Graph row is only a discovery hint. The registration manifest is the
       // authority for capabilities, identity, endpoint and payment eligibility.
-      if (typeof row.metadataUri !== "string" || !validUri(row.metadataUri)) continue;
-      let metadataResponse: Response;
-      try { metadataResponse = await this.fetcher(row.metadataUri, { method: "GET", headers: { accept: "application/json" } }); }
-      catch { continue; }
-      if (!metadataResponse.ok) continue;
       let manifest: P0CapabilityProviderManifest;
-      try { manifest = validateManifest(await metadataResponse.json()); }
-      catch { continue; }
+      const sourceUri = typeof row.metadataUri === "string" ? row.metadataUri : row.agentURI;
+      const resolvedUri = sourceUri ? metadataUri(sourceUri, this.config.metadataGateway) : undefined;
+      if (resolvedUri) {
+        let metadataResponse: Response;
+        try { metadataResponse = await this.fetcher(resolvedUri, { method: "GET", headers: { accept: "application/json" } }); }
+        catch { continue; }
+        if (!metadataResponse.ok) continue;
+        try { manifest = validateManifest(await metadataResponse.json()); }
+        catch { continue; }
+      } else {
+        const indexed = indexedManifest(row, ensName, this.config.paymentNetwork);
+        if (!indexed) continue;
+        try { manifest = validateManifest(indexed); }
+        catch { continue; }
+      }
       if (manifest.identity.ens !== ensName || manifest.payment.network !== this.config.paymentNetwork) continue;
       const rowCaps = asCapabilities(manifest.capabilities);
       if (!wanted.every((capability) => rowCaps.includes(capability))) continue;

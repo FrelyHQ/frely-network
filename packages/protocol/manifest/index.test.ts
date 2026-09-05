@@ -12,7 +12,7 @@ const validManifest: P0CapabilityProviderManifest = {
   capabilities: ["vision", "ocr"],
   identity: { ens: "vision-ocr.capabilities.example.eth", agentId: "42" },
   interfaces: [{ protocol: "responses", endpoint: "https://provider.example/v1/responses" }],
-  payment: { protocol: "x402", network: "hedera-testnet" },
+  payment: { protocol: "x402", network: "hedera:testnet" },
 };
 
 describe("P0 manifest validation", () => {

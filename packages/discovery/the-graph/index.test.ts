@@ -6,7 +6,7 @@ const manifest = {
   capabilities: ["vision"],
   identity: { ens: "vision.example.eth", agentId: "7" },
   interfaces: [{ protocol: "responses", endpoint: "https://provider.example/v1/responses" }],
-  payment: { protocol: "x402", network: "hedera-testnet" },
+  payment: { protocol: "x402", network: "hedera:testnet" },
 };
 
 function response(value: unknown, status = 200): Response {
@@ -17,7 +17,7 @@ describe("The Graph discovery", () => {
   test("uses validated manifest capabilities", async () => {
     const calls: string[] = [];
     const discovery = new TheGraphDiscovery(
-      { endpoint: "https://graph.example/query", paymentNetwork: "hedera-testnet" },
+      { endpoint: "https://graph.example/query", paymentNetwork: "hedera:testnet" },
       async (endpoint) => {
         calls.push(endpoint);
         if (endpoint.includes("graph.example")) {
@@ -34,12 +34,38 @@ describe("The Graph discovery", () => {
 
   test("excludes invalid metadata instead of trusting Graph capabilities", async () => {
     const discovery = new TheGraphDiscovery(
-      { endpoint: "https://graph.example/query", paymentNetwork: "hedera-testnet" },
+      { endpoint: "https://graph.example/query", paymentNetwork: "hedera:testnet" },
       async (endpoint) => endpoint.includes("graph.example")
         ? response({ data: { agents: [{ id: "7", ensName: "vision.example.eth", active: true, supportsX402: true, capabilities: ["vision"], metadataUri: "https://metadata.example/7.json" }] } })
         : response({ ...manifest, capabilities: [] }),
     );
 
     await expect(discovery.findProviders(["vision"])).rejects.toThrow("NO_PROVIDER");
+  });
+
+  test("maps official registrationFile fields without trusting row capabilities", async () => {
+    const discovery = new TheGraphDiscovery(
+      { endpoint: "https://graph.example/query", paymentNetwork: "hedera:testnet" },
+      async () => response({ data: { agents: [{ agentId: "8", registrationFile: {
+        ens: "indexed.example.eth", active: true, x402Support: true,
+        oasfSkills: ["vision"], endpointsRawJson: [{ protocol: "responses", endpoint: "https://indexed.example/v1/responses" }],
+      } }] } }),
+    );
+
+    const providers = await discovery.findProviders(["vision"]);
+    expect(providers[0]?.id).toBe("8");
+    expect(providers[0]?.ensName).toBe("indexed.example.eth");
+  });
+
+  test("resolves ipfs agentURI through the configured metadata gateway", async () => {
+    const discovery = new TheGraphDiscovery(
+      { endpoint: "https://graph.example/query", paymentNetwork: "hedera:testnet", metadataGateway: "https://gateway.example/ipfs/{cid}" },
+      async (endpoint) => endpoint.includes("graph.example")
+        ? response({ data: { agents: [{ agentId: "9", ensName: "ipfs.example.eth", active: true, supportsX402: true, agentURI: "ipfs://bafy-test/manifest.json" }] } })
+        : response({ ...manifest, identity: { ens: "ipfs.example.eth", agentId: "9" } }),
+    );
+
+    const providers = await discovery.findProviders(["vision"]);
+    expect(providers[0]?.id).toBe("9");
   });
 });

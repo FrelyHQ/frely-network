@@ -1,5 +1,5 @@
 /** The only payment profile supported by the P0 registration manifest. */
-export const P0_PAYMENT_NETWORK = "hedera-testnet" as const;
+export const P0_PAYMENT_NETWORK = "hedera:testnet" as const;
 
 export type P0PaymentNetwork = typeof P0_PAYMENT_NETWORK;
 
