@@ -1,0 +1,8 @@
+{
+  "name": "@frely-network/erc8004",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "exports": "./index.ts",
+  "types": "./index.ts"
+}
