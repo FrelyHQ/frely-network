@@ -9,6 +9,9 @@
     "verbatimModuleSyntax": true,
     "allowImportingTsExtensions": true,
     "skipLibCheck": true,
+    "types": [
+      "bun-types"
+    ],
     "lib": [
       "ES2022",
       "DOM"
