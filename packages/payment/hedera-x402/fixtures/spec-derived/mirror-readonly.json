@@ -1,0 +1,5 @@
+{
+  "account": {"account":"0.0.1236","deleted":false,"receiver_sig_required":false,"balance":{"timestamp":"1700000000.000000001","balance":9007199254740993000,"tokens":[]}},
+  "token": {"token_id":"0.0.9876","decimals":"6","deleted":false,"type":"FUNGIBLE_COMMON","custom_fees":{"fixed_fees":[],"fractional_fees":[],"royalty_fees":[]}},
+  "relationship": {"tokens":[{"token_id":"0.0.9876","balance":9007199254740993000,"freeze_status":"UNFROZEN","kyc_status":"GRANTED"}],"links":{"next":null}}
+}

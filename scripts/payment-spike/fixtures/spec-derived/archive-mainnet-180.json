@@ -1,0 +1,27 @@
+{
+  "configRef": "policy.json",
+  "request": {
+    "method": "POST",
+    "url": "https://archive.invalid/pay",
+    "body": "{\"input\":\"test\"}",
+    "headers": { "content-type": "application/json" },
+    "providerId": "archive-provider-1",
+    "payment": {
+      "requestId": "archive-fixture-1",
+      "budget": {
+        "network": "hedera:testnet",
+        "asset": "0.0.0",
+        "maxAmountAtomic": "1000"
+      }
+    }
+  },
+  "capture": {
+    "source": "synthetic",
+    "capturedAt": "2026-09-07T00:00:00.000Z",
+    "method": "POST",
+    "url": "https://archive.invalid/pay",
+    "bodySha256": "156403d8f795a18e92f5d4377c84f49bdb321700289f1ab01ee7c58e7c994317",
+    "status": 402,
+    "paymentRequiredHeader": "eyJ4NDAyVmVyc2lvbiI6MiwicmVzb3VyY2UiOnsidXJsIjoiaHR0cHM6Ly9hcmNoaXZlLmludmFsaWQvcGF5In0sImFjY2VwdHMiOlt7InNjaGVtZSI6ImV4YWN0IiwibmV0d29yayI6ImhlZGVyYTptYWlubmV0IiwiYXNzZXQiOiIwLjAuMCIsImFtb3VudCI6IjEwMDAiLCJwYXlUbyI6IjAuMC4xMjM0IiwibWF4VGltZW91dFNlY29uZHMiOjE4MCwiZXh0cmEiOnsiZmVlUGF5ZXIiOiIwLjAuMTIzNSJ9fV19"
+  }
+}

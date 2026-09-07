@@ -4,5 +4,13 @@
   "private": true,
   "type": "module",
   "exports": "./index.ts",
-  "types": "./index.ts"
+  "types": "./index.ts",
+  "dependencies": {
+    "@x402/core": "2.25.0",
+    "@x402/hedera": "2.25.0",
+    "json-bigint": "1.0.0"
+  },
+  "devDependencies": {
+    "@types/json-bigint": "1.0.4"
+  }
 }

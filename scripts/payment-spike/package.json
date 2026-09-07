@@ -1,12 +1,11 @@
 {
-  "name": "@frely-network/broker",
+  "name": "@frely-network/payment-spike",
   "version": "0.0.0",
   "private": true,
   "type": "module",
-  "exports": "./index.ts",
-  "types": "./index.ts",
   "dependencies": {
+    "@frely-network/broker": "workspace:*",
     "@frely-network/hedera-x402": "workspace:*",
-    "@frely-network/shared-types": "workspace:*"
+    "@x402/core": "2.25.0"
   }
 }

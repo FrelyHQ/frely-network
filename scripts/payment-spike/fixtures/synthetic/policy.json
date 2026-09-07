@@ -1,0 +1,16 @@
+{
+  "enabled": true,
+  "network": "hedera:testnet",
+  "asset": "0.0.0",
+  "assetDecimals": 8,
+  "payerAccountId": "0.0.1236",
+  "payTo": "0.0.1234",
+  "feePayers": ["0.0.1235"],
+  "facilitatorUrl": "https://facilitator.invalid",
+  "resourceUrl": "https://fixture.invalid/v1/responses",
+  "journalPath": "/tmp/frely-payment-spike/payment.db",
+  "mirrorNodeUrl": "https://mirror.invalid",
+  "signerRef": "env:PAYMENT_TEST_KEY",
+  "keyType": "ecdsa",
+  "credentialRef": "test-only"
+}
