@@ -13,6 +13,9 @@
       "name": "@frely-network/broker-mcp",
       "version": "0.0.0",
       "dependencies": {
+        "@frely-network/broker": "workspace:*",
+        "@frely-network/ens": "workspace:*",
+        "@frely-network/erc8004": "workspace:*",
         "@frely-network/shared-types": "workspace:*",
         "@frely-network/the-graph": "workspace:*",
         "@modelcontextprotocol/sdk": "1.30.0",
@@ -34,6 +37,9 @@
     "packages/broker": {
       "name": "@frely-network/broker",
       "version": "0.0.0",
+      "dependencies": {
+        "@frely-network/shared-types": "workspace:*",
+      },
     },
     "packages/discovery/the-graph": {
       "name": "@frely-network/the-graph",

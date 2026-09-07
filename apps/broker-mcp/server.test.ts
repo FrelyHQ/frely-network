@@ -2,10 +2,10 @@ import { describe, expect, test } from "bun:test";
 import { Client } from "@modelcontextprotocol/sdk/client/index.js";
 import { StdioClientTransport } from "@modelcontextprotocol/sdk/client/stdio.js";
 
-async function withClient(run: (client: Client) => Promise<void>) {
+async function withClient(run: (client: Client) => Promise<void>, entry = "fake-server.ts") {
   const transport = new StdioClientTransport({
     command: process.execPath,
-    args: [import.meta.dir + "/fixtures/fake-server.ts"],
+    args: [import.meta.dir + "/fixtures/" + entry],
     stderr: "pipe",
   });
   const errors: string[] = [];
@@ -64,4 +64,18 @@ describe("Broker stdio MCP", () => {
       expect(stderr.trim()).toBe("GRAPH_CONFIG_INVALID");
     }
   });
+});
+
+
+test("use_capability is callable over stdio and rejects unverified providers", async () => {
+  await withClient(async (client) => {
+    expect((await client.listTools()).tools.map((tool) => tool.name)).toEqual(["find_capability", "use_capability"]);
+    const args = { capabilities: ["vision"], task: "Describe", input: { image_url: "https://images.example/a.png" } };
+    const result = await client.callTool({ name: "use_capability", arguments: args });
+    expect(result.isError).not.toBe(true);
+    expect(result.structuredContent).toEqual({ provider: { id: "mock-use" }, output: { output_text: "synthetic result" } });
+    const invalid = await client.callTool({ name: "use_capability", arguments: { ...args, capabilities: ["invalid"] } });
+    expect(invalid.isError).toBe(true);
+    expect(invalid.content).toEqual([{ type: "text", text: "IDENTITY_VERIFICATION_FAILED" }]);
+  }, "use-server.ts");
 });

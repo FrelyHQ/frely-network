@@ -1,8 +1,8 @@
 # Broker MCP
 
-A local stdio MCP server exposing only `find_capability`. It delegates discovery
-to `@frely-network/the-graph`; it does not verify identities, execute providers,
-or make payments. Candidate results are not verified providers.
+A local stdio MCP server exposing `find_capability` and `use_capability`. Discovery
+uses `@frely-network/the-graph`. Execution resolves identity before calling Frely;
+no x402 payment is performed. Candidate results alone are not verified providers.
 
 ## Install and verify
 
@@ -71,7 +71,7 @@ the code. Unexpected failures return `DISCOVERY_FAILED`. Calls are not retried.
 
 T3 requires G's actual Graph configuration and indexed manifest data, followed
 by a real MCP call returning candidates. A passing fake test does not satisfy
-T3. `use_capability` and the Frely execution path remain T4; payment stays separate.
+T3. T4 implementation is described below; real identity and Frely validation remain pending. Payment stays separate.
 
 ## Offline mock while Graph is unavailable
 
@@ -103,3 +103,47 @@ GRAPH_QUERY_FAILED. Unknown scenarios exit with MOCK_SCENARIO_INVALID.
 Production `start` remains unchanged and never falls back to mock. T3 remains
 blocked pending a verified live Graph call. Run `bun test apps/broker-mcp` under
 Bun 1.4.0 to verify both the minimal protocol and the offline mock scenarios.
+
+## T4: use_capability (integration only)
+
+The production entry registers both tools. The standalone discovery mock still
+registers only find_capability; it does not pretend its candidates have identities.
+
+Additional environment variables for use_capability:
+
+| Variable | Meaning |
+| --- | --- |
+| ENS_SEPOLIA_RPC_URL | G-provided Sepolia RPC |
+| IDENTITY_CHAIN_ID | Must be 11155111 |
+| ERC8004_IDENTITY_REGISTRY | G-provided nonzero registry address |
+| BROKER_EXECUTION_MODE | Must explicitly be integration |
+| FRELY_ALLOWED_ORIGIN | Trusted HTTPS origin allowed to receive the caller key, without trailing slash |
+| FRELY_CALLER_API_KEY | Frely caller credential; never Swarm or model credentials |
+
+Example tool arguments:
+
+```json
+{"capabilities":["vision"],"task":"Describe the image","input":{"image_url":"https://images.example/demo.png"}}
+```
+
+The Broker filters discovered candidates by all requested capabilities, sorts by
+lowercase ENS name then ID using ordinal comparison, resolves the first one and
+requires verified=true with matching identity. Failure stops; there is no next-
+provider fallback. Only responses over HTTPS is supported. The origin setting
+restricts credential delivery and never replaces ResolvedProvider.endpoint.
+
+The current executor supports only vision, maps the request to vision-basic,
+and requests non-streaming, non-stored Responses output. Redirects are disabled;
+requests time out after 30 seconds and are not retried. HTTP 402 returns
+PAYMENT_REQUIRED. maxAmount is rejected with BUDGET_CHECK_UNAVAILABLE until a
+budget-aware payment adapter exists. No payment field or transaction is invented.
+
+Integration mode is not a free-service guarantee: W must explicitly provide the
+allowed test billing or payment exemption arrangement. The Broker never bypasses
+Frely authentication and never calls Swarm directly.
+
+T4 tests use synthetic identity and HTTP responses. They prove orchestration,
+identity rejection, request mapping and credential-origin checks, not a real
+Provider call. The existing G resolver still needs its ENSIP-25 association and
+metadata/endpoint consistency issues reviewed before real acceptance. No identity
+checks were disabled to make these tests pass.
