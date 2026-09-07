@@ -19,6 +19,9 @@
     "scripts/*"
   ],
   "scripts": {
+    "ens:subnames": "bun scripts/register-provider/ens-subnames.ts",
+    "explorer:build": "bun build apps/explorer/src/main.ts --outdir apps/explorer/dist --target browser --minify",
+    "explorer:dev": "bun run explorer:build && bun apps/explorer/server.ts",
     "typecheck": "tsc --project tsconfig.json",
     "test": "bun test",
     "check": "bun run typecheck && bun test"

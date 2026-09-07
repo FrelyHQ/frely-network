@@ -16,6 +16,10 @@
     "apps/explorer": {
       "name": "@frely-network/explorer",
       "version": "0.0.0",
+      "dependencies": {
+        "@frely-network/ens": "workspace:*",
+        "viem": "^2.21.0",
+      },
     },
     "examples/vision-basic": {
       "name": "@frely-network/vision-basic",
@@ -28,6 +32,17 @@
     "packages/broker": {
       "name": "@frely-network/broker",
       "version": "0.0.0",
+    },
+    "packages/discovery/provider-directory": {
+      "name": "@frely-network/provider-directory",
+      "version": "0.0.0",
+      "dependencies": {
+        "@frely-network/ens": "workspace:*",
+        "@frely-network/erc8004": "workspace:*",
+        "@frely-network/shared-types": "workspace:*",
+        "@frely-network/the-graph": "workspace:*",
+        "viem": "^2.21.0",
+      },
     },
     "packages/discovery/the-graph": {
       "name": "@frely-network/the-graph",
@@ -73,6 +88,7 @@
       "name": "@frely-network/register-provider",
       "version": "0.0.0",
       "dependencies": {
+        "@frely-network/ens": "workspace:*",
         "@frely-network/protocol-manifest": "workspace:*",
       },
     },
@@ -93,6 +109,8 @@
     "@frely-network/hedera-x402": ["@frely-network/hedera-x402@workspace:packages/payment/hedera-x402"],
 
     "@frely-network/protocol-manifest": ["@frely-network/protocol-manifest@workspace:packages/protocol/manifest"],
+
+    "@frely-network/provider-directory": ["@frely-network/provider-directory@workspace:packages/discovery/provider-directory"],
 
     "@frely-network/register-provider": ["@frely-network/register-provider@workspace:scripts/register-provider"],
 
