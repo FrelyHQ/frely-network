@@ -1,0 +1,25 @@
+services:
+  broker-mcp:
+    build:
+      context: .
+      target: runtime
+    image: ${FRELY_NETWORK_IMAGE:-frely-network-broker-mcp:local}
+    restart: unless-stopped
+    mem_limit: 512m
+    cpus: "0.50"
+    pids_limit: 128
+    environment:
+      HOST: 0.0.0.0
+      PORT: "4100"
+    ports:
+      - "${FRELY_NETWORK_BIND_ADDRESS:-127.0.0.1}:${FRELY_NETWORK_PUBLISHED_PORT:-13600}:4100"
+    healthcheck:
+      test:
+        - CMD
+        - bun
+        - -e
+        - fetch('http://127.0.0.1:4100/healthz').then(r=>{if(!r.ok)process.exit(1)}).catch(()=>process.exit(1))
+      interval: 15s
+      timeout: 3s
+      retries: 5
+      start_period: 10s

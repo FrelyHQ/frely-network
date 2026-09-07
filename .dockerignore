@@ -1,0 +1,9 @@
+.git
+.agents
+.local
+node_modules
+dist
+coverage
+.env
+.env.*
+!.env.example

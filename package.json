@@ -19,9 +19,12 @@
     "scripts/*"
   ],
   "scripts": {
+    "build": "bun build apps/broker-mcp/server.ts --target=bun --outfile=dist/broker-mcp.js",
+    "start": "bun dist/broker-mcp.js",
     "typecheck": "tsc --project tsconfig.json",
     "test": "bun test",
-    "check": "bun run typecheck && bun test"
+    "verify:compose": "docker compose --env-file .env.example -f compose.production.yaml config --quiet",
+    "check": "bun run typecheck && bun test && bun run build"
   },
   "devDependencies": {
     "bun-types": "^1.4.2",
