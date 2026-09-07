@@ -2,5 +2,15 @@
   "name": "@frely-network/broker-mcp",
   "version": "0.0.0",
   "private": true,
-  "type": "module"
+  "type": "module",
+  "dependencies": {
+    "@frely-network/shared-types": "workspace:*",
+    "@frely-network/the-graph": "workspace:*",
+    "@modelcontextprotocol/sdk": "1.30.0",
+    "zod": "4.5.4"
+  },
+  "scripts": {
+    "start": "bun index.ts",
+    "test": "bun test server.test.ts"
+  }
 }
