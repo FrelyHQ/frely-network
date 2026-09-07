@@ -59,18 +59,68 @@ fallback, and errors propagate to B without starting execution or payment.
 
 Required environment variables are listed in `.env.example`: `GRAPH_ENDPOINT`,
 `ENS_SEPOLIA_RPC_URL`, `IDENTITY_CHAIN_ID`, `ERC8004_IDENTITY_REGISTRY`, and
-`PAYMENT_NETWORK`. Run Bun from the repository root to load a local `.env`, or
-inject these variables in the server environment. Do not bundle this entry or
-Graph credentials into the browser, or log URLs containing API keys.
+`PAYMENT_NETWORK`. P0 fixes the identity chain to `11155111` and the payment
+network to `hedera:testnet`; neither value supplies missing Provider claims.
+Optional `METADATA_GATEWAY` is an HTTPS IPFS gateway prefix, such as
+`https://gateway.example/ipfs/`, or a `{cid}` template. The same gateway is passed
+to both Graph discovery and ERC-8004 reads. Metadata URIs must be HTTPS or IPFS
+with an explicit gateway; HTTP and data URIs are not supported by this P0 reader.
+Run Bun from the repository root to load a local `.env`, or inject these variables
+in the server environment. Do not bundle this entry or Graph credentials into
+the browser, or log URLs containing API keys.
 
-This entry is an integration handoff, not M3 acceptance evidence. The existing
-ERC-8004 reader currently needs an HTTP(S) registration URI and a top-level
-`capabilities` array; general ERC-8004 services/OASF normalization and IPFS are
-not yet supported end to end. Strict ENSIP-25 association checks, metadata/ENS
-endpoint consistency, and live Graph network/registry validation still need to
-be completed and tested before treating the existing resolver as M3-ready.
-Unit-test fixtures prove wiring only. Real Agent0 results, W's deployed Provider
-and manifest, registration/ENS linkage, and joint review remain required.
+Discovery reads the actual registration file referenced by `agentURI`; a missing,
+invalid, or unavailable file cannot fall back to indexed fields. Official Agent0
+row IDs use `chainId:agentId`, while `ProviderCandidate.id` remains the canonical
+decimal token ID expected by the frozen shared types. Row network and token ID
+claims must agree, and the ENS name must agree with the fetched metadata.
+
+Resolution independently reads the configured ERC-8004 Registry's `tokenURI`,
+normalizes the registration file with the same parser, and verifies the candidate
+capabilities. It checks the exact ENSIP-25
+`agent-registration[<ERC-7930 registry>][<agentId>]` record key and requires a
+non-empty value; the value itself is not a serialized identity proof. The ENS
+name, `responses` protocol, and HTTPS endpoint must agree with the registration
+file. ENS remains the execution endpoint authority. Failed identity checks never
+authorize Provider execution or payment.
+
+### Registration metadata profile
+
+The shared parser accepts the existing P0 manifest (`identity`, `capabilities`,
+`interfaces`, `payment`) and ERC-8004 `registration-v1` files using `services`.
+For a services file, publish `ENS` and `responses` service entries, plus
+`active: true` and `x402Support: true`. Frely's `capabilities` and `payment`
+extensions may be top-level or in Agent0's `metadata` bag. These extensions are
+project requirements, not fields guaranteed by ERC-8004 itself:
+
+```json
+{
+  "capabilities": ["vision"],
+  "payment": { "protocol": "x402", "network": "hedera:testnet" }
+}
+```
+
+This snippet only illustrates the extensions; it is not a complete registration
+file or a deployed Provider. `x402Support: true` does not imply a payment network.
+Conflicting duplicate ENS, identity, endpoint, or payment claims are rejected.
+When `registrations` is present, it must include the exact configured chain,
+Registry address, and token ID; conflicting entries for that Registry are rejected.
+Without explicit Frely capabilities, OASF `skills` are exposed only as exact skill
+IDs. OASF domains are not capabilities, and skill paths are not automatically
+mapped to `vision` or `ocr`.
+
+See the [ERC-8004 registration specification](https://eips.ethereum.org/EIPS/eip-8004)
+and [Agent0 JSON writer](https://github.com/agent0lab/agent0-ts/blob/main/src/utils/registration-json.ts)
+for the standard services and extension shapes.
+
+### Verification limits
+
+The identity/discovery tests use explicit fixtures, not live Graph or on-chain
+acceptance evidence. This package handoff alone does not complete M3: real Agent0
+results, W's deployed Provider and manifest, ERC-8004 registration/ENS linkage,
+and joint review remain required. The current Graph query reads at most 1,000
+agents without pagination, so discovery completeness is not guaranteed. No
+upstream Graph availability claim is made by these offline tests.
 
 ## ENSv2 subname preparation
 

@@ -179,3 +179,14 @@ export function isValidManifest(value: unknown): value is P0CapabilityProviderMa
     throw error;
   }
 }
+
+export {
+  ERC8004_REGISTRATION_TYPE,
+  normalizeAgentId,
+  normalizeEnsName,
+  normalizeHttpsUrl,
+  normalizeRegistryAddress,
+  normalizeRegistrationMetadata,
+  type RegistrationContext,
+} from "./registration.ts";
+export { fetchRegistrationMetadata, registrationMetadataUrl, type MetadataFetcher } from "./metadata.ts";

@@ -37,6 +37,8 @@ function url(value: string, key: string, httpsOnly = false): string {
 export function createProviderDirectory(env: ProviderEnvironment = process.env): ProviderDirectory {
   const graphEndpoint = url(required(env, "GRAPH_ENDPOINT"), "GRAPH_ENDPOINT", true);
   const rpcUrl = url(required(env, "ENS_SEPOLIA_RPC_URL"), "ENS_SEPOLIA_RPC_URL");
+  const metadataGateway = env.METADATA_GATEWAY?.trim()
+    ? url(env.METADATA_GATEWAY.trim(), "METADATA_GATEWAY", true) : undefined;
   if (required(env, "IDENTITY_CHAIN_ID") !== "11155111") {
     throw new Error("PROVIDER_CONFIG_INVALID:IDENTITY_CHAIN_ID");
   }
@@ -55,11 +57,13 @@ export function createProviderDirectory(env: ProviderEnvironment = process.env):
   const discovery = createGraphDiscovery({
     endpoint: graphEndpoint,
     network: "11155111",
+    registryAddress,
     paymentNetwork: "hedera:testnet",
+    ...(metadataGateway === undefined ? {} : { metadataGateway }),
   });
   const resolver = new ProviderIdentityResolver(
     createEnsReader({ rpcUrl, requireHttps: true }),
-    new ViemErc8004Reader({ rpcUrl, registryAddress }),
+    new ViemErc8004Reader({ rpcUrl, registryAddress, ...(metadataGateway === undefined ? {} : { metadataGateway }) }),
   );
 
   // Bound closures remain usable when passed directly to B's orchestrator.

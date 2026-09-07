@@ -8,6 +8,7 @@
   "dependencies": {
     "viem": "^2.21.0",
     "@frely-network/ens": "workspace:*",
+    "@frely-network/protocol-manifest": "workspace:*",
     "@frely-network/shared-types": "workspace:*"
   }
 }

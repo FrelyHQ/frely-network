@@ -108,6 +108,13 @@ describe("B-facing provider directory", () => {
     }
   });
 
+  test("accepts an optional HTTPS metadata gateway and rejects unsafe values", () => {
+    expect(() => createProviderDirectory({ ...env, METADATA_GATEWAY: "https://gateway.example/ipfs/{cid}" })).not.toThrow();
+    for (const value of ["http://gateway.example/ipfs", "https://user:fake-secret@gateway.example", "invalid"]) {
+      expect(configurationError({ METADATA_GATEWAY: value }).message).toBe("PROVIDER_CONFIG_INVALID:METADATA_GATEWAY");
+    }
+  });
+
   test("rejects unsupported identity chains, payment networks and registries", () => {
     const invalid: Array<[string, string]> = [
       ["IDENTITY_CHAIN_ID", "1"],
