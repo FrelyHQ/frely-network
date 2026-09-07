@@ -10,16 +10,16 @@ review surfaces are separate public snapshots:
 
 | Public repository | Public purpose | Private canonical counterpart |
 | --- | --- | --- |
-| [`FrelyHQ/frely`](https://github.com/FrelyHQ/frely) | Reviewable snapshot of the Relay/control-plane implementation | `friday-relay` |
-| [`FrelyHQ/swarm`](https://github.com/FrelyHQ/swarm) | Reviewable snapshot providing the basic Snap/debug surface | `frely-swarm` |
+| [`FrelyHQ/frely`](https://github.com/FrelyHQ/frely) | Reviewable Relay snapshot and the billed development entry for `vision-basic` | `friday-relay` |
+| [`FrelyHQ/swarm`](https://github.com/FrelyHQ/swarm) | Reviewable Swarm virtual-model runtime exposing `vision-basic` through the Responses API | `frely-swarm` |
 
-The public snapshots are available for source inspection and basic debugging.
-They do not publish private runtime state, private credentials, production
-operations, or a claim that the private repositories can be reconstructed from
-public files alone. Their public competition-review publication must not be
-interpreted as a conversion of the private canonical products into general
-open-source distributions; the license and notice in each snapshot remain the
-legal authority for that repository.
+The public snapshots are available for source inspection and the bounded
+hackathon development flow. They do not publish private runtime state, private
+credentials, production operations, or a claim that the private repositories
+can be reconstructed from public files alone. Their public competition-review
+publication must not be interpreted as a conversion of the private canonical
+products into general open-source distributions; the license and notice in
+each snapshot remain the legal authority for that repository.
 
 ## Stack
 
@@ -37,7 +37,7 @@ legal authority for that repository.
 - `packages/gateway`: provider-side x402 gateway contract
 - `apps/broker-mcp`: MCP interface for host agents
 - `apps/explorer`: P1 explorer application
-- `examples`: minimal Vision capability providers
+- `examples`: Vision capability example scaffolds; not executable model runtimes
 - `scripts/register-provider`: P0 provider registration script
 - `docs`: architecture, roadmap/deadlines, sponsor integration, and
   cross-project integration documentation
@@ -59,8 +59,7 @@ snapshot boundary remains explicit.
 
 Read [`docs/cross-project-integration.md`](docs/cross-project-integration.md)
 for the planned Docker orchestration across this repository, the public
-`frely` snapshot, the public `swarm` snapshot, and their private canonical
-runtimes. The document defines:
+`frely` snapshot and the public `swarm` snapshot. The document defines:
 
 - repository ownership and public/private boundaries;
 - sibling checkout layout and shared Docker network aliases;
