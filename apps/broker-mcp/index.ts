@@ -1,4 +1,5 @@
-import { createBroker, createFrelyExecutor } from "@frely-network/broker";
+import { createBroker, createFrelyExecutor, createPaidExecutor, parseFrelyResponse } from "@frely-network/broker";
+import { createLivePorts, loadApprovedPaymentConfig, openJournal } from "@frely-network/hedera-x402";
 import { createEnsReader } from "@frely-network/ens";
 import { ProviderIdentityResolver, ViemErc8004Reader } from "@frely-network/erc8004";
 import { StdioServerTransport } from "@modelcontextprotocol/sdk/server/stdio.js";
@@ -12,6 +13,20 @@ try {
   const url = new URL(endpoint);
   if (!["https:", "http:"].includes(url.protocol)) throw new Error("GRAPH_CONFIG_INVALID");
   const discovery = createGraphDiscovery({ endpoint, paymentNetwork, requestTimeoutMs: 10_000 });
+  const executionConfig = { mode: process.env.BROKER_EXECUTION_MODE, origin: process.env.FRELY_ALLOWED_ORIGIN, callerKey: process.env.FRELY_CALLER_API_KEY };
+  let paymentEnabled = false;
+  let executePaid;
+  const paymentConfigPath = process.env.PAYMENT_CONFIG_PATH?.trim();
+  if (paymentConfigPath) {
+    try {
+      const policy = await loadApprovedPaymentConfig(paymentConfigPath);
+      if (policy.enabled) {
+        const journal = openJournal(policy.journalPath);
+        executePaid = createPaidExecutor({ policy, ports: createLivePorts(policy, journal, parseFrelyResponse), executionConfig });
+        paymentEnabled = true;
+      }
+    } catch { throw new Error("PAYMENT_CONFIG_INVALID"); }
+  }
   const broker = createBroker({
     findProviders: (capabilities) => discovery.findProviders(capabilities),
     async resolveProvider(candidate) {
@@ -21,12 +36,14 @@ try {
       const resolver = new ProviderIdentityResolver(createEnsReader({ rpcUrl }), new ViemErc8004Reader({ rpcUrl, registryAddress: registry as `0x${string}` }));
       return resolver.resolveProvider(candidate);
     },
-    execute: createFrelyExecutor({ mode: process.env.BROKER_EXECUTION_MODE, origin: process.env.FRELY_ALLOWED_ORIGIN, callerKey: process.env.FRELY_CALLER_API_KEY }),
+    execute: createFrelyExecutor(executionConfig),
+    executePaid,
+    paymentEnabled,
   });
   const server = createBrokerServer(discovery, broker);
   await server.connect(new StdioServerTransport());
-} catch {
+} catch (error) {
   // Never print configuration, credentials or non-protocol data on stdout.
-  console.error("GRAPH_CONFIG_INVALID");
+  console.error(error instanceof Error && error.message === "PAYMENT_CONFIG_INVALID" ? "PAYMENT_CONFIG_INVALID" : "GRAPH_CONFIG_INVALID");
   process.exitCode = 1;
 }

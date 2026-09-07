@@ -19,6 +19,7 @@
     "scripts/*"
   ],
   "scripts": {
+    "payment:check": "bun scripts/payment-spike/index.ts",
     "typecheck": "tsc --project tsconfig.json",
     "test": "bun test",
     "check": "bun run typecheck && bun test"

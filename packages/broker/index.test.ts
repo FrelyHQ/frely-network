@@ -34,3 +34,49 @@ test("no matching candidates or resolver failure stops before execution", async 
   await expect(broker.useCapability(request)).rejects.toThrow("IDENTITY_VERIFICATION_FAILED");
   expect(executed).toBe(false);
 });
+
+test("paid execution preserves a settled service failure and never uses the legacy executor", async () => {
+  const paymentOutcome = {
+    requestId: "paid-1",
+    decision: "completed" as const,
+    paymentStatus: "settled" as const,
+    serviceStatus: "failed" as const,
+    reason: "SERVICE_FAILED_AFTER_PAYMENT",
+    retryAction: "none" as const,
+    evidence: { source: "synthetic" as const, network: "hedera:testnet", transactionId: "0.0.123@1.000000001" },
+    output: null,
+  };
+  const broker = createBroker({
+    async findProviders() { return candidates; },
+    async resolveProvider() { return resolved; },
+    async execute() { throw new Error("LEGACY_PATH_USED"); },
+    async executePaid() { return paymentOutcome; },
+    paymentEnabled: true,
+  });
+  const result = await broker.useCapability({
+    ...request,
+    payment: { requestId: "paid-1", budget: { network: "hedera:testnet", asset: "0.0.0", maxAmountAtomic: "1000" } },
+  });
+  expect(result).toEqual({ provider: { id: "1" }, paymentOutcome, payment: { network: "hedera:testnet", transactionId: "0.0.123@1.000000001" }, output: null });
+});
+
+test("payment mode rejects missing, legacy and conflicting budgets before either executor", async () => {
+  let calls = 0;
+  const broker = createBroker({
+    async findProviders() { calls++; return candidates; }, async resolveProvider() { calls++; return resolved; },
+    async execute() { calls++; return {}; }, async executePaid() { calls++; throw new Error("UNREACHABLE"); }, paymentEnabled: true,
+  });
+  await expect(broker.useCapability(request)).rejects.toThrow("BUDGET_INVALID");
+  await expect(broker.useCapability({ ...request, maxAmount: "1" })).rejects.toThrow("LEGACY_BUDGET_UNSUPPORTED");
+  await expect(broker.useCapability({ ...request, maxAmount: "1", payment: { requestId: "paid-2", budget: { network: "hedera:testnet", asset: "0.0.0", maxAmountAtomic: "1" } } })).rejects.toThrow("BUDGET_INPUT_CONFLICT");
+  expect(calls).toBe(0);
+});
+
+test("disabled payment rejects a payment request before discovery", async () => {
+  let called = false;
+  const broker = createBroker({
+    async findProviders() { called = true; return candidates; }, async resolveProvider() { return resolved; }, async execute() { return {}; },
+  });
+  await expect(broker.useCapability({ ...request, payment: { requestId: "paid-disabled", budget: { network: "hedera:testnet", asset: "0.0.0", maxAmountAtomic: "1" } } })).rejects.toThrow("PAYMENT_DISABLED");
+  expect(called).toBe(false);
+});
