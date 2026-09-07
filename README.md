@@ -73,3 +73,10 @@ milestones, goals, deadlines, and evidence gates. See
 [`docs/architecture.md`](docs/architecture.md) for the Broker execution path
 and [`docs/sponsor-integrations.md`](docs/sponsor-integrations.md) for The
 Graph, ENS, ERC-8004, and Hedera responsibilities.
+
+## Hedera x402 payment
+
+The Broker supports explicitly budgeted Hedera Testnet payment through a
+journaled adapter. Payment and service outcomes remain independent. See the
+[x402 architecture](docs/architecture.md#x402-architecture-1--client-and-gateway-responsibilities)
+and [payment lifecycle](workflows/hedera-auto-payment.md).

@@ -1,8 +1,8 @@
 # Broker MCP
 
 A local stdio MCP server exposing `find_capability` and `use_capability`. Discovery
-uses `@frely-network/the-graph`. Execution resolves identity before calling Frely;
-no x402 payment is performed. Candidate results alone are not verified providers.
+uses `@frely-network/the-graph`. Execution resolves identity before calling Frely.
+An operator-approved configuration enables budgeted Hedera Testnet payments. Candidate results alone are not verified providers.
 
 ## Install and verify
 
@@ -134,9 +134,14 @@ restricts credential delivery and never replaces ResolvedProvider.endpoint.
 
 The current executor supports only vision, maps the request to vision-basic,
 and requests non-streaming, non-stored Responses output. Redirects are disabled;
-requests time out after 30 seconds and are not retried. HTTP 402 returns
-PAYMENT_REQUIRED. maxAmount is rejected with BUDGET_CHECK_UNAVAILABLE until a
-budget-aware payment adapter exists. No payment field or transaction is invented.
+requests time out after 30 seconds and are not retried. Without payment enabled,
+HTTP 402 returns PAYMENT_REQUIRED. The paid route requires an explicit request ID
+and atomic budget; legacy maxAmount is unsupported. It preserves paymentOutcome
+independently of business output. PAYMENT_CONFIG_PATH selects an operator-approved
+policy via FRELY_PAYMENT_REGISTRY; absence leaves payment initialization disabled.
+See the [x402 architecture](../../docs/architecture.md#x402-architecture-1--client-and-gateway-responsibilities)
+and [payment workflow](../../workflows/hedera-auto-payment.md) for the input,
+authorization and recovery contracts.
 
 Integration mode is not a free-service guarantee: W must explicitly provide the
 allowed test billing or payment exemption arrangement. The Broker never bypasses
