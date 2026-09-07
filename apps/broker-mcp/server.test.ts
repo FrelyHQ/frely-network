@@ -56,7 +56,7 @@ describe("Broker stdio MCP", () => {
   test("production entry rejects absent or invalid config without stdout or fake fallback", async () => {
     for (const config of [{}, { GRAPH_ENDPOINT: "invalid-secret-url", PAYMENT_NETWORK: "hedera:testnet" }]) {
       const child = Bun.spawn([process.execPath, import.meta.dir + "/index.ts"], {
-        env: { PATH: process.env.PATH ?? "", ...config }, stdout: "pipe", stderr: "pipe", stdin: "ignore",
+        env: { PATH: process.env.PATH ?? "", GRAPH_ENDPOINT: "", PAYMENT_NETWORK: "", ...config }, stdout: "pipe", stderr: "pipe", stdin: "ignore",
       });
       const [stdout, stderr, status] = await Promise.all([new Response(child.stdout).text(), new Response(child.stderr).text(), child.exited]);
       expect(status).toBe(1);

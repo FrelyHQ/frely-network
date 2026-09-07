@@ -11,6 +11,7 @@
   },
   "scripts": {
     "start": "bun index.ts",
-    "test": "bun test server.test.ts"
+    "test": "bun test server.test.ts mock.test.ts",
+    "start:mock": "bun fixtures/mock-server.ts"
   }
 }

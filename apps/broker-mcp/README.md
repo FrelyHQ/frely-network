@@ -72,3 +72,34 @@ the code. Unexpected failures return `DISCOVERY_FAILED`. Calls are not retried.
 T3 requires G's actual Graph configuration and indexed manifest data, followed
 by a real MCP call returning candidates. A passing fake test does not satisfy
 T3. `use_capability` and the Frely execution path remain T4; payment stays separate.
+
+## Offline mock while Graph is unavailable
+
+Run this explicit development entry from the repository root:
+
+```sh
+npm exec --yes --package=bun@1.4.0 -- bun run --cwd apps/broker-mcp start:mock
+```
+
+The MCP host launches the same command and calls `find_capability`. This entry
+uses fixed synthetic candidates, never a model or network request. It prints a
+mock notice to stderr; candidate IDs are prefixed with `mock-`. There are no
+endpoint or verified fields and `supportsX402` is false. These records cannot
+serve as identity, Provider execution, payment or live Graph evidence.
+
+| Capabilities | Result |
+| --- | --- |
+| `["vision"]` | mock-vision-basic, mock-vision-ocr (fixed order) |
+| `["vision", "ocr"]` | mock-vision-ocr |
+| `["audio"]` | NO_PROVIDER |
+
+All requested capabilities must match. The mock OCR candidate is synthetic and
+does not claim that W has delivered an OCR service.
+
+Set `MOCK_DISCOVERY_SCENARIO` only for this entry: `success` (default) filters the
+fixed records, `empty` always returns NO_PROVIDER, and `query-error` returns
+GRAPH_QUERY_FAILED. Unknown scenarios exit with MOCK_SCENARIO_INVALID.
+
+Production `start` remains unchanged and never falls back to mock. T3 remains
+blocked pending a verified live Graph call. Run `bun test apps/broker-mcp` under
+Bun 1.4.0 to verify both the minimal protocol and the offline mock scenarios.
