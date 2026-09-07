@@ -31,12 +31,14 @@ Host Agent
   -> ENS / ERC-8004 verification
   -> Provider selection
   -> Hedera x402 payment
-  -> Frely Relay snapshot `POST /v1/responses`
-     -> API-key admission, AccessPoint routing, demo pricing and billing
-  -> Swarm snapshot `POST /v1/responses`
+  -> local Frely Agent-model entry
+     -> API-key admission, AccessPoint routing and demo billing
+  -> local Swarm Agent runtime
      -> `vision-basic` virtual-model execution
-  -> configured model API (`gpt-5.6-luna` by default)
-  -> result
+     -> local Frely base-model entry
+        -> base-model admission and development Provider dispatch
+  <- result and aggregate usage
+  -> local Frely development settlement
 ```
 
 The Broker coordinates the identity/discovery and payment networks off-chain.
@@ -53,10 +55,11 @@ The public repositories used for competition review are source-review surfaces:
 
 - `FrelyHQ/frely` is the public snapshot corresponding to the private
   `friday-relay` repository. For the hackathon development flow, it is the
-  caller-facing entry and owns API-key admission, routing and demo billing.
+  local caller-facing Agent-model entry and the local base-model entry. It owns
+  API-key admission, routing, Provider credentials and demo billing.
 - `FrelyHQ/swarm` is the public snapshot corresponding to the private
-  `frely-swarm` repository. It exposes the Responses-compatible
-  `vision-basic` virtual model and owns the backing-model credential.
+  `frely-swarm` repository. It runs the Responses-compatible `vision-basic`
+  Agent locally and sends every Agent model call back through Frely.
 
 The public snapshots may be inspected and used for the bounded development
 demo, but they do not expose private runtime state, private credentials,
@@ -64,11 +67,12 @@ private deployment operations, or a guarantee of production reproducibility.
 Public visibility is not a reason to place private topology or secrets in this
 repository.
 
-The Broker endpoint discovered for the paid `vision-basic` path must be the
-Frely entry, not the Swarm runtime. A direct call to Swarm is permitted only as
-a local runtime test because it bypasses Frely admission and billing. The
-Broker-facing Frely API key, the Frely-to-Swarm service token and Swarm's
-backing-model API key are distinct credentials.
+The Broker endpoint discovered for the `vision-basic` path must be the Frely
+entry, not the Swarm runtime. Model invocations cannot enter Swarm outside that
+boundary, and Swarm cannot call a final model Provider outside the Frely
+base-model boundary. Health probes and component stubs are verification aids,
+not alternate invocation paths. Each local trust boundary uses a separate
+identity, and Provider credentials remain inside Frely.
 
 ## Component-ownership-1 — Component ownership
 
@@ -100,8 +104,8 @@ The Broker must fail closed in this order:
 2. Identity verification failure prevents payment.
 3. Payment failure prevents invocation.
 4. Provider or capability failure returns a bounded execution error.
-5. An unavailable Frely entry, Swarm runtime, or backing model keeps the
-   cross-project environment unready.
+5. An unavailable Frely entry, Swarm runtime, Frely base-model entry, or
+   development Provider keeps the cross-project environment unready.
 
 Requests must carry correlation metadata without carrying secrets between
 projects. Logs and error responses must not include credentials, wallet keys,

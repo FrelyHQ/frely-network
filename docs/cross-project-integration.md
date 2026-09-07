@@ -23,8 +23,8 @@ Source: Approved hackathon snapshot boundary
 | Repository | Public role | Canonical relationship | Responsibility in this integration |
 | --- | --- | --- | --- |
 | `FrelyHQ/frely-network` | Broker and protocol project | Current project | Owns discovery, identity verification, selection, payment orchestration and the caller-side execution contract. |
-| `FrelyHQ/frely` | Relay competition snapshot | Snapshot of private `friday-relay` | Owns the caller-facing API key, AccessPoint routing, demo pricing and billing, and dispatch to an `openai-compatible` Provider. |
-| `FrelyHQ/swarm` | Swarm competition snapshot | Snapshot of private `frely-swarm` | Owns the Responses-compatible `vision-basic` virtual-model runtime and its backing-model credential. |
+| `FrelyHQ/frely` | Relay competition snapshot | Snapshot of private `friday-relay` | Owns the local Agent-model and base-model entries, AccessPoint routing, development Provider credentials and demo billing. |
+| `FrelyHQ/swarm` | Swarm competition snapshot | Snapshot of private `frely-swarm` | Runs the local Responses-compatible `vision-basic` Agent and returns its internal model calls through Frely. |
 
 These public repositories are development and review surfaces. They do not
 publish private runtime state, production operations or credentials, and their
@@ -40,7 +40,9 @@ Source: Approved minimum Vision milestone
 The minimum cross-project goal is to preserve one request boundary:
 
 ```text
-Broker -> Frely billed entry -> Swarm virtual model -> backing model API
+Broker -> Frely Agent-model entry -> Swarm virtual model
+       -> Frely base-model entry -> development Provider
+       <- result and aggregate usage -> Frely development settlement
 ```
 
 The plan includes configuration ownership, credential separation, readiness
@@ -50,9 +52,10 @@ gates and a safe smoke flow. It does not include:
 - publication or synchronization of either private canonical repository;
 - committed API keys, service tokens, wallets or real request bodies;
 - a second Vision runtime in `frely-network` or Frely;
-- a claim that Swarm MCP, the Hedera x402 path or a complete combined local
+- a claim that the model MCP path, the Hedera x402 path or a complete combined local
   environment is already implemented;
-- treating a direct Swarm call as evidence of Frely routing or billing.
+- any model invocation path that bypasses Frely on entry to or exit from
+  Swarm.
 
 ## Service-boundaries-1 — Service ownership and anti-bypass rules
 
@@ -66,13 +69,15 @@ Source: Current public snapshot contracts
 | Provider discovery | `frely-network` | Broker discovery stage | The Graph adapter and normalized Provider manifest | The paid `vision-basic` endpoint must resolve to Frely, not directly to Swarm. |
 | Web3 identity | `frely-network` | Broker verification stage | ENS and ERC-8004 adapters | Do not execute an unverified Provider endpoint. |
 | Planned payment | `frely-network` | Broker payment stage | Hedera x402 contract | Do not claim the combined payment flow before it is implemented and evidenced. |
-| Relay admission and billing | public `frely` snapshot | Broker or another caller | Frely `POST /v1/responses` and the `vision-basic` AccessPoint | Do not expose the Swarm or backing-model credential to the caller. |
-| Virtual-model execution | public `swarm` snapshot | Frely `openai-compatible` Provider | Swarm `POST /v1/responses` with model `vision-basic` | Do not allow a request to select the backing URL, backing model or credential. |
-| Backing model | Swarm configuration | Swarm only | Operator-configured OpenAI-compatible Responses API | `MODEL_API_KEY` must never enter Frely or `frely-network`. |
+| Agent-model admission and billing | public `frely` snapshot | Broker or another local caller | Frely `POST /v1/responses` and the `vision-basic` AccessPoint | Do not expose the Swarm service identity or any downstream credential to the caller. |
+| Virtual-model execution | public `swarm` snapshot | Local Frely Provider dispatch | Swarm `POST /v1/responses` with model `vision-basic` | Do not allow a caller to select a base-model URL, model or credential. |
+| Agent base-model access | public `frely` snapshot | Swarm Agent runtime | A separately authorized Frely base-model AccessPoint | Do not accept an external caller identity or recurse into an Agent AccessPoint. |
+| Development Provider | public `frely` snapshot | Frely Provider runtime | Operator-configured development Provider | Provider URLs and credentials never enter Swarm or `frely-network`. |
 
-The Broker MCP and the future Swarm MCP surface are separate boundaries. The
-current minimum Vision path uses the Responses API; it does not imply that a
-Swarm MCP server or MCP pass-through already exists.
+The Broker MCP is the Host Agent's orchestration boundary. A future model MCP
+entry remains at Frely, with Swarm limited to an internal execution adapter.
+The current minimum Vision path uses the Responses API and does not imply that
+this MCP model path already exists.
 
 ## Integration-topology-1 — Target request topology
 
@@ -89,27 +94,23 @@ Host Agent
   -> ENS / ERC-8004 verification
   -> Provider selection
   -> planned Hedera x402 payment gate
-  -> Frely `POST /v1/responses`
+  -> local Frely Agent-model entry
      -> caller API-key authentication
      -> `vision-basic` AccessPoint and entitlement resolution
      -> demo pricing and billing admission
-     -> `openai-compatible` Provider dispatch
-  -> Swarm `POST /v1/responses`
+     -> Swarm Provider dispatch
+  -> local Swarm `POST /v1/responses`
      -> `vision-basic` virtual-model execution
-  -> configured model API (`gpt-5.6-luna` by default)
-  -> bounded result
-
-Runtime-only test path
-
-Developer
-  -> Swarm `POST /v1/responses`
-  -> configured model API
-  -> bounded result
+     -> local Frely base-model entry
+        -> base-model AccessPoint and entitlement resolution
+        -> configured development Provider dispatch
+  <- bounded result and aggregate usage
+  -> local Frely development settlement
 ```
 
-The runtime-only path authenticates with the Swarm service token, but it
-bypasses Frely admission and billing. It must be labelled as a Swarm runtime
-test and never presented as the paid-model demonstration.
+Both snapshots are local development services. Health probes and component
+stubs may verify an isolated boundary, but no model request may use them to
+bypass either Frely entry.
 
 ## Workspace-layout-1 — Cross-project workspace layout
 
@@ -160,24 +161,26 @@ Source: Dependency-first development flow
 
 1. **Preflight.** Check the documented Bun and Docker requirements, the three
    sibling checkouts, ignored secret files and available loopback ports.
-2. **Start Swarm.** Supply its backing-model credential and a separate Swarm
-   access token. Require `/healthz` and `/readyz`, then verify authenticated
-   `/v1/models` contains `vision-basic`.
-3. **Configure Frely.** Create an `openai-compatible` Provider whose `/v1` base
-   is Swarm and whose CPA-managed credential is the Swarm access token. Enable
-   Provider model `vision-basic`.
-4. **Configure the Frely entry.** Create and price an enabled AccessPoint
-   exposed as `vision-basic`, route it to the Swarm Provider model and include
-   it in the demo Plan.
-5. **Check Frely.** Require its database, Gateway and control configuration to
-   be ready. A running container alone is not evidence of a usable AccessPoint.
+2. **Start Frely.** Require its database, Gateway and control configuration to
+   be ready, then configure the development Provider and its base-model
+   AccessPoint. A running container alone is not evidence of a usable model
+   path.
+3. **Start Swarm.** Configure its Agent model client to use the local Frely
+   base-model entry with a separate Agent-scoped development key. Supply a
+   separate Swarm service token, require `/healthz` and `/readyz`, then verify
+   authenticated `/v1/models` contains `vision-basic`.
+4. **Configure the Frely Agent-model entry.** Create the Swarm Provider and
+   `vision-basic` Provider model, then create and price an enabled AccessPoint
+   exposed as `vision-basic` and include it in the demo Plan.
+5. **Check the closed loop.** Require both Frely AccessPoints and the Swarm
+   service boundary to be ready before accepting a model request.
 6. **Start Frely Network.** Run the Broker MCP with configured discovery,
    identity, planned payment and Frely execution endpoints.
 7. **Run smoke checks.** Call Frely with a caller API key and a non-sensitive
    remote-image fixture. Record only status and correlation metadata.
 
 The Frely snapshot does not currently ship a complete seeded local database,
-so steps 3–5 are a configuration contract rather than a one-command clean-clone
+so steps 2–5 are a configuration contract rather than a one-command clean-clone
 promise.
 
 ## Runtime-modes-1 — Verification and configured-demo modes
@@ -188,17 +191,18 @@ Source: Public snapshot safety and current verification support
 
 ### Snapshot verification
 
-Each repository is verified independently. Swarm's automated smoke test uses a
-fake backing model and no real credential. Frely's review checks inspect its
-published boundary. This mode can prove validation, authentication and routing
-contracts but not the combined billed request.
+Each repository is verified independently. Component tests may use local stubs
+and no real credential. This mode can prove validation and adapter behavior,
+but it cannot establish an alternate model path or prove the combined Frely
+closed loop.
 
 ### Configured development demo
 
-An operator supplies test credentials outside Git, configures the Frely
-Provider and AccessPoint, and sends a Frely-authenticated request through the
-full public snapshot boundary. This proves the bounded hackathon flow only; it
-is not a production or commercial deployment mode.
+An operator supplies development credentials outside Git, configures both
+Frely AccessPoint layers and sends a Frely-authenticated request through the
+local snapshots. Swarm sends its Agent model call back through Frely. This
+proves the bounded hackathon flow only; it is not a production or commercial
+deployment mode.
 
 There is no silent fallback between modes. Missing configuration must fail
 visibly.
@@ -215,13 +219,14 @@ Source: Current Frely and Swarm configuration contracts
 | Caller Frely API key | Broker operator / Frely | Supplied only to the Frely request. |
 | Swarm `/v1` base URL | Frely Provider configuration | Non-secret URL on the explicit development network. |
 | Swarm access token | Swarm and Frely CPA Provider credential | Secret file or private credential store; never sent to the Broker caller. |
-| `MODEL_BASE_URL`, `MODEL_NAME`, `SWARM_PUBLIC_MODEL` | Swarm | Safe local config; defaults are OpenAI `/v1`, `gpt-5.6-luna` and `vision-basic`. |
-| `MODEL_API_KEY` | Swarm only | Prefer `MODEL_API_KEY_FILE`; never copy into Frely or `frely-network`. |
+| Frely base-model URL and model ID | Swarm | Must resolve to the local Frely base-model AccessPoint; never to a final Provider. |
+| Agent model-access key | Swarm and Frely | Restricted to the configured Frely base-model path; never used as the caller or service identity. |
+| Development Provider URL and credential | Frely only | Private Provider configuration; never copied into Swarm or `frely-network`. |
 | Relay database configuration | Frely | Relay-owned ignored config or secret; never a Broker or Swarm input. |
 | Testnet wallet/payment credential | Payment owner and operator | Local secret store only; never committed or logged. |
 
-The caller key, Swarm service token and backing-model key are three distinct
-credentials. They are not interchangeable, even in a local demo.
+The caller key, Swarm service token, Agent model-access key and Provider
+credential are distinct. They are not interchangeable, even in a local demo.
 
 ## Readiness-contract-1 — Readiness and health evidence
 
@@ -232,16 +237,18 @@ Source: Current snapshot health contracts and target request path
 | Check | Required evidence | Failure behavior |
 | --- | --- | --- |
 | Swarm process | `/healthz` returns success. | Do not call the runtime. |
-| Swarm configuration | `/readyz` returns success and authenticated `/v1/models` advertises `vision-basic`. | Do not configure Frely as ready. |
+| Swarm configuration | `/readyz` returns success, authenticated `/v1/models` advertises `vision-basic`, and the Agent model target is the local Frely base-model entry. | Do not configure the Agent-model entry as ready. |
 | Frely persistence and Gateway | Owning health checks pass. | Do not expose the demo entry. |
-| Frely Provider and AccessPoint | `vision-basic` Provider model, price, Plan and entitlement are enabled. | Reject before dispatch. |
+| Frely base-model path | Development Provider, base-model AccessPoint and Agent entitlement are enabled. | Do not start Agent execution. |
+| Frely Agent-model path | `vision-basic` Provider model, price, Plan and caller entitlement are enabled. | Reject before Swarm dispatch. |
 | Broker discovery | A verified manifest resolves the paid endpoint to Frely. | Abort before payment or invocation. |
 | Identity | ENS/ERC-8004 checks accept the selected identity. | Abort before payment or invocation. |
 | Planned payment | Hedera x402 result is accepted when that stage is implemented. | Do not invoke the paid entry. |
 | Execution | Frely returns a bounded Responses result for an image request. | Report a safe category without secrets or raw bodies. |
 
 Swarm `/readyz` confirms loaded configuration; it is not a live probe of the
-backing model. End-to-end execution evidence is still required.
+Frely base-model path or development Provider. End-to-end execution evidence
+is still required.
 
 ## Smoke-flow-1 — Cross-project smoke flow
 
@@ -258,13 +265,12 @@ Source: Minimum Vision request contract
    text instructions.
 4. Verify Frely performs admission and dispatches to Swarm using the separate
    service token.
-5. Verify Swarm forces its configured backing model and non-streaming,
-   non-stored execution, while returning the public model ID.
-6. Correlate status and request identifiers without logging Authorization
+5. Verify Swarm sends the Agent model call to the configured Frely base-model
+   AccessPoint and never to a final Provider URL.
+6. Verify Frely performs base-model admission and Provider dispatch, then
+   receives the Agent result and aggregate usage.
+7. Correlate status and request identifiers without logging Authorization
    headers, prompts, image contents, credentials or raw model responses.
-
-A direct Swarm request can be run separately to isolate runtime failures. Its
-result must not satisfy steps 1–4.
 
 ## Security-boundary-1 — Public snapshot safety rules
 
@@ -274,9 +280,12 @@ Source: Public competition snapshot boundary
 
 - Public files contain placeholders or secret-file references, never real
   credentials, private deployment identifiers or production topology.
-- The Broker receives only the Frely caller key; Frely receives only the Swarm
-  service token; Swarm alone receives the backing-model key.
-- Requests cannot select a Swarm backing URL, backing model or credential.
+- The Broker receives only the Frely caller key. Swarm receives only the
+  service identity and the restricted Frely Agent model-access identity.
+  Final Provider credentials remain in Frely.
+- Requests cannot select a Swarm base-model URL, base model or credential.
+- Model invocations cannot enter Swarm or leave it toward a final Provider
+  without crossing the corresponding Frely boundary.
 - Host-published services bind to loopback by default.
 - Logs and diagnostics exclude credentials, full request/response bodies,
   private filesystem paths and database URLs.
@@ -291,7 +300,7 @@ Status: Baseline
 Review level: L3
 Source: Current public repository verification contracts
 
-The public Swarm runtime can be verified without a real model credential:
+The public Swarm component can be verified without a real Provider credential:
 
 ```bash
 bun install --frozen-lockfile
@@ -301,9 +310,9 @@ docker compose config
 
 The Frely snapshot must be checked with its repository-owned review commands
 and configuration prerequisites. The current snapshots have no combined
-one-command validation. Until the Frely Provider, AccessPoint and database are
-configured, successful Swarm verification is evidence only for the runtime
-boundary.
+one-command validation. Until both Frely AccessPoint layers, the development
+Provider and the database are configured, successful Swarm verification is
+evidence only for component behavior.
 
 ## Ownership-and-delivery-1 — Implementation ownership
 
@@ -314,10 +323,10 @@ Source: Cross-project responsibility split
 | Deliverable | Owning project | Required evidence |
 | --- | --- | --- |
 | Broker discovery, identity, planned payment and execution contracts | `frely-network` | Contract tests and a manifest resolving to Frely. |
-| Caller admission, AccessPoint routing, demo pricing and billing | `FrelyHQ/frely` | Review checks plus configured `vision-basic` path. |
-| Responses-compatible `vision-basic` execution | `FrelyHQ/swarm` | Boundary scan, typecheck, unit tests, build and fake-upstream smoke test. |
-| Backing-model credential handling | `FrelyHQ/swarm` | Secret-file configuration and redacted failure behavior. |
-| Future Swarm MCP | Swarm owner | Separate implemented and verified interface; not inferred from Responses support. |
+| Caller and Agent model admission, AccessPoint routing, Provider credentials and demo billing | `FrelyHQ/frely` | Review checks plus configured Agent-model and base-model paths. |
+| Responses-compatible `vision-basic` Agent execution | `FrelyHQ/swarm` | Boundary scan, typecheck, unit tests, build and component verification. |
+| Swarm-to-Frely model access | `FrelyHQ/swarm` and `FrelyHQ/frely` | A closed-loop smoke test proving the final Provider is reached only through Frely. |
+| Future model MCP path | Frely external boundary and Swarm internal adapter | Separate implemented and verified interface; not inferred from Responses support. |
 | Future combined coordinator | `frely-network` | Readiness, redaction and cleanup checks across owning projects. |
 
 No repository may silently assume ownership of another repository's
@@ -331,14 +340,17 @@ Source: Current implementation state and remaining gaps
 
 1. Keep repository roles, model names, credential ownership and request paths
    consistent across all three public snapshots.
-2. Verify Swarm independently with its fake-upstream smoke test.
-3. Configure and verify the Frely Provider, `vision-basic` AccessPoint, price,
-   Plan and caller entitlement in an operator-owned development environment.
-4. Point the Broker's selected execution endpoint at Frely and add an honest
-   cross-project smoke check.
-5. Implement and evidence the Hedera x402 stage separately; do not substitute
+2. Verify Swarm component behavior with local stubs without defining another
+   model invocation path.
+3. Configure and verify Frely's development Provider and base-model
+   AccessPoint, then configure Swarm to use only that Frely entry.
+4. Configure the Frely `vision-basic` Agent-model AccessPoint and add a
+   closed-loop cross-project smoke check.
+5. Point the Broker's selected execution endpoint at Frely and add the Broker
+   stages to that verified loop.
+6. Implement and evidence the Hedera x402 stage separately; do not substitute
    Frely's internal demo billing for that sponsor integration.
-6. Add a thin coordinator only when it can preserve each repository's config,
+7. Add a thin coordinator only when it can preserve each repository's config,
    readiness, secret and cleanup boundaries.
 
 ## Acceptance-criteria-1 — Completion criteria
@@ -350,16 +362,18 @@ Source: Approved minimum Vision goal and public safety boundary
 The combined development flow is complete only when:
 
 - the Broker discovers and verifies a `vision-basic` endpoint at Frely;
-- the caller uses a Frely API key and cannot access either downstream secret;
+- the caller uses a Frely API key and cannot access downstream identities or
+  Provider credentials;
 - Frely admits, prices and bills the AccessPoint before dispatching to Swarm;
-- Swarm authenticates the service call, executes the configured backing model
-  and returns the public virtual-model ID;
-- missing Frely, Swarm, credential or backing-model configuration fails
+- Swarm authenticates the service call and uses only Frely's base-model entry;
+- Frely performs the final development Provider dispatch and receives the
+  Agent result and aggregate usage;
+- missing Frely, Swarm, credential, AccessPoint or development Provider
+  configuration fails
   visibly and safely;
 - the Hedera x402 state is described truthfully as implemented or still a gap;
-- direct Swarm tests are labelled as billing-bypassing runtime diagnostics;
 - validation output and logs contain no secrets or raw user/model bodies; and
-- the documentation does not claim production readiness, a complete Swarm MCP
+- the documentation does not claim production readiness, a complete model MCP
   interface or a one-command environment that has not been verified.
 
 ## Current-gaps-1 — Current gaps and status
@@ -368,13 +382,13 @@ Status: Current limitation
 Review level: L3
 Source: Current public checkout audit
 
-The Swarm snapshot now implements and verifies the minimum Responses-compatible
-`vision-basic` runtime. The Frely snapshot already contains the generic
-Provider, AccessPoint, pricing and billing mechanisms needed to route to it,
-but the public snapshot does not include a complete seeded local database or a
-combined deployment reproduction. `frely-network` remains a Broker/protocol
-scaffold without the combined coordinator, and the continuous Hedera x402 path
-has not been evidenced in this slice.
+The Swarm snapshot implements component-level Responses-compatible
+`vision-basic` behavior. The Frely snapshot contains generic Provider,
+AccessPoint, pricing and billing mechanisms, but the Frely → Swarm → Frely
+closed loop has not yet been evidenced in a complete seeded local environment.
+`frely-network` remains a Broker/protocol scaffold without the combined
+coordinator, and the continuous Hedera x402 path has not been evidenced in
+this slice.
 
 Those limits are intentional status statements. The current milestone aligns
 the executable boundary and documentation; it does not claim that the full

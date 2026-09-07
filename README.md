@@ -10,8 +10,8 @@ review surfaces are separate public snapshots:
 
 | Public repository | Public purpose | Private canonical counterpart |
 | --- | --- | --- |
-| [`FrelyHQ/frely`](https://github.com/FrelyHQ/frely) | Reviewable Relay snapshot and the billed development entry for `vision-basic` | `friday-relay` |
-| [`FrelyHQ/swarm`](https://github.com/FrelyHQ/swarm) | Reviewable Swarm virtual-model runtime exposing `vision-basic` through the Responses API | `frely-swarm` |
+| [`FrelyHQ/frely`](https://github.com/FrelyHQ/frely) | Reviewable Relay snapshot providing both local Agent-model and base-model access boundaries | `friday-relay` |
+| [`FrelyHQ/swarm`](https://github.com/FrelyHQ/swarm) | Reviewable local Swarm Agent runtime for `vision-basic` | `frely-swarm` |
 
 The public snapshots are available for source inspection and the bounded
 hackathon development flow. They do not publish private runtime state, private
@@ -64,7 +64,7 @@ for the planned Docker orchestration across this repository, the public
 - repository ownership and public/private boundaries;
 - sibling checkout layout and shared Docker network aliases;
 - startup and readiness order;
-- review mode with deterministic fixtures versus real-upstream mode;
+- component verification versus the configured local Frely closed loop;
 - secret ownership and redaction rules;
 - cross-project smoke flow and acceptance criteria.
 
