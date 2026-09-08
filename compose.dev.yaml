@@ -1,0 +1,17 @@
+services:
+  broker-mcp:
+    command: ["bun", "--watch", "apps/broker-mcp/server.ts"]
+    environment:
+      NODE_ENV: development
+    volumes:
+      - ./apps:/app/apps:ro
+      - ./packages:/app/packages:ro
+    networks:
+      frely-dev:
+        aliases:
+          - frely-broker-mcp
+
+networks:
+  frely-dev:
+    name: ${FRELY_DEV_NETWORK:-frely-dev}
+    external: true
