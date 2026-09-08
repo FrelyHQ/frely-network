@@ -64,7 +64,9 @@ network to `hedera:testnet`; neither value supplies missing Provider claims.
 Optional `METADATA_GATEWAY` is an HTTPS IPFS gateway prefix, such as
 `https://gateway.example/ipfs/`, or a `{cid}` template. The same gateway is passed
 to both Graph discovery and ERC-8004 reads. Metadata URIs must be HTTPS or IPFS
-with an explicit gateway; HTTP and data URIs are not supported by this P0 reader.
+with an explicit gateway. ERC-8004 `data:application/json;base64,...` registration
+files are decoded locally with strict base64/UTF-8 validation and a 1 MiB limit;
+they do not require a gateway or an HTTP request. HTTP metadata is not supported.
 Run Bun from the repository root to load a local `.env`, or inject these variables
 in the server environment. Do not bundle this entry or Graph credentials into
 the browser, or log URLs containing API keys.
@@ -123,6 +125,27 @@ agents without pagination, so discovery completeness is not guaranteed. No
 upstream Graph availability claim is made by these offline tests.
 
 ## ENSv2 subname preparation
+
+`bun run provider:identity --help` describes the wallet-confirmed ERC-8004/ENS
+registration flow. Its input contains a P0 `manifest` and explicit `active` and
+`x402Support` booleans. `metadata` creates a registration-v1 data URI supported by
+Agent0; `prepare-register` verifies ENS write access, simulates the official
+Sepolia Registry's `register(string)`, and outputs an unsigned transaction.
+After wallet confirmation, use its hash with `prepare-ens --registration-tx` to
+recover the actual `agentId` and prepare the exact ENSIP-25 and Responses records.
+`verify` reads back the registration and ENS linkage. All commands require
+`--input <file>`; optional `--output <file>` saves a new review artifact without
+overwriting existing evidence. RPC and Registry use the discovery configuration;
+`ENS_OPERATOR_ADDRESS` is the public wallet address that will confirm transactions.
+
+No command signs or broadcasts. Do not reuse a simulated agent ID or repeat a
+registration after an unknown wallet result: recover the confirmed transaction
+by hash. ENS preparation skips existing matching records and rejects conflicting
+endpoints. Keep registration inputs, transaction plans, and operator notes outside
+the repository. Registration/ENS verification does not prove Graph indexing,
+Provider execution, or payment. False availability/payment flags remain false;
+the Broker will exclude that identity until the Provider is ready and its metadata
+is explicitly updated through the Registry's `setAgentURI`.
 
 `bun run ens:subnames --help` lists the read-only checks and unsigned transaction
 preparation commands. No command signs or broadcasts a transaction.

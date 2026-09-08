@@ -48,8 +48,17 @@ function fixture(options: {
   format?: "manifest" | "services";
   ensEndpoint?: string;
   storedRegistrationKey?: string;
+  inline?: boolean;
+  inactive?: boolean;
 } = {}) {
   const document = metadata(options.format ?? "manifest");
+  if (options.inactive) {
+    document.active = false;
+    document.x402Support = false;
+  }
+  const sourceUri = options.inline
+    ? `data:application/json;base64,${Buffer.from(JSON.stringify(document)).toString("base64")}`
+    : metadataUri;
   const graphFetch = mock(async (url: string, init: RequestInit) => {
     if (url === graphEndpoint) {
       expect(init.method).toBe("POST");
@@ -59,7 +68,7 @@ function fixture(options: {
             id: "11155111:7",
             chainId,
             agentId: "7",
-            agentURI: metadataUri,
+            agentURI: sourceUri,
             registrationFile: { ens: ensName, active: true, x402Support: true },
           }],
         },
@@ -81,7 +90,7 @@ function fixture(options: {
     expect(request.functionName).toBe("tokenURI");
     expect(request.args).toEqual([7n]);
     expect(request.blockNumber).toBe(blockNumber);
-    return metadataUri;
+    return sourceUri;
   });
   const getIdentityBlock = mock(async () => blockNumber);
   const ercClient = {
@@ -122,6 +131,25 @@ function fixture(options: {
 }
 
 describe("fixture Graph candidate to verified identity integration", () => {
+  test("discovers and resolves inline registration JSON without a metadata HTTP request", async () => {
+    const f = fixture({ format: "services", inline: true });
+    const candidates = await f.graph.findProviders(["vision"]);
+    expect(candidates).toEqual([{ id: "7", ensName, capabilities: ["vision"], supportsX402: true }]);
+    expect(await f.resolver.resolveProvider(candidates[0]!)).toEqual({
+      id: "7", ensName, endpoint: providerEndpoint, protocol: "responses", verified: true,
+    });
+    expect(f.graphFetch).toHaveBeenCalledTimes(1);
+    expect(f.metadataFetch).not.toHaveBeenCalled();
+    expect(f.getText).toHaveBeenCalledTimes(2);
+  });
+
+  test("does not promote inactive inline metadata even when indexed flags claim it is ready", async () => {
+    const f = fixture({ format: "services", inline: true, inactive: true });
+    await expect(f.graph.findProviders(["vision"])).rejects.toThrow("NO_PROVIDER");
+    expect(f.graphFetch).toHaveBeenCalledTimes(1);
+    expect(f.metadataFetch).not.toHaveBeenCalled();
+  });
+
   test.each(["manifest", "services"] as const)("resolves %s metadata through all real module implementations", async (format) => {
     const f = fixture({ format });
     const candidates = await f.graph.findProviders(["vision"]);

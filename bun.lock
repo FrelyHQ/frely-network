@@ -94,6 +94,7 @@
       "dependencies": {
         "@frely-network/ens": "workspace:*",
         "@frely-network/protocol-manifest": "workspace:*",
+        "viem": "^2.21.0",
       },
     },
   },

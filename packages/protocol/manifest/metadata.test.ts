@@ -19,6 +19,11 @@ describe("registration metadata URLs", () => {
       .toBe(`https://gateway.example/ipfs/${cid}/agents/Provider.json`);
   });
 
+  test("does not represent inline metadata as a remote fetch URL", () => {
+    expect(() => registrationMetadataUrl(`data:application/json;base64,${btoa("{}")}`))
+      .toThrow("METADATA_URI_INVALID");
+  });
+
   test.each([
     ["http://metadata.example/file.json", undefined],
     ["https://user:secret@metadata.example/file.json", undefined],
@@ -35,6 +40,54 @@ describe("registration metadata URLs", () => {
 });
 
 describe("registration metadata fetch", () => {
+  test("decodes inline base64 JSON including UTF-8 without a transport or gateway", async () => {
+    const expected = { ...content, description: "图像识别" };
+    const encoded = Buffer.from(JSON.stringify(expected), "utf8").toString("base64");
+    let calls = 0;
+    const fetcher: MetadataFetcher = async () => { calls++; throw new Error("must not fetch"); };
+    expect(await fetchRegistrationMetadata(`data:application/json;base64,${encoded}`, {}, fetcher))
+      .toEqual(expected);
+    expect(calls).toBe(0);
+  });
+
+  test("rejects invalid inline media, base64, UTF-8, or JSON without exposing payloads", async () => {
+    const invalid = [
+      "data:application/json,{}",
+      `data:text/plain;base64,${btoa("{}")}`,
+      `data:application/json;charset=utf-8;base64,${btoa("{}")}`,
+      "data:application/json;base64,",
+      "data:application/json;base64,e30", // Missing padding.
+      "data:application/json;base64,e31=", // Noncanonical padding bits.
+      "data:application/json;base64,e30=\n",
+      "data:application/json;base64,e30%3D",
+      "data:application/json;base64,____",
+      "data:application/json;base64,/w==", // Invalid UTF-8.
+      `data:application/json;base64,${btoa("SECRET invalid JSON")}`,
+    ];
+    let calls = 0;
+    const fetcher: MetadataFetcher = async () => { calls++; return Response.json(content); };
+    for (const value of invalid) {
+      await expect(fetchRegistrationMetadata(value, {}, fetcher)).rejects.toThrow(/^METADATA_URI_INVALID$/);
+    }
+    expect(calls).toBe(0);
+  });
+
+  test("limits inline metadata by decoded bytes, including exactly the maximum", async () => {
+    const limit = 1024 * 1024;
+    const value = "x".repeat(limit - 2);
+    const atLimit = `data:application/json;base64,${btoa(JSON.stringify(value))}`;
+    expect(await fetchRegistrationMetadata(atLimit)).toBe(value);
+    for (const excess of [1, 2, 3]) {
+      const oversized = `data:application/json;base64,${btoa(JSON.stringify(value + "x".repeat(excess)))}`;
+      await expect(fetchRegistrationMetadata(oversized)).rejects.toThrow(/^METADATA_URI_INVALID$/);
+    }
+  });
+
+  test("validates timeout configuration for inline metadata too", async () => {
+    await expect(fetchRegistrationMetadata(`data:application/json;base64,${btoa("{}")}`, { timeoutMs: 0 }))
+      .rejects.toThrow(/^METADATA_CONFIG_INVALID$/);
+  });
+
   test("fetches JSON through injected transport with explicit redirect and timeout policy", async () => {
     let calls = 0;
     const fetcher: MetadataFetcher = async (url, init) => {

@@ -19,6 +19,7 @@
     "scripts/*"
   ],
   "scripts": {
+    "provider:identity": "bun scripts/register-provider/identity-cli.ts",
     "ens:subnames": "bun scripts/register-provider/ens-subnames.ts",
     "explorer:build": "bun build apps/explorer/src/main.ts --outdir apps/explorer/dist --target browser --minify",
     "explorer:dev": "bun run explorer:build && bun apps/explorer/server.ts",
