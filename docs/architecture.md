@@ -225,3 +225,18 @@ Expired output does not erase settlement or the permanent request-ID tombstone.
 Journal directories use 0700, database and sidecar files 0600. A missing output
 cannot be reconstructed from chain success. The workflow defines all recovery
 transitions; neither a restart nor a missing response permits automatic repayment.
+
+
+## X402-allowance-design-1 — Browser allowance extension
+
+Status: Draft
+Review level: L3
+Source: 2026-09-08 approved allowance scope
+
+The proposed MetaMask authorization path keeps principal in the owner account
+and uses a local Hedera spender for native allowance transfers and transaction
+fees. It introduces an explicit project allowance profile alongside existing
+direct payment; it is not implemented or supported by default facilitators.
+Contracts are in the [allowance V1 specification](payment/x402-allowance-v1.md);
+runtime handoffs and recovery are maintained only in the
+[allowance workflow](../workflows/hedera-allowance-payment.md).
