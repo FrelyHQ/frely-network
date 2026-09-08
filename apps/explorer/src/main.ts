@@ -20,6 +20,7 @@ import {
   type PreparedSubnameAction,
 } from "@frely-network/ens/subnames";
 import "./styles.css";
+import { setupIdentityBinding } from "./identity-binding.ts";
 
 const PARENT = "frely.eth";
 const OPERATOR = "0x252Cb90Cf2c190219c1cD09E550efe35B14Ec454" as Address;
@@ -49,12 +50,15 @@ let account: Address | undefined;
 let publicClient: PublicClient | undefined;
 let walletClient: WalletClient | undefined;
 let prepared: PreparedSubnameAction | undefined;
+let actionInProgress = false;
 
 function logEvent(message: string, kind: "info" | "success" | "error" = "info") {
   log.querySelector(".log-empty")?.remove();
   const item = document.createElement("div");
   item.className = `log-item ${kind}`;
-  item.innerHTML = `<span class="log-mark"></span><span>${message}</span>`;
+  const mark = document.createElement("span"); mark.className = "log-mark";
+  const text = document.createElement("span"); text.textContent = message;
+  item.append(mark, text);
   log.prepend(item);
 }
 
@@ -86,8 +90,9 @@ async function connectWallet() {
     catch { throw new Error("Switch your wallet to Ethereum Sepolia (11155111)"); }
   }
   const addresses = await provider.request({ method: "eth_requestAccounts" }) as string[];
-  account = getAddress(addresses[0]);
-  if (!isAddressEqual(account, OPERATOR)) throw new Error(`Connected wallet ${short(account)} does not own frely.eth`);
+  const connected = getAddress(addresses[0]);
+  if (!isAddressEqual(connected, OPERATOR)) throw new Error(`Connected wallet ${short(connected)} does not own frely.eth`);
+  account = connected;
   const transport = custom(provider);
   publicClient = createPublicClient({ chain: sepolia, transport });
   walletClient = createWalletClient({ account, chain: sepolia, transport });
@@ -143,11 +148,40 @@ function handleError(error: unknown) {
   logEvent(message, "error");
 }
 
-connectButton.addEventListener("click", () => connectWallet().catch(handleError));
-prepareButton.addEventListener("click", () => inspect().catch(handleError));
-registerButton.addEventListener("click", () => register().catch(handleError));
-releaseButton.addEventListener("click", () => release().catch(handleError));
-labelInput.addEventListener("change", () => inspect().catch(handleError));
+async function runAction(action: () => Promise<void>) {
+  if (actionInProgress) throw new Error("请等待当前操作完成。");
+  actionInProgress = true;
+  for (const control of [connectButton, labelInput, prepareButton, registerButton, releaseButton]) control.disabled = true;
+  try { await action(); }
+  finally {
+    actionInProgress = false;
+    connectButton.disabled = false;
+    labelInput.disabled = prepareButton.disabled = !account;
+    const registered = prepared?.inspection.children[0]?.state?.status === 2;
+    registerButton.disabled = !account || !prepared?.transaction || registered;
+    releaseButton.disabled = !account || !registered;
+  }
+}
+
+setupIdentityBinding({
+  log: logEvent, run: runAction,
+  async getWallet() {
+    if (!provider || !account || !publicClient || !walletClient) throw new Error("请先点击上方 Connect wallet 连接操作钱包。");
+    const currentAccounts = await provider.request({ method: "eth_accounts" }) as string[];
+    const chain = await provider.request({ method: "eth_chainId" }) as string;
+    if (Number(chain) !== sepolia.id || !currentAccounts[0] || !isAddressEqual(currentAccounts[0] as Address, account)) {
+      throw new Error("钱包账户或网络已变化，请刷新页面并连接 Sepolia 操作钱包。");
+    }
+    return { account, publicClient, walletClient };
+  },
+});
+
+connectButton.addEventListener("click", () => runAction(connectWallet).catch(handleError));
+prepareButton.addEventListener("click", () => runAction(inspect).catch(handleError));
+registerButton.addEventListener("click", () => runAction(register).catch(handleError));
+releaseButton.addEventListener("click", () => runAction(release).catch(handleError));
+labelInput.addEventListener("change", () => runAction(inspect).catch(handleError));
 $("clear-log").addEventListener("click", () => { log.innerHTML = '<p class="log-empty">No wallet actions yet.</p>'; });
 
 if (window.ethereum?.on) window.ethereum.on("accountsChanged", () => window.location.reload());
+if (window.ethereum?.on) window.ethereum.on("chainChanged", () => window.location.reload());

@@ -55,4 +55,15 @@ code { font-family: "SFMono-Regular", Consolas, monospace; font-size: 11px; colo
 .log-mark { width: 6px; height: 6px; border-radius: 50%; background: #8ca296; }
 .log-item.success .log-mark { background: #42a873; }
 .log-item.error .log-mark { background: #c65b4e; }
+.binding-note { color: #65736c; font-size: 13px; line-height: 1.7; margin: 12px 0; }
+.binding-preview { overflow-wrap: anywhere; }
+.binding-preview dl { margin: 0; }
+.binding-preview dt { color: #75827b; font-size: 12px; margin-top: 12px; }
+.binding-preview dd { margin: 4px 0 0; font-size: 13px; }
+.binding-record { margin-top: 16px; padding: 16px; background: #fbfdfb; border: 1px solid #e3ebe5; border-radius: 6px; }
+.binding-record code { display: block; margin: 8px 0; }
+.binding-actions { display: flex; flex-wrap: wrap; gap: 12px; margin-top: 20px; }
+#binding-message, .log-item { overflow-wrap: anywhere; }
+.log-item > span:last-child { min-width: 0; }
+.log-mark { flex-shrink: 0; }
 @media (max-width: 760px) { .shell { padding: 22px 16px 40px; } .topbar, .intro { align-items: flex-start; } .topbar { gap: 12px; } .network-pill { padding: 6px 8px; font-size: 10px; } .intro { display: block; padding: 52px 0 34px; } .intro .button { margin-top: 25px; width: 100%; } .workspace { grid-template-columns: 1fr; } .form-panel, .result-panel { min-height: 0; padding: 21px; } .activity { padding: 21px; } h2 { font-size: 39px; } }
