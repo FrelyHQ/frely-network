@@ -12,6 +12,10 @@
     "apps/broker-mcp": {
       "name": "@frely-network/broker-mcp",
       "version": "0.0.0",
+      "dependencies": {
+        "@frely-network/hedera-x402": "workspace:*",
+        "@frely-network/x402-gateway": "workspace:*",
+      },
     },
     "apps/explorer": {
       "name": "@frely-network/explorer",
@@ -40,6 +44,10 @@
     "packages/gateway/x402": {
       "name": "@frely-network/x402-gateway",
       "version": "0.0.0",
+      "dependencies": {
+        "@frely-network/hedera-x402": "workspace:*",
+        "@frely-network/shared-types": "workspace:*",
+      },
     },
     "packages/identity/ens": {
       "name": "@frely-network/ens",
@@ -60,6 +68,9 @@
     "packages/payment/hedera-x402": {
       "name": "@frely-network/hedera-x402",
       "version": "0.0.0",
+      "dependencies": {
+        "@frely-network/shared-types": "workspace:*",
+      },
     },
     "packages/protocol/manifest": {
       "name": "@frely-network/protocol-manifest",

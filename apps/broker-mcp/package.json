@@ -5,5 +5,9 @@
   "type": "module",
   "scripts": {
     "start": "bun server.ts"
+  },
+  "dependencies": {
+    "@frely-network/hedera-x402": "workspace:*",
+    "@frely-network/x402-gateway": "workspace:*"
   }
 }

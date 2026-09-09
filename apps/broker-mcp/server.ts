@@ -1,4 +1,6 @@
-import { brokerMcpFetch } from "./service.ts";
+import { createFixtureHederaX402AdmissionVerifier } from "@frely-network/hedera-x402";
+import { createX402PaymentAdmissionHandler } from "@frely-network/x402-gateway";
+import { createBrokerMcpFetch } from "./service.ts";
 
 function port(value: string | undefined): number {
   if (value === undefined) return 4100;
@@ -11,10 +13,16 @@ function port(value: string | undefined): number {
 }
 
 const hostname = process.env.HOST?.trim() || "127.0.0.1";
+const paymentAdmission = process.env.FRELY_NETWORK_A2A_PAYMENT_FIXTURE === "1"
+  ? createX402PaymentAdmissionHandler({
+    verifier: createFixtureHederaX402AdmissionVerifier(),
+    ...(process.env.FRELY_NETWORK_RELAY_API_KEY ? { apiKey: process.env.FRELY_NETWORK_RELAY_API_KEY } : {}),
+  })
+  : undefined;
 const server = Bun.serve({
   hostname,
   port: port(process.env.PORT),
-  fetch: brokerMcpFetch,
+  fetch: createBrokerMcpFetch({ paymentAdmission }),
 });
 
 console.log(JSON.stringify({
