@@ -27,8 +27,10 @@ const candidate: ProviderCandidate = {
 const resolved: ResolvedProvider = {
   id: candidate.id,
   ensName: candidate.ensName,
-  endpoint: "https://provider.example.test/v1/responses",
-  protocol: "responses",
+  endpoint: "https://provider.example.test/a2a",
+  protocol: "a2a",
+  agentCardUrl: "https://provider.example.test/agent-card.json",
+  a2aProtocolVersion: "0.3.0",
   verified: true,
 };
 

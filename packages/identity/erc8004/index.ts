@@ -2,6 +2,8 @@ import { createPublicClient, http, parseAbi, type Address, type PublicClient } f
 import { sepolia } from "viem/chains";
 import type { ProviderCandidate, ResolvedProvider } from "@frely-network/shared-types";
 import { ENSV2_SEPOLIA_CHAIN_ID, ensip25AgentRegistrationKey, type EnsReader } from "@frely-network/ens";
+import { inspectAgentCard, type AgentCardOptions } from "./agent-card.ts";
+export { inspectAgentCard, publicA2AUrl, type AgentCardOptions } from "./agent-card.ts";
 import {
   fetchRegistrationMetadata,
   normalizeAgentId,
@@ -43,6 +45,7 @@ const safeErrors = new Set([
   "IDENTITY_VERIFICATION_FAILED", "REGISTRATION_METADATA_INVALID", "METADATA_URI_INVALID",
   "METADATA_FETCH_FAILED", "METADATA_CONFIG_INVALID", "ENS_ENDPOINT_MISSING",
   "ENS_ENDPOINT_MISMATCH", "ENDPOINT_NOT_HTTPS", "PROTOCOL_NOT_SUPPORTED", "CAPABILITY_NOT_SUPPORTED",
+  "A2A_CARD_INVALID", "A2A_PROTOCOL_NOT_SUPPORTED", "A2A_ENDPOINT_MISMATCH",
 ]);
 
 function verificationError(error: unknown): Error {
@@ -94,13 +97,14 @@ export class ViemErc8004Reader implements Erc8004Reader {
   }
 }
 
-/** Composes ENS and ERC-8004 checks into the unchanged B-facing contract. */
+/** Composes ENS, ERC-8004 and Card checks into the B-facing A2A contract. */
 export class ProviderIdentityResolver {
-  constructor(private readonly ens: EnsReader, private readonly erc8004: Erc8004Reader) {}
+  constructor(private readonly ens: EnsReader, private readonly erc8004: Erc8004Reader,
+    private readonly cardOptions: AgentCardOptions = {}) {}
 
   async resolveProvider(candidate: ProviderCandidate): Promise<ResolvedProvider> {
     try {
-      if (!candidate || typeof candidate.id !== "string" || candidate.supportsX402 !== true ||
+      if (!candidate || typeof candidate.id !== "string" || typeof candidate.supportsX402 !== "boolean" ||
           !Array.isArray(candidate.capabilities) || !candidate.capabilities.length ||
           candidate.capabilities.some((capability) => typeof capability !== "string" || !capability.trim())) {
         throw new Error("IDENTITY_VERIFICATION_FAILED");
@@ -117,6 +121,7 @@ export class ProviderIdentityResolver {
       const manifest = normalizeRegistrationMetadata(identity.metadata, {
         chainId: identity.chainId, registryAddress, agentId,
       });
+      if (candidate.supportsX402 !== manifest.x402Support) throw new Error("IDENTITY_VERIFICATION_FAILED");
       if (candidateName !== manifest.identity.ens) throw new Error("IDENTITY_VERIFICATION_FAILED");
       if (!candidate.capabilities.every((capability) => manifest.capabilities.includes(capability))) {
         throw new Error("CAPABILITY_NOT_SUPPORTED");
@@ -134,7 +139,8 @@ export class ProviderIdentityResolver {
       if (ens.protocol !== providerInterface.protocol) throw new Error("PROTOCOL_NOT_SUPPORTED");
       const endpoint = normalizeHttpsUrl(ens.endpoint);
       if (endpoint !== providerInterface.endpoint) throw new Error("ENS_ENDPOINT_MISMATCH");
-      return { id: agentId, ensName: manifest.identity.ens, endpoint, protocol: providerInterface.protocol, verified: true };
+      const card = await inspectAgentCard(providerInterface.agentCardUrl, endpoint, this.cardOptions);
+      return { id: agentId, ensName: manifest.identity.ens, ...card, protocol: "a2a", verified: true };
     } catch (error) { throw verificationError(error); }
   }
 }

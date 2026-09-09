@@ -1,6 +1,9 @@
 import { getAddress, zeroAddress, type Address } from "viem";
 import { normalize } from "viem/ens";
-import { validateManifest, type P0CapabilityProviderManifest } from "./index.ts";
+import {
+  validateManifest, validateLegacyManifest,
+  type P0CapabilityProviderManifest, type LegacyResponsesManifest,
+} from "./index.ts";
 
 export const ERC8004_REGISTRATION_TYPE = "https://eips.ethereum.org/EIPS/eip-8004#registration-v1";
 
@@ -86,8 +89,27 @@ function verifyRegistrations(value: unknown, context: RegistrationContext): void
   if (!matched) return invalid();
 }
 
-/** Normalize a Frely manifest or ERC-8004 services file without inventing claims. */
-export function normalizeRegistrationMetadata(value: unknown, context: RegistrationContext): P0CapabilityProviderManifest {
+/** Normalize A2A metadata, preserving the native x402 declaration separately from the Network payment profile. */
+export function normalizeRegistrationMetadata(
+  value: unknown,
+  context: RegistrationContext,
+): P0CapabilityProviderManifest & { x402Support: boolean } {
+  return normalizeMetadata(value, context, "a2a") as P0CapabilityProviderManifest & { x402Support: boolean };
+}
+
+/** Management and historical audit only. Production normalization never falls back to Responses. */
+export function normalizeLegacyRegistrationMetadata(
+  value: unknown,
+  context: RegistrationContext,
+): LegacyResponsesManifest {
+  return normalizeMetadata(value, context, "responses") as LegacyResponsesManifest;
+}
+
+function normalizeMetadata(
+  value: unknown,
+  context: RegistrationContext,
+  protocol: "a2a" | "responses",
+): (P0CapabilityProviderManifest & { x402Support: boolean }) | LegacyResponsesManifest {
   if (!Number.isSafeInteger(context.chainId) || context.chainId <= 0) return invalid();
   const registryAddress = normalizeRegistryAddress(context.registryAddress);
   const agentId = normalizeAgentId(context.agentId);
@@ -96,17 +118,24 @@ export function normalizeRegistrationMetadata(value: unknown, context: Registrat
   const sources = [file, extension];
   const isRegistration = file.type !== undefined || file.services !== undefined;
   if (isRegistration && (file.type !== ERC8004_REGISTRATION_TYPE || !Array.isArray(file.services) ||
-      file.active !== true || file.x402Support !== true)) return invalid();
+      file.active !== true)) return invalid();
+  if (protocol === "a2a") {
+    if (file.active !== true || typeof file.x402Support !== "boolean") return invalid();
+  } else if (isRegistration && file.x402Support !== true) return invalid();
 
   const names: string[] = [];
   const endpoints: string[] = [];
+  const cardUrls: string[] = [];
+  let hasA2AInterface = false;
+  let hasA2AService = false;
   const capabilityClaims: string[][] = [];
   const paymentClaims: Array<Record<string, unknown>> = [];
   const oasfSkills: string[] = [];
 
   for (const source of sources) {
     if (source.active !== undefined && source.active !== true) return invalid();
-    if (source.x402Support !== undefined && source.x402Support !== true) return invalid();
+    if (source.x402Support !== undefined && source.x402Support !==
+        (protocol === "a2a" ? file.x402Support : true)) return invalid();
     if (source.identity !== undefined) {
       const identity = record(source.identity);
       if (identity.ens !== undefined) names.push(normalizeEnsName(identity.ens));
@@ -130,15 +159,20 @@ export function normalizeRegistrationMetadata(value: unknown, context: Registrat
     if (source.payment !== undefined) paymentClaims.push(record(source.payment));
     if (source.interfaces !== undefined) {
       if (!Array.isArray(source.interfaces) || !source.interfaces.length) return invalid();
+      if (protocol === "a2a" && source.interfaces.length !== 1) return invalid();
       for (const item of source.interfaces) {
         const providerInterface = record(item);
-        if (providerInterface.protocol !== "responses") throw new Error("PROTOCOL_NOT_SUPPORTED");
+        if (providerInterface.protocol !== protocol) throw new Error("PROTOCOL_NOT_SUPPORTED");
         endpoints.push(normalizeHttpsUrl(providerInterface.endpoint));
+        if (protocol === "a2a") {
+          cardUrls.push(normalizeHttpsUrl(providerInterface.agentCardUrl));
+          hasA2AInterface = true;
+        }
       }
     }
-    if (source.protocol !== undefined && source.protocol !== "responses") throw new Error("PROTOCOL_NOT_SUPPORTED");
+    if (source.protocol !== undefined && source.protocol !== protocol) throw new Error("PROTOCOL_NOT_SUPPORTED");
     if (source.endpoint !== undefined) {
-      if (source.protocol !== "responses") throw new Error("PROTOCOL_NOT_SUPPORTED");
+      if (source.protocol !== protocol) throw new Error("PROTOCOL_NOT_SUPPORTED");
       endpoints.push(normalizeHttpsUrl(source.endpoint));
     }
   }
@@ -149,7 +183,12 @@ export function normalizeRegistrationMetadata(value: unknown, context: Registrat
       const name = string(service.name).toLowerCase();
       const endpoint = string(service.endpoint);
       if (name === "ens") names.push(normalizeEnsName(endpoint));
-      if (name === "responses") endpoints.push(normalizeHttpsUrl(endpoint));
+      if (protocol === "responses" && name === "responses") endpoints.push(normalizeHttpsUrl(endpoint));
+      if (protocol === "a2a" && name === "a2a") {
+        // ERC-8004 publishes the Agent Card here, never the execution endpoint.
+        cardUrls.push(normalizeHttpsUrl(endpoint));
+        hasA2AService = true;
+      }
       if (name === "oasf" && service.skills !== undefined) oasfSkills.push(...strings(service.skills));
     }
   }
@@ -161,13 +200,23 @@ export function normalizeRegistrationMetadata(value: unknown, context: Registrat
       claim.some((capability) => !capabilities.includes(capability)))) return invalid();
   if (!paymentClaims.length || paymentClaims.some((payment) =>
       payment.protocol !== "x402" || payment.network !== "hedera:testnet")) return invalid();
+  // This synchronous profile requires an explicit execution claim before the
+  // resolver cross-checks ENS and fetches the Card; it never guesses a URL.
+  if (protocol === "a2a" && !hasA2AInterface) throw new Error("A2A_EXECUTION_ENDPOINT_REQUIRED");
+  if (protocol === "a2a" && isRegistration && !hasA2AService) return invalid();
 
-  return validateManifest({
+  const manifest = {
     name: file.name,
     ...(file.description === undefined ? {} : { description: file.description }),
     capabilities,
     identity: { ens: agree(names), agentId },
-    interfaces: [{ protocol: "responses", endpoint: agree(endpoints) }],
+    interfaces: [{
+      protocol,
+      endpoint: agree(endpoints),
+      ...(protocol === "a2a" ? { agentCardUrl: agree(cardUrls) } : {}),
+    }],
     payment: { ...paymentClaims[0] },
-  });
+  };
+  if (protocol === "responses") return validateLegacyManifest(manifest);
+  return { ...validateManifest(manifest), x402Support: file.x402Support as boolean };
 }

@@ -12,7 +12,7 @@ function fixture(config: Partial<EnsConfig> = {}) {
   const state = {
     chainId: ENSV2_SEPOLIA_CHAIN_ID,
     resolver: resolverAddress as string | null,
-    endpoint: "https://vision.frely.network/v1/responses" as string | null,
+    endpoint: "https://vision.frely.network/a2a" as string | null,
     registration: "1" as string | null,
     failure: "",
   };
@@ -94,8 +94,8 @@ describe("ViemEnsReader (RPC fixtures)", () => {
     expect(await reader.resolve("VISION-BASIC.FRELY.ETH", context)).toEqual({
       name: "vision-basic.frely.eth",
       resolver: resolverAddress,
-      endpoint: "https://vision.frely.network/v1/responses",
-      protocol: "responses",
+      endpoint: "https://vision.frely.network/a2a",
+      protocol: "a2a",
       agentRegistration: value,
       agentRegistrationKey: registrationKey,
     });
@@ -103,6 +103,7 @@ describe("ViemEnsReader (RPC fixtures)", () => {
     expect(recordCalls).toHaveLength(3);
     expect(recordCalls.every((call) => call.name === "vision-basic.frely.eth" && call.blockNumber === 123n)).toBe(true);
     expect(recordCalls.filter((call) => call.key).every((call) => call.strict === true)).toBe(true);
+    expect(calls.find((call) => call.method === "endpoint")?.key).toBe("agent-endpoint[a2a]");
   });
 
   test.each([undefined, {}, { registryAddress }, { agentId: "7" }])("requires complete identity context: %p", async (value) => {
@@ -168,7 +169,7 @@ describe("ViemEnsReader (RPC fixtures)", () => {
     await expect(reader.resolve("vision-basic.frely.eth", context)).rejects.toThrow("ENS_ENDPOINT_MISSING");
   });
 
-  test.each(["http://vision.frely.network/v1/responses", "ftp://vision.frely.network/v1/responses"])(
+  test.each(["http://vision.frely.network/a2a", "ftp://vision.frely.network/a2a"])(
     "rejects non-HTTPS endpoint %s", async (endpoint) => {
       const { reader, state } = fixture();
       state.endpoint = endpoint;
@@ -177,10 +178,10 @@ describe("ViemEnsReader (RPC fixtures)", () => {
   );
 
   test.each([
-    "https://user:secret@vision.frely.network/v1/responses", "https://vision.frely.network/v1/responses#ignored",
-    "https://vision.frely.network/v1/responses#", " https://vision.frely.network/v1/responses",
-    "https://vision.frely.network/\\v1/responses", "https://vision.example.com/v1/responses",
-    "https://provider.invalid/v1/responses", "https://localhost/v1/responses", "https://127.0.0.1/v1/responses",
+    "https://user:secret@vision.frely.network/a2a", "https://vision.frely.network/a2a#ignored",
+    "https://vision.frely.network/a2a#", " https://vision.frely.network/a2a",
+    "https://vision.frely.network/\\a2a", "https://vision.example.com/a2a",
+    "https://provider.invalid/a2a", "https://localhost/a2a", "https://127.0.0.1/a2a",
   ])("rejects unsafe or placeholder endpoint %s", async (endpoint) => {
     const { reader, state } = fixture();
     state.endpoint = endpoint;
@@ -191,10 +192,14 @@ describe("ViemEnsReader (RPC fixtures)", () => {
     expect(() => fixture({ requireHttps: false })).toThrow("ENDPOINT_NOT_HTTPS");
   });
 
-  test.each(["agent-endpoint[unknown]", "prefix-agent-endpoint[responses]", "agent-endpoint[responses]-suffix"])(
+  test.each([
+    "agent-endpoint[responses]", "agent-endpoint[mcp]", "agent-endpoint[http]", "agent-endpoint[unknown]",
+    "prefix-agent-endpoint[a2a]", "agent-endpoint[a2a]-suffix",
+  ])(
     "rejects unsupported endpoint record key %s", async (agentEndpointKey) => {
-      const { reader } = fixture({ agentEndpointKey });
+      const { reader, calls } = fixture({ agentEndpointKey });
       await expect(reader.resolve("vision-basic.frely.eth", context)).rejects.toThrow("IDENTITY_VERIFICATION_FAILED");
+      expect(calls).toHaveLength(0);
     },
   );
 

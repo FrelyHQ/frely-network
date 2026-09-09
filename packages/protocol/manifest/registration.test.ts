@@ -1,11 +1,12 @@
 import { describe, expect, test } from "bun:test";
-import type { P0CapabilityProviderManifest } from "./index.ts";
+import type { P0CapabilityProviderManifest, LegacyResponsesManifest } from "./index.ts";
 import {
   ERC8004_REGISTRATION_TYPE,
   normalizeAgentId,
   normalizeEnsName,
   normalizeHttpsUrl,
   normalizeRegistrationMetadata,
+  normalizeLegacyRegistrationMetadata,
   type RegistrationContext,
 } from "./registration.ts";
 
@@ -15,7 +16,8 @@ const context: RegistrationContext = {
   registryAddress: "0x1111111111111111111111111111111111111111",
   agentId: "42",
 };
-const endpoint = "https://provider.example/v1/responses";
+const endpoint = "https://provider.example/a2a";
+const agentCardUrl = "https://provider.example/.well-known/agent-card.json";
 const payment = { protocol: "x402", network: "hedera:testnet" } as const;
 
 function manifest(): P0CapabilityProviderManifest {
@@ -24,9 +26,17 @@ function manifest(): P0CapabilityProviderManifest {
     description: "Synthetic registration fixture",
     capabilities: ["vision"],
     identity: { ens: "fixture.example.eth", agentId: "42" },
-    interfaces: [{ protocol: "responses", endpoint }],
+    interfaces: [{ protocol: "a2a", endpoint, agentCardUrl }],
     payment: { ...payment },
   };
+}
+
+function manifestMetadata() {
+  return { ...manifest(), active: true, x402Support: false };
+}
+
+function normalizedManifest() {
+  return { ...manifest(), x402Support: false };
 }
 
 function registration() {
@@ -35,11 +45,12 @@ function registration() {
     name: "fixture-vision",
     description: "Synthetic registration fixture",
     active: true,
-    x402Support: true,
+    x402Support: false,
     services: [
       { name: "ENS", endpoint: "fixture.example.eth" },
-      { name: "Responses", endpoint },
+      { name: "A2A", endpoint: agentCardUrl },
     ],
+    interfaces: [{ protocol: "a2a", endpoint, agentCardUrl }],
     capabilities: ["vision"],
     payment: { ...payment },
     registrations: [{
@@ -51,23 +62,23 @@ function registration() {
 
 describe("registration metadata normalization", () => {
   test("accepts a bare manifest and normalizes identity without mutating input", () => {
-    const input = manifest();
+    const input = manifestMetadata();
     input.identity.ens = "Fixture.EXAMPLE.eth";
     const before = structuredClone(input);
-    expect(normalizeRegistrationMetadata(input, context)).toEqual(manifest());
+    expect(normalizeRegistrationMetadata(input, context)).toEqual(normalizedManifest());
     expect(input).toEqual(before);
   });
 
   test("normalizes ERC-8004 services plus explicit Frely claims", () => {
-    expect(normalizeRegistrationMetadata(registration(), context)).toEqual(manifest());
+    expect(normalizeRegistrationMetadata(registration(), context)).toEqual(normalizedManifest());
   });
 
   test("accepts Frely claims in an Agent0 metadata bag", () => {
-    const { capabilities, payment: paymentClaim, ...input } = registration();
+    const { capabilities, payment: paymentClaim, interfaces, ...input } = registration();
     expect(normalizeRegistrationMetadata({
       ...input,
-      metadata: { capabilities, payment: paymentClaim },
-    }, context)).toEqual(manifest());
+      metadata: { capabilities, payment: paymentClaim, interfaces },
+    }, context)).toEqual(normalizedManifest());
   });
 
   test("accepts agreeing duplicates after ENS, URL, and capability normalization", () => {
@@ -77,14 +88,18 @@ describe("registration metadata normalization", () => {
       ...input,
       metadata: {
         identity: { ens: "Fixture.EXAMPLE.eth", agentId: 42 },
-        protocol: "responses",
-        endpoint: "https://PROVIDER.example:443/v1/responses",
+        protocol: "a2a",
+        endpoint: "https://PROVIDER.example:443/a2a",
+        interfaces: [{
+          protocol: "a2a", endpoint: "https://PROVIDER.example:443/a2a",
+          agentCardUrl: "https://PROVIDER.example:443/.well-known/agent-card.json",
+        }],
         capabilities: ["ocr", "vision", "vision"],
         payment,
       },
     }, context);
     expect(normalized.capabilities).toEqual(["vision", "ocr"]);
-    expect(normalized.interfaces).toEqual([{ protocol: "responses", endpoint }]);
+    expect(normalized.interfaces).toEqual([{ protocol: "a2a", endpoint, agentCardUrl }]);
   });
 
   test.each([
@@ -95,7 +110,8 @@ describe("registration metadata normalization", () => {
     { agentId: "43" },
     { capabilities: ["ocr"] },
     { capabilities: [] },
-    { protocol: "responses", endpoint: "https://other.example/v1/responses" },
+    { protocol: "a2a", endpoint: "https://other.example/a2a" },
+    { interfaces: [{ protocol: "a2a", endpoint, agentCardUrl: "https://other.example/card.json" }] },
     { payment: { protocol: "x402", network: "hedera:mainnet" } },
     { payment: { protocol: "other", network: "hedera:testnet" } },
   ])("rejects conflicting metadata claim %j", (metadata) => {
@@ -162,14 +178,34 @@ describe("registration metadata normalization", () => {
     }, context)).toThrow();
   });
 
-  test.each(["active", "x402Support"] as const)("requires explicit %s=true on a registration file", (field) => {
-    for (const value of [false, undefined, "true", 1]) {
-      expect(() => normalizeRegistrationMetadata({ ...registration(), [field]: value }, context)).toThrow();
+  test("requires explicit active=true for both manifests and registration files", () => {
+    for (const input of [manifestMetadata(), registration()]) {
+      for (const active of [false, undefined, "true", 1, null]) {
+        expect(() => normalizeRegistrationMetadata({ ...input, active }, context)).toThrow();
+      }
     }
-    expect(() => normalizeRegistrationMetadata({ ...manifest(), [field]: false }, context)).toThrow();
     expect(() => normalizeRegistrationMetadata({
-      ...registration(), metadata: { [field]: false },
+      ...registration(), metadata: { active: false },
     }, context)).toThrow();
+  });
+
+  test("requires an explicit boolean x402Support and preserves the native claim including false", () => {
+    for (const input of [manifestMetadata(), registration()]) {
+      for (const x402Support of [undefined, "true", "false", 0, 1, null]) {
+        expect(() => normalizeRegistrationMetadata({ ...input, x402Support }, context)).toThrow();
+      }
+      for (const x402Support of [false, true]) {
+        const output = normalizeRegistrationMetadata({ ...input, x402Support }, context);
+        expect(output.x402Support).toBe(x402Support);
+        expect(output.payment).toEqual(payment);
+        expect(normalizeRegistrationMetadata({
+          ...input, x402Support, metadata: { active: true, x402Support },
+        }, context)).toEqual(output);
+        expect(() => normalizeRegistrationMetadata({
+          ...input, x402Support, metadata: { x402Support: !x402Support },
+        }, context)).toThrow();
+      }
+    }
   });
 
   test("rejects unsupported registration types and services-only files without a type", () => {
@@ -178,14 +214,40 @@ describe("registration metadata normalization", () => {
     }
   });
 
-  test("ignores unrelated services but cannot use them as Responses endpoints", () => {
+  test("ignores unrelated services but requires an A2A Card service on registration files", () => {
     const input = registration();
     const extraService = { name: "MCP", endpoint: "https://mcp.example" };
     expect(normalizeRegistrationMetadata({ ...input, services: [...input.services, extraService] }, context))
-      .toEqual(manifest());
+      .toEqual(normalizedManifest());
     expect(() => normalizeRegistrationMetadata({
       ...input, services: [input.services[0], extraService],
     }, context)).toThrow();
+  });
+
+  test("keeps the A2A Card separate from execution and rejects mismatched service Card URLs", () => {
+    const input = registration();
+    const output = normalizeRegistrationMetadata(input, context);
+    expect(output.interfaces[0].endpoint).toBe(endpoint);
+    expect(input.services[1].endpoint).toBe(output.interfaces[0].agentCardUrl);
+    expect(input.services[1].endpoint).not.toBe(output.interfaces[0].endpoint);
+    input.services[1].endpoint = "https://other.example/card.json";
+    expect(() => normalizeRegistrationMetadata(input, context)).toThrow("REGISTRATION_METADATA_INVALID");
+  });
+
+  test("fails closed for official A2A services without the explicit Frely execution extension", () => {
+    const { interfaces: _, ...input } = registration();
+    expect(() => normalizeRegistrationMetadata(input, context)).toThrow("A2A_EXECUTION_ENDPOINT_REQUIRED");
+    expect(() => normalizeRegistrationMetadata({
+      ...input, protocol: "a2a", endpoint,
+    }, context)).toThrow("A2A_EXECUTION_ENDPOINT_REQUIRED");
+  });
+
+  test("rejects multiple execution interfaces even when the declarations agree", () => {
+    for (const input of [manifestMetadata(), registration()]) {
+      expect(() => normalizeRegistrationMetadata({
+        ...input, interfaces: [...input.interfaces, ...input.interfaces],
+      }, context)).toThrow("REGISTRATION_METADATA_INVALID");
+    }
   });
 
   test("rejects a conflicting unsupported protocol even alongside valid services", () => {
@@ -197,18 +259,62 @@ describe("registration metadata normalization", () => {
   });
 
   test.each([
-    "http://provider.example/v1/responses",
-    "https://user:secret@provider.example/v1/responses",
-    "https://provider.example/v1/responses#fragment",
+    "http://provider.example/a2a",
+    "https://user:secret@provider.example/a2a",
+    "https://provider.example/a2a#fragment",
     "https://provider.example/a path",
     "https://provider.example\\other",
   ])("rejects unsafe endpoint %s from manifests and services", (unsafe) => {
     expect(() => normalizeRegistrationMetadata({
-      ...manifest(), interfaces: [{ protocol: "responses", endpoint: unsafe }],
+      ...manifestMetadata(), interfaces: [{ protocol: "a2a", endpoint: unsafe, agentCardUrl }],
+    }, context)).toThrow();
+    expect(() => normalizeRegistrationMetadata({
+      ...manifestMetadata(), interfaces: [{ protocol: "a2a", endpoint, agentCardUrl: unsafe }],
     }, context)).toThrow();
     const input = registration();
     input.services[1].endpoint = unsafe;
     expect(() => normalizeRegistrationMetadata(input, context)).toThrow();
+  });
+});
+
+describe("legacy registration management and historical audit", () => {
+  const responsesEndpoint = "https://provider.example/v1/responses";
+  function legacyManifest(): LegacyResponsesManifest {
+    return { ...manifest(), interfaces: [{ protocol: "responses", endpoint: responsesEndpoint }] };
+  }
+  function legacyRegistration() {
+    const { interfaces: _, ...input } = registration();
+    return {
+      ...input, x402Support: true,
+      services: [input.services[0], { name: "Responses", endpoint: responsesEndpoint }],
+    };
+  }
+
+  test("retains the historical Responses manifest output and accepts lifecycle projections", () => {
+    expect(normalizeLegacyRegistrationMetadata(legacyManifest(), context)).toEqual(legacyManifest());
+    expect(normalizeLegacyRegistrationMetadata(legacyRegistration(), context)).toEqual(legacyManifest());
+    expect(normalizeLegacyRegistrationMetadata({
+      ...legacyManifest(), active: true, x402Support: true,
+    }, context)).toEqual(legacyManifest());
+  });
+
+  test("runtime normalization never falls back to Responses", () => {
+    expect(() => normalizeRegistrationMetadata({
+      ...legacyManifest(), active: true, x402Support: true,
+    }, context)).toThrow("PROTOCOL_NOT_SUPPORTED");
+    expect(() => normalizeRegistrationMetadata(legacyRegistration(), context))
+      .toThrow("A2A_EXECUTION_ENDPOINT_REQUIRED");
+    expect(() => normalizeLegacyRegistrationMetadata(registration(), context)).toThrow();
+  });
+
+  test("keeps the legacy payment, active, identity, and endpoint checks", () => {
+    for (const patch of [
+      { active: false }, { x402Support: false }, { identity: { ens: "other.example.eth" } },
+      { protocol: "responses", endpoint: "https://other.example/v1/responses" },
+      { payment: { protocol: "x402", network: "hedera:mainnet" } },
+    ]) {
+      expect(() => normalizeLegacyRegistrationMetadata({ ...legacyRegistration(), ...patch }, context)).toThrow();
+    }
   });
 });
 

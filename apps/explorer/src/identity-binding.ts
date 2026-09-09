@@ -37,7 +37,7 @@ export function setupIdentityBinding(options: {
     write.disabled = busy || !plan?.transactions.length || !!pending();
     refresh.disabled = busy;
     verify.disabled = busy || !plan || plan.transactions.length > 0;
-    write.textContent = plan?.transactions[0]?.key === "agent-endpoint[responses]"
+    write.textContent = plan?.transactions[0]?.key === `agent-endpoint[${plan?.protocol}]`
       ? "写入 endpoint 记录" : "写入 ERC-8004 关联记录";
   }
   async function request<T>(path = ""): Promise<T> {
@@ -53,6 +53,7 @@ export function setupIdentityBinding(options: {
     const details = document.createElement("dl");
     for (const [label, content] of [
       ["ENS 名称", value.ensName], ["ERC-8004 Agent ID", value.agentId],
+      ["服务协议", value.protocol === "a2a" ? "A2A" : "Responses（历史身份）"],
       ["操作钱包", value.owner], ["Resolver（交易目标）", value.resolver],
       ["网络 / 转账金额", "Ethereum Sepolia (11155111) / 0 ETH，仅 gas"],
       ["读取区块", value.blockNumber],
@@ -73,8 +74,11 @@ export function setupIdentityBinding(options: {
     setStatus(value.transactions.length ? `待写入 ${value.transactions.length} 条记录` : "记录已就绪，待回验");
   }
   function validate(value: IdentityBindingPlan) {
+    if (value.protocol !== "a2a" && value.protocol !== "responses") {
+      throw new Error("绑定计划的服务协议不受支持，已停止签名。");
+    }
     const expected = [
-      { key: "agent-endpoint[responses]", value: value.endpoint },
+      { key: `agent-endpoint[${value.protocol}]`, value: value.endpoint },
       { key: ensip25AgentRegistrationKey(registry, value.agentId, sepolia.id), value: "1" },
     ];
     if (value.chainId !== sepolia.id || new URL(value.endpoint).protocol !== "https:" ||
@@ -126,7 +130,7 @@ export function setupIdentityBinding(options: {
     if (!next) return;
     const latest = await request<IdentityBindingPlan>();
     validate(latest);
-    const sameIdentity = ["ensName", "agentId", "endpoint", "owner", "resolver", "registrationTx"] as const;
+    const sameIdentity = ["ensName", "agentId", "endpoint", "protocol", "owner", "resolver", "registrationTx"] as const;
     const current = latest.transactions.find((item) => item.key === next.key);
     if (sameIdentity.some((key) => shown[key] !== latest[key]) || JSON.stringify(current) !== JSON.stringify(next)) {
       plan = latest; render(latest);

@@ -75,6 +75,12 @@ function enabled(values: unknown[]): boolean {
   return present.length > 0 && present.every((value) => value === true);
 }
 
+function consistentBoolean(values: unknown[]): boolean | undefined {
+  const present = values.filter((value) => value !== undefined);
+  if (!present.length || present.some((value) => typeof value !== "boolean" || value !== present[0])) return undefined;
+  return present[0] as boolean;
+}
+
 function agentIdFromRow(row: GraphProviderRow, network: string): string {
   if (row.chainId !== undefined && normalizeAgentId(row.chainId) !== network) {
     throw new Error("GRAPH_IDENTITY_MISMATCH");
@@ -119,28 +125,32 @@ export class TheGraphDiscovery {
     if (!wanted.length) throw new Error("CAPABILITY_NOT_SUPPORTED");
     const controller = new AbortController();
     const timeout = setTimeout(() => controller.abort(), this.config.requestTimeoutMs ?? 10_000);
-    let response: Response;
+    let payload: unknown;
     try {
-      response = await this.fetcher(this.config.endpoint, {
+      const response = await this.fetcher(this.config.endpoint, {
         method: "POST",
         headers: { "content-type": "application/json" },
         body: JSON.stringify({ query: this.config.query ?? defaultQuery }),
         signal: controller.signal,
         redirect: "error",
       });
-    } catch { throw new Error("GRAPH_QUERY_FAILED"); }
-    finally { clearTimeout(timeout); }
-    if (!response.ok) throw new Error("GRAPH_QUERY_FAILED");
-    let payload: unknown;
-    try { payload = await response.json(); } catch { throw new Error("GRAPH_SCHEMA_INVALID"); }
+      if (!response.ok || response.redirected) throw new Error("GRAPH_QUERY_FAILED");
+      try { payload = await response.json(); }
+      catch { throw new Error(controller.signal.aborted ? "GRAPH_QUERY_FAILED" : "GRAPH_SCHEMA_INVALID"); }
+      if (controller.signal.aborted) throw new Error("GRAPH_QUERY_FAILED");
+    } catch (error) {
+      throw new Error(error instanceof Error && error.message === "GRAPH_SCHEMA_INVALID"
+        ? "GRAPH_SCHEMA_INVALID" : "GRAPH_QUERY_FAILED");
+    } finally { clearTimeout(timeout); }
     const rows = this.extractRows(payload);
     const result: ProviderCandidate[] = [];
     for (const row of rows) {
       const registration = row.registrationFile;
       if (registration !== undefined && registration !== null && !isRecord(registration)) continue;
-      if (!enabled([row.active, registration?.active]) || !enabled([row.supportsX402, registration?.x402Support])) continue;
+      const x402Support = consistentBoolean([row.supportsX402, registration?.x402Support]);
+      if (!enabled([row.active, registration?.active]) || x402Support === undefined) continue;
       let agentId: string;
-      let manifest: P0CapabilityProviderManifest;
+      let manifest: P0CapabilityProviderManifest & { x402Support: boolean };
       let ensName: string;
       try {
         agentId = agentIdFromRow(row, this.network);
@@ -156,11 +166,10 @@ export class TheGraphDiscovery {
           ...(this.config.requestTimeoutMs !== undefined ? { timeoutMs: this.config.requestTimeoutMs } : {}),
         }, this.fetcher);
         if (!isRecord(metadata)) continue;
-        if ((metadata.active !== undefined && metadata.active !== true) ||
-            (metadata.x402Support !== undefined && metadata.x402Support !== true)) continue;
         manifest = normalizeRegistrationMetadata(metadata, {
           chainId: Number(this.network), registryAddress: this.registryAddress, agentId,
         });
+        if (manifest.x402Support !== x402Support) continue;
         if (normalizeEnsName(manifest.identity.ens) !== ensName || manifest.payment.network !== this.config.paymentNetwork) continue;
         const payments = [row.payment, row.metadata?.payment].filter((payment) => payment !== undefined);
         if (payments.some((payment) => !isRecord(payment) ||
@@ -169,7 +178,7 @@ export class TheGraphDiscovery {
       } catch { continue; }
       const rowCaps = asCapabilities(manifest.capabilities);
       if (!wanted.every((capability) => rowCaps.includes(capability))) continue;
-      result.push({ id: agentId, ensName, capabilities: rowCaps, supportsX402: true, ...(typeof row.reputation === "number" && Number.isFinite(row.reputation) ? { reputation: row.reputation } : {}) });
+      result.push({ id: agentId, ensName, capabilities: rowCaps, supportsX402: manifest.x402Support, ...(typeof row.reputation === "number" && Number.isFinite(row.reputation) ? { reputation: row.reputation } : {}) });
     }
     if (!result.length) throw new Error("NO_PROVIDER");
     return result;

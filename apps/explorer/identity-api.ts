@@ -5,7 +5,7 @@ import {
 
 type EnsPlan = Awaited<ReturnType<ProviderRegistrationManager["prepareEns"]>>;
 export type IdentityBindingPlan = Pick<EnsPlan,
-  "ensName" | "agentId" | "endpoint" | "owner" | "resolver" | "records" | "transactions"
+  "ensName" | "agentId" | "endpoint" | "protocol" | "owner" | "resolver" | "records" | "transactions"
 > & { chainId: number; registrationTx: string; blockNumber: string };
 
 export async function identityBindingResponse(pathname: string): Promise<Response> {
@@ -20,16 +20,18 @@ export async function identityBindingResponse(pathname: string): Promise<Respons
     try { input = JSON.parse(await readFile(inputPath, "utf8")); }
     catch { return json({ error: "REGISTRATION_INPUT_FILE_INVALID" }, 503); }
     const manager = new ProviderRegistrationManager(registrationConfig(Bun.env));
+    // The original receipt locates the identity; current metadata may have been updated.
+    const registration = await manager.readRegistration(input, registrationTx);
     if (pathname === "/api/identity-binding/verify") {
-      const result = await manager.verify(input, registrationTx);
+      const result = await manager.verifyCurrent(registration.agentId);
       return json({ ensName: result.ensName, agentId: result.agentId,
         blockNumber: result.blockNumber.toString(), registrationAndEnsVerified: true,
         executionVerified: false, paymentVerified: false });
     }
-    const result = await manager.prepareEns(input, registrationTx);
+    const result = await manager.prepareCurrentEns(registration.agentId);
     const plan: IdentityBindingPlan = {
       chainId: 11155111, registrationTx, ensName: result.ensName, agentId: result.agentId,
-      endpoint: result.endpoint, owner: result.owner, resolver: result.resolver,
+      endpoint: result.endpoint, protocol: result.protocol, owner: result.owner, resolver: result.resolver,
       blockNumber: result.blockNumber.toString(), records: result.records, transactions: result.transactions,
     };
     return json(plan);

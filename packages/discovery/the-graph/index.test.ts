@@ -12,8 +12,13 @@ const manifest = {
   name: "vision-basic fixture",
   capabilities: ["vision"],
   identity: { ens: "vision.example.eth", agentId: "7" },
-  interfaces: [{ protocol: "responses", endpoint: "https://provider.example/v1/responses" }],
+  interfaces: [{
+    protocol: "a2a", endpoint: "https://provider.example/a2a",
+    agentCardUrl: "https://provider.example/.well-known/agent-card.json",
+  }],
   payment: { protocol: "x402", network: "hedera:testnet" },
+  active: true,
+  x402Support: true,
 };
 const row: GraphProviderRow = {
   id: "11155111:7",
@@ -23,7 +28,7 @@ const row: GraphProviderRow = {
   registrationFile: {
     ens: "vision.example.eth", active: true, x402Support: true,
     oasfSkills: ["wrong-indexed-skill"], oasfDomains: ["vision"],
-    endpointsRawJson: JSON.stringify([{ name: "responses", endpoint: "https://untrusted.example/v1/responses" }]),
+    endpointsRawJson: JSON.stringify([{ name: "A2A", endpoint: "https://untrusted.example/agent-card.json" }]),
   },
 };
 const registration = {
@@ -33,8 +38,9 @@ const registration = {
   image: "https://metadata.example/image.png",
   services: [
     { name: "ENS", endpoint: manifest.identity.ens },
-    { name: "responses", endpoint: manifest.interfaces[0]!.endpoint },
+    { name: "A2A", endpoint: manifest.interfaces[0]!.agentCardUrl },
   ],
+  interfaces: manifest.interfaces,
   registrations: [{ agentId: 7, agentRegistry: `eip155:11155111:${registryAddress}` }],
   active: true,
   x402Support: true,
@@ -65,9 +71,93 @@ describe("The Graph discovery", () => {
     expect(providers[0]).not.toHaveProperty("endpoint");
   });
 
-  test("normalizes official services through the shared registration parser", async () => {
+  test("normalizes A2A services with explicit execution interfaces through the shared registration parser", async () => {
     const { discovery } = fixtureDiscovery(registration);
     expect((await discovery.findProviders(["vision"]))[0]?.id).toBe("7");
+  });
+
+  test("discovers native x402Support=false while preserving its explicit declaration", async () => {
+    for (const metadata of [manifest, registration]) {
+      const { discovery, calls } = fixtureDiscovery({ ...metadata, x402Support: false }, [{
+        ...row, supportsX402: false,
+        registrationFile: { ...row.registrationFile!, x402Support: false },
+      }]);
+      expect(await discovery.findProviders(["vision"])).toEqual([
+        { id: "7", ensName: "vision.example.eth", capabilities: ["vision"], supportsX402: false },
+      ]);
+      expect(calls.map((call) => call.endpoint)).toEqual([config.endpoint, row.agentURI!]);
+    }
+  });
+
+  test("requires matching native x402 declarations in the index and metadata in both directions", async () => {
+    for (const x402Support of [true, false]) {
+      const { discovery } = fixtureDiscovery({ ...manifest, x402Support }, [{
+        ...row, registrationFile: { ...row.registrationFile!, x402Support: !x402Support },
+      }]);
+      await expect(discovery.findProviders(["vision"])).rejects.toThrow("NO_PROVIDER");
+    }
+  });
+
+  test.each([undefined, null, "true", "false", 0, 1])(
+    "rejects missing or malformed indexed native x402 declarations: %j", async (x402Support) => {
+      const invalidRow = {
+        ...row, registrationFile: { ...row.registrationFile!, x402Support },
+      } as unknown as GraphProviderRow;
+      const { discovery, calls } = fixtureDiscovery(manifest, [invalidRow]);
+      await expect(discovery.findProviders(["vision"])).rejects.toThrow("NO_PROVIDER");
+      expect(calls).toHaveLength(1);
+    },
+  );
+
+  test.each([undefined, null, "true", "false", 0, 1])(
+    "rejects missing or malformed metadata native x402 declarations: %j", async (x402Support) => {
+      for (const metadata of [manifest, registration]) {
+        const { discovery } = fixtureDiscovery({ ...metadata, x402Support });
+        await expect(discovery.findProviders(["vision"])).rejects.toThrow("NO_PROVIDER");
+      }
+    },
+  );
+
+  test("rejects conflicting indexed native x402 aliases before fetching metadata", async () => {
+    for (const supportsX402 of [true, false]) {
+      const { discovery, calls } = fixtureDiscovery({ ...manifest, x402Support: supportsX402 }, [{
+        ...row, supportsX402,
+        registrationFile: { ...row.registrationFile!, x402Support: !supportsX402 },
+      }]);
+      await expect(discovery.findProviders(["vision"])).rejects.toThrow("NO_PROVIDER");
+      expect(calls).toHaveLength(1);
+    }
+  });
+
+  test("native x402Support=false still requires the configured Network payment profile", async () => {
+    const { payment: _, ...withoutPayment } = manifest;
+    for (const metadata of [withoutPayment, {
+      ...manifest, payment: { protocol: "x402", network: "hedera:mainnet" },
+    }]) {
+      const { discovery } = fixtureDiscovery({ ...metadata, x402Support: false }, [{
+        ...row, registrationFile: { ...row.registrationFile!, x402Support: false },
+      }]);
+      await expect(discovery.findProviders(["vision"])).rejects.toThrow("NO_PROVIDER");
+    }
+  });
+
+  test("does not discover legacy Responses runtime metadata", async () => {
+    const responsesEndpoint = "https://provider.example/v1/responses";
+    const { interfaces: _, ...servicesFile } = registration;
+    for (const metadata of [{
+      ...manifest, interfaces: [{ protocol: "responses", endpoint: responsesEndpoint }],
+    }, {
+      ...servicesFile, services: [registration.services[0], { name: "Responses", endpoint: responsesEndpoint }],
+    }]) {
+      const { discovery } = fixtureDiscovery(metadata);
+      await expect(discovery.findProviders(["vision"])).rejects.toThrow("NO_PROVIDER");
+    }
+  });
+
+  test("cannot use an A2A Card service as an execution endpoint without the Frely extension", async () => {
+    const { interfaces: _, ...servicesOnly } = registration;
+    const { discovery } = fixtureDiscovery(servicesOnly);
+    await expect(discovery.findProviders(["vision"])).rejects.toThrow("NO_PROVIDER");
   });
 
   test("normalizes ENS names before comparing row and metadata", async () => {
@@ -121,7 +211,8 @@ describe("The Graph discovery", () => {
     { ...manifest, capabilities: [] },
     { ...manifest, identity: { ens: "other.example.eth", agentId: "7" } },
     { ...manifest, identity: { ens: "vision.example.eth", agentId: "8" } },
-    { ...manifest, active: false }, { ...manifest, active: "true" }, { ...manifest, x402Support: false },
+    { ...manifest, active: false }, { ...manifest, active: "true" }, { ...manifest, active: undefined },
+    { ...manifest, x402Support: false },
     { ...manifest, payment: { protocol: "x402" } },
     { ...manifest, payment: { protocol: "x402", network: "eip155:11155111" } },
     { ...registration, registrations: [{ agentId: 8, agentRegistry: `eip155:11155111:${registryAddress}` }] },
@@ -198,6 +289,25 @@ describe("The Graph discovery", () => {
 
   test("masks fetch errors that contain credential-bearing URLs", async () => {
     const discovery = new TheGraphDiscovery(config, async () => { throw new Error("https://graph.example/api/secret-key"); });
+    await expect(discovery.findProviders(["vision"])).rejects.toThrow(/^GRAPH_QUERY_FAILED$/);
+  });
+
+  test("keeps the Graph deadline active while reading the response body", async () => {
+    const discovery = new TheGraphDiscovery({ ...config, requestTimeoutMs: 5 }, async (_endpoint, init) => {
+      const stream = new ReadableStream<Uint8Array>({
+        start(controller) {
+          const timer = setTimeout(() => {
+            controller.enqueue(new TextEncoder().encode('{"data":{"agents":[]}}'));
+            controller.close();
+          }, 50);
+          init.signal!.addEventListener("abort", () => {
+            clearTimeout(timer);
+            controller.error(new Error("upstream response contains a private URL"));
+          }, { once: true });
+        },
+      });
+      return new Response(stream);
+    });
     await expect(discovery.findProviders(["vision"])).rejects.toThrow(/^GRAPH_QUERY_FAILED$/);
   });
 

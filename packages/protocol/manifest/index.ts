@@ -1,13 +1,21 @@
-/** The only payment profile supported by the P0 registration manifest. */
+/** The Network integration payment profile; it does not claim native proof acceptance. */
 export const P0_PAYMENT_NETWORK = "hedera:testnet" as const;
 
 export type P0PaymentNetwork = typeof P0_PAYMENT_NETWORK;
 
 export interface ProviderInterface {
-  protocol: "responses" | "mcp" | "http";
+  protocol: "a2a" | "responses" | "mcp" | "http";
   endpoint: string;
+  agentCardUrl?: string;
 }
 
+export interface A2AProviderInterface {
+  protocol: "a2a";
+  endpoint: `https://${string}`;
+  agentCardUrl: `https://${string}`;
+}
+
+/** Historical interface, supported only by the explicit legacy audit helpers. */
 export interface ResponsesProviderInterface {
   protocol: "responses";
   endpoint: `https://${string}`;
@@ -37,14 +45,16 @@ export interface P0CapabilityProviderManifest {
     ens: string;
     agentId?: string;
   };
-  interfaces: [
-    ResponsesProviderInterface,
-    ...ResponsesProviderInterface[],
-  ];
+  interfaces: [A2AProviderInterface];
   payment: {
     protocol: "x402";
     network: P0PaymentNetwork;
   };
+}
+
+/** For management and historical audits only; never accepted by the P0 runtime. */
+export interface LegacyResponsesManifest extends Omit<P0CapabilityProviderManifest, "interfaces"> {
+  interfaces: [ResponsesProviderInterface, ...ResponsesProviderInterface[]];
 }
 
 export interface ManifestValidationIssue {
@@ -110,6 +120,18 @@ function validateHttpsEndpoint(
  * registration metadata extensions.
  */
 export function validateManifest(value: unknown): P0CapabilityProviderManifest {
+  return validateProviderManifest(value, "a2a") as P0CapabilityProviderManifest;
+}
+
+/** Validate a historical Responses manifest for management or auditing only. */
+export function validateLegacyManifest(value: unknown): LegacyResponsesManifest {
+  return validateProviderManifest(value, "responses") as LegacyResponsesManifest;
+}
+
+function validateProviderManifest(
+  value: unknown,
+  protocol: "a2a" | "responses",
+): P0CapabilityProviderManifest | LegacyResponsesManifest {
   const issues: ManifestValidationIssue[] = [];
   if (!isRecord(value)) {
     throw new ManifestValidationError([{ path: "$", message: "must be an object" }]);
@@ -141,16 +163,22 @@ export function validateManifest(value: unknown): P0CapabilityProviderManifest {
   if (!Array.isArray(value.interfaces) || value.interfaces.length === 0) {
     issues.push({ path: "interfaces", message: "must be a non-empty array" });
   } else {
+    if (protocol === "a2a" && value.interfaces.length !== 1) {
+      issues.push({ path: "interfaces", message: "must contain exactly one A2A interface for P0" });
+    }
     value.interfaces.forEach((providerInterface, index) => {
       const path = `interfaces[${index}]`;
       if (!isRecord(providerInterface)) {
         issues.push({ path, message: "must be an object" });
         return;
       }
-      if (providerInterface.protocol !== "responses") {
-        issues.push({ path: `${path}.protocol`, message: 'must be "responses" for P0' });
+      if (providerInterface.protocol !== protocol) {
+        issues.push({ path: `${path}.protocol`, message: `must be "${protocol}"` });
       }
       validateHttpsEndpoint(providerInterface.endpoint, `${path}.endpoint`, issues);
+      if (protocol === "a2a") {
+        validateHttpsEndpoint(providerInterface.agentCardUrl, `${path}.agentCardUrl`, issues);
+      }
     });
   }
 
@@ -166,7 +194,7 @@ export function validateManifest(value: unknown): P0CapabilityProviderManifest {
   }
 
   if (issues.length > 0) throw new ManifestValidationError(issues);
-  return value as unknown as P0CapabilityProviderManifest;
+  return value as unknown as P0CapabilityProviderManifest | LegacyResponsesManifest;
 }
 
 /** Return whether a value is a valid P0 manifest without throwing. */
@@ -187,6 +215,7 @@ export {
   normalizeHttpsUrl,
   normalizeRegistryAddress,
   normalizeRegistrationMetadata,
+  normalizeLegacyRegistrationMetadata,
   type RegistrationContext,
 } from "./registration.ts";
 export { fetchRegistrationMetadata, registrationMetadataUrl, type MetadataFetcher } from "./metadata.ts";

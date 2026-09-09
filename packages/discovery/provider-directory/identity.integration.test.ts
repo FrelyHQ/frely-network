@@ -11,7 +11,8 @@ const resolverAddress = "0x1111111111111111111111111111111111111111";
 const chainId = 11155111;
 const blockNumber = 123456n;
 const ensName = "fixture-vision.frely.eth";
-const providerEndpoint = "https://provider.frely.dev/v1/responses";
+const providerEndpoint = "https://provider.frely.dev/a2a";
+const agentCardUrl = "https://provider.frely.dev/agent-card.json";
 const metadataUri = "https://metadata.frely.dev/fixture-7.json";
 const graphEndpoint = "https://graph.frely.dev/fixture/graphql";
 const rpcUrl = "https://rpc.frely.dev/fixture";
@@ -30,15 +31,16 @@ function metadata(format: "manifest" | "services") {
     return {
       ...common,
       identity: { ens: ensName, agentId: "7" },
-      interfaces: [{ protocol: "responses", endpoint: providerEndpoint }],
+      interfaces: [{ protocol: "a2a", endpoint: providerEndpoint, agentCardUrl }],
     };
   }
   return {
     ...common,
     type: "https://eips.ethereum.org/EIPS/eip-8004#registration-v1",
+    interfaces: [{ protocol: "a2a", endpoint: providerEndpoint, agentCardUrl }],
     services: [
       { name: "ENS", endpoint: ensName },
-      { name: "Responses", endpoint: providerEndpoint, version: "1.0" },
+      { name: "A2A", endpoint: agentCardUrl },
     ],
     registrations: [{ agentId: "7", agentRegistry: `eip155:${chainId}:${registryAddress}` }],
   };
@@ -50,8 +52,10 @@ function fixture(options: {
   storedRegistrationKey?: string;
   inline?: boolean;
   inactive?: boolean;
+  nativeX402?: boolean;
 } = {}) {
   const document = metadata(options.format ?? "manifest");
+  document.x402Support = options.nativeX402 ?? true;
   if (options.inactive) {
     document.active = false;
     document.x402Support = false;
@@ -69,7 +73,7 @@ function fixture(options: {
             chainId,
             agentId: "7",
             agentURI: sourceUri,
-            registrationFile: { ens: ensName, active: true, x402Support: true },
+            registrationFile: { ens: ensName, active: true, x402Support: options.nativeX402 ?? true },
           }],
         },
       });
@@ -114,7 +118,7 @@ function fixture(options: {
     expect(request.name).toBe(ensName);
     expect(request.blockNumber).toBe(blockNumber);
     expect(request.strict).toBe(true);
-    if (request.key === "agent-endpoint[responses]") return options.ensEndpoint ?? providerEndpoint;
+    if (request.key === "agent-endpoint[a2a]") return options.ensEndpoint ?? providerEndpoint;
     if (request.key === (options.storedRegistrationKey ?? registrationKey)) return "1";
     return null;
   });
@@ -126,17 +130,37 @@ function fixture(options: {
     getEnsText: getText,
   } as unknown as PublicClient;
   const ens = new ViemEnsReader({ rpcUrl }, ensClient);
-  const resolver = new ProviderIdentityResolver(ens, erc);
+  const cardFetch = mock(async (url: string, init: RequestInit) => {
+    expect(url).toBe(agentCardUrl);
+    expect(init.method).toBe("GET");
+    return Response.json({ name: "vision", description: "Fixture", version: "1",
+      protocolVersion: "0.3.0", preferredTransport: "JSONRPC", url: providerEndpoint, capabilities: {},
+      defaultInputModes: ["text"], defaultOutputModes: ["text"],
+      skills: [{ id: "vision", name: "Vision", description: "Fixture", tags: [] }] });
+  });
+  const resolver = new ProviderIdentityResolver(ens, erc, { fetcher: cardFetch });
   return { graph, resolver, graphFetch, metadataFetch, tokenUriRead, getIdentityBlock, getResolver, getText, getEnsBlock };
 }
 
 describe("fixture Graph candidate to verified identity integration", () => {
+  test("discovers and verifies an A2A identity with native x402Support=false", async () => {
+    const f = fixture({ format: "services", inline: true, nativeX402: false });
+    const candidates = await f.graph.findProviders(["vision"]);
+    expect(candidates).toEqual([{ id: "7", ensName, capabilities: ["vision"], supportsX402: false }]);
+    expect(await f.resolver.resolveProvider(candidates[0]!)).toEqual({
+      id: "7", ensName, endpoint: providerEndpoint, protocol: "a2a", verified: true,
+      agentCardUrl, a2aProtocolVersion: "0.3.0",
+    });
+    expect(f.graphFetch).toHaveBeenCalledTimes(1);
+    expect(f.metadataFetch).not.toHaveBeenCalled();
+  });
+
   test("discovers and resolves inline registration JSON without a metadata HTTP request", async () => {
     const f = fixture({ format: "services", inline: true });
     const candidates = await f.graph.findProviders(["vision"]);
     expect(candidates).toEqual([{ id: "7", ensName, capabilities: ["vision"], supportsX402: true }]);
     expect(await f.resolver.resolveProvider(candidates[0]!)).toEqual({
-      id: "7", ensName, endpoint: providerEndpoint, protocol: "responses", verified: true,
+      id: "7", ensName, endpoint: providerEndpoint, protocol: "a2a", verified: true, agentCardUrl, a2aProtocolVersion: "0.3.0",
     });
     expect(f.graphFetch).toHaveBeenCalledTimes(1);
     expect(f.metadataFetch).not.toHaveBeenCalled();
@@ -156,7 +180,7 @@ describe("fixture Graph candidate to verified identity integration", () => {
     expect(candidates).toEqual([{ id: "7", ensName, capabilities: ["vision"], supportsX402: true }]);
     expect(candidates[0]).not.toHaveProperty("endpoint");
     expect(await f.resolver.resolveProvider(candidates[0]!)).toEqual({
-      id: "7", ensName, endpoint: providerEndpoint, protocol: "responses", verified: true,
+      id: "7", ensName, endpoint: providerEndpoint, protocol: "a2a", verified: true, agentCardUrl, a2aProtocolVersion: "0.3.0",
     });
     expect(f.graphFetch).toHaveBeenCalledTimes(2);
     expect(f.metadataFetch).toHaveBeenCalledTimes(1);
@@ -166,12 +190,12 @@ describe("fixture Graph candidate to verified identity integration", () => {
     expect(f.getText).toHaveBeenCalledTimes(2);
     expect(f.getEnsBlock).not.toHaveBeenCalled();
     expect(f.getText.mock.calls.map(([request]) => request.key)).toEqual([
-      "agent-endpoint[responses]", registrationKey,
+      "agent-endpoint[a2a]", registrationKey,
     ]);
   });
 
   test("rejects an ENS execution endpoint differing from the dereferenced metadata", async () => {
-    const f = fixture({ format: "services", ensEndpoint: "https://other.frely.dev/v1/responses" });
+    const f = fixture({ format: "services", ensEndpoint: "https://other.frely.dev/a2a" });
     const candidates = await f.graph.findProviders(["vision"]);
     expect(candidates).toHaveLength(1);
     await expect(f.resolver.resolveProvider(candidates[0]!)).rejects.toThrow("ENS_ENDPOINT_MISMATCH");

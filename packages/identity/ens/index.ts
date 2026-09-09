@@ -50,7 +50,7 @@ export interface EnsRecords {
   name: string;
   resolver: Address;
   endpoint: string;
-  protocol: "responses" | "mcp" | "http";
+  protocol: "a2a";
   agentRegistration?: string;
   agentRegistrationKey?: string;
 }
@@ -88,7 +88,7 @@ export class ViemEnsReader implements EnsReader {
   constructor(config: EnsConfig, client?: PublicClient) {
     if (config.requireHttps === false) throw new Error("ENDPOINT_NOT_HTTPS");
     this.config = {
-      agentEndpointKey: "agent-endpoint[responses]",
+      agentEndpointKey: "agent-endpoint[a2a]",
       agentRegistrationKey: ensip25AgentRegistrationKey,
       requireHttps: true,
       ...config,
@@ -111,8 +111,7 @@ export class ViemEnsReader implements EnsReader {
         : this.config.agentRegistrationKey;
     } catch { throw new Error("IDENTITY_VERIFICATION_FAILED"); }
     if (registrationKey !== canonicalKey) throw new Error("IDENTITY_VERIFICATION_FAILED");
-    const protocol = /^agent-endpoint\[(responses|mcp|http)\]$/.exec(this.config.agentEndpointKey)?.[1];
-    if (protocol !== "responses" && protocol !== "mcp" && protocol !== "http") {
+    if (this.config.agentEndpointKey !== "agent-endpoint[a2a]") {
       throw new Error("IDENTITY_VERIFICATION_FAILED");
     }
     let normalizedName: string;
@@ -141,7 +140,7 @@ export class ViemEnsReader implements EnsReader {
     if (typeof registration !== "string" || registration.length === 0) {
       throw new Error("IDENTITY_VERIFICATION_FAILED");
     }
-    return { name: normalizedName, resolver, endpoint, protocol, agentRegistration: registration, agentRegistrationKey: registrationKey };
+    return { name: normalizedName, resolver, endpoint, protocol: "a2a", agentRegistration: registration, agentRegistrationKey: registrationKey };
   }
 }
 

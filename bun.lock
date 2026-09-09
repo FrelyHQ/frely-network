@@ -93,6 +93,7 @@
       "version": "0.0.0",
       "dependencies": {
         "@frely-network/ens": "workspace:*",
+        "@frely-network/erc8004": "workspace:*",
         "@frely-network/protocol-manifest": "workspace:*",
         "viem": "^2.21.0",
       },

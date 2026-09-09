@@ -19,7 +19,8 @@ const blockHash = `0x${"bb".repeat(32)}` as Hex;
 const registrationBlockHash = `0x${"cc".repeat(32)}` as Hex;
 const blockNumber = 100n;
 const agentId = "9007199254740993";
-const endpoint = "https://provider.example/v1/responses";
+const endpoint = "https://provider.example/a2a";
+const agentCardUrl = "https://provider.example/agent-card.json";
 const ensName = "vision-basic.example.eth";
 // Literal ERC-7930 encoding: version 1, EIP-155 family, Sepolia reference, registry address.
 const registrationKey = `agent-registration[0x0001000003aa36a7148004a818bfb912233c491871b3d84c89a494bd9e][${agentId}]`;
@@ -31,7 +32,7 @@ function input(): RegistrationInput {
     manifest: {
       name: "vision-basic", description: "Synthetic vision Provider",
       capabilities: ["vision"], identity: { ens: ensName },
-      interfaces: [{ protocol: "responses", endpoint }],
+      interfaces: [{ protocol: "a2a", endpoint, agentCardUrl }],
       payment: { protocol: "x402", network: "hedera:testnet" },
     },
     active: false, x402Support: false,
@@ -105,7 +106,12 @@ function fixture() {
     sendTransaction: mock(() => { throw new Error("Must remain unsigned"); }),
     writeContract: mock(() => { throw new Error("Must remain unsigned"); }),
   };
-  const manager = new ProviderRegistrationManager(config, client as unknown as PublicClient);
+  const manager = new ProviderRegistrationManager(config, client as unknown as PublicClient, {
+    fetcher: async () => Response.json({ name: "vision", description: "Fixture", version: "1",
+      protocolVersion: "0.3.0", preferredTransport: "JSONRPC", url: endpoint, capabilities: {},
+      defaultInputModes: ["text"], defaultOutputModes: ["text"],
+      skills: [{ id: "vision", name: "Vision", description: "Fixture", tags: [] }] }),
+  });
   return { value, prepared, state, inspection, client, manager };
 }
 
@@ -120,7 +126,7 @@ describe("Provider metadata preparation", () => {
       expect(JSON.parse(json)).toEqual(result.metadata);
       expect(result.metadataSha256).toBe(sha256(stringToHex(json)));
       expect(result.metadata).toMatchObject({ active, x402Support, payment: { network: "hedera:testnet" } });
-      expect(result.discoveryEligible).toBe(active && x402Support);
+      expect(result.discoveryEligible).toBe(active);
       expect(result.executionVerified).toBe(false);
       expect(result.paymentVerified).toBe(false);
       expect(result.metadata).not.toHaveProperty("agentId");
@@ -138,11 +144,11 @@ describe("Provider metadata preparation", () => {
     expect(() => prepareRegistrationMetadata(value)).toThrow("REGISTRATION_ID_ASSIGNED_BY_CHAIN");
   });
 
-  test.each(["http://provider.example/v1/responses", "https://localhost/v1/responses", "https://127.0.0.1/v1/responses", "https://10.0.0.1/v1/responses"])(
+  test.each(["http://provider.example/a2a", "https://localhost/a2a", "https://127.0.0.1/a2a", "https://10.0.0.1/a2a"])(
     "rejects an endpoint unsuitable for publication: %s", (unsafe) => {
       const value = input();
       expect(() => prepareRegistrationMetadata({
-        ...value, manifest: { ...value.manifest, interfaces: [{ protocol: "responses", endpoint: unsafe }] },
+        ...value, manifest: { ...value.manifest, interfaces: [{ protocol: "a2a", endpoint: unsafe, agentCardUrl }] },
       })).toThrow();
     },
   );
@@ -195,6 +201,50 @@ describe("unsigned ERC-8004 registration", () => {
     expect(f.client.simulateContract).not.toHaveBeenCalled();
   });
 
+  test("reconstructs the exact historical Responses receipt without allowing a new Responses registration", async () => {
+    const f = fixture();
+    const legacyEndpoint = "https://provider.example/v1/responses";
+    const legacyInput = {
+      ...f.value,
+      manifest: {
+        ...f.value.manifest,
+        interfaces: [{ protocol: "responses", endpoint: "https://PROVIDER.example:443/v1/responses" }],
+      },
+    };
+    // This is the original writer's field order and shape, including no interfaces extension.
+    const metadata = {
+      type: "https://eips.ethereum.org/EIPS/eip-8004#registration-v1",
+      name: "vision-basic", description: "Synthetic vision Provider",
+      services: [{ name: "ENS", endpoint: ensName }, { name: "responses", endpoint: legacyEndpoint }],
+      active: false, x402Support: false, capabilities: ["vision"],
+      payment: { protocol: "x402", network: "hedera:testnet" },
+    };
+    const json = JSON.stringify(metadata);
+    const metadataUri = `data:application/json;base64,${Buffer.from(json).toString("base64")}`;
+    f.state.uri = metadataUri;
+    f.state.receipt.logs = [registeredEvent(metadataUri)];
+    f.state.transaction.input = encodeFunctionData({ abi: identityWriteAbi, functionName: "register", args: [metadataUri] });
+    f.state.ensRecords.set("agent-endpoint[responses]", legacyEndpoint);
+    f.state.ensRecords.set(registrationKey, "historical-association");
+
+    const result = await f.manager.readRegistration(legacyInput, hash);
+    expect(result).toMatchObject({
+      agentId, ensName, protocol: "responses", endpoint: legacyEndpoint,
+      endpointKey: "agent-endpoint[responses]", metadata, metadataUri,
+      metadataSha256: sha256(stringToHex(json)), discoveryEligible: false,
+    });
+    expect(result.metadata).not.toHaveProperty("interfaces");
+    expect(result.metadata).not.toHaveProperty("agentId");
+    expect(await f.manager.verify(legacyInput, hash)).toMatchObject({ registrationAndEnsVerified: true });
+    expect(f.client.getEnsText.mock.calls.map(([call]) => call.key))
+      .toEqual(["agent-endpoint[responses]", registrationKey]);
+    expect(() => prepareRegistrationMetadata(legacyInput)).toThrow("REGISTRATION_INPUT_INVALID");
+    await expect(f.manager.prepareRegister(legacyInput)).rejects.toThrow("REGISTRATION_INPUT_INVALID");
+    expect(f.client.simulateContract).not.toHaveBeenCalled();
+    expect(f.client.sendTransaction).not.toHaveBeenCalled();
+    expect(f.client.writeContract).not.toHaveBeenCalled();
+  });
+
   test("rejects a malformed hash before receipt lookup", async () => {
     const f = fixture();
     await expect(f.manager.readRegistration(f.value, "0x1234")).rejects.toThrow("REGISTRATION_TX_HASH_INVALID");
@@ -233,7 +283,7 @@ describe("ENS binding and readback", () => {
     const f = fixture();
     const result = await f.manager.prepareEns(f.value, hash);
     expect(result.records).toEqual([
-      { key: "agent-endpoint[responses]", value: endpoint }, { key: registrationKey, value: "1" },
+      { key: "agent-endpoint[a2a]", value: endpoint }, { key: registrationKey, value: "1" },
     ]);
     expect(result.transactions).toHaveLength(2);
     for (const [index, entry] of result.transactions.entries()) {
@@ -248,7 +298,7 @@ describe("ENS binding and readback", () => {
 
   test("reruns skip matching records and accept an existing nonempty ENSIP-25 value", async () => {
     const f = fixture();
-    f.state.records.set("agent-endpoint[responses]", endpoint);
+    f.state.records.set("agent-endpoint[a2a]", endpoint);
     f.state.records.set(registrationKey, "already-approved");
     expect(await f.manager.prepareEns(f.value, hash)).toMatchObject({ action: "no_change", transactions: [] });
     expect(f.client.simulateContract).not.toHaveBeenCalled();
@@ -256,7 +306,7 @@ describe("ENS binding and readback", () => {
 
   test("rejects an existing conflicting endpoint instead of overwriting it", async () => {
     const f = fixture();
-    f.state.records.set("agent-endpoint[responses]", "https://other.example/v1/responses");
+    f.state.records.set("agent-endpoint[a2a]", "https://other.example/a2a");
     await expect(f.manager.prepareEns(f.value, hash)).rejects.toThrow("REGISTRATION_ENS_RECORD_CONFLICT");
     expect(f.client.simulateContract).not.toHaveBeenCalled();
   });
@@ -274,7 +324,7 @@ describe("ENS binding and readback", () => {
 
   test("uses strict Universal Resolver readback pinned to the identity block without claiming Graph/payment", async () => {
     const f = fixture();
-    f.state.ensRecords.set("agent-endpoint[responses]", endpoint);
+    f.state.ensRecords.set("agent-endpoint[a2a]", endpoint);
     f.state.ensRecords.set(registrationKey, "confirmed");
     const result = await f.manager.verify(f.value, hash);
     expect(result).toMatchObject({
@@ -282,7 +332,7 @@ describe("ENS binding and readback", () => {
       discoveryEligible: false, broadcast: false,
     });
     expect(f.client.getEnsText.mock.calls.map(([call]) => call)).toEqual([
-      { name: ensName, key: "agent-endpoint[responses]", blockNumber, strict: true },
+      { name: ensName, key: "agent-endpoint[a2a]", blockNumber, strict: true },
       { name: ensName, key: registrationKey, blockNumber, strict: true },
     ]);
     for (const [call] of f.client.readContract.mock.calls) expect(call.blockNumber).toBe(blockNumber);
@@ -291,10 +341,10 @@ describe("ENS binding and readback", () => {
 
   test.each(["missing endpoint", "wrong endpoint", "missing association"])("fails closed on %s in Universal Resolver readback", async (problem) => {
     const f = fixture();
-    f.state.ensRecords.set("agent-endpoint[responses]", endpoint);
+    f.state.ensRecords.set("agent-endpoint[a2a]", endpoint);
     f.state.ensRecords.set(registrationKey, "1");
-    if (problem === "missing endpoint") f.state.ensRecords.delete("agent-endpoint[responses]");
-    if (problem === "wrong endpoint") f.state.ensRecords.set("agent-endpoint[responses]", "https://other.example/v1/responses");
+    if (problem === "missing endpoint") f.state.ensRecords.delete("agent-endpoint[a2a]");
+    if (problem === "wrong endpoint") f.state.ensRecords.set("agent-endpoint[a2a]", "https://other.example/a2a");
     if (problem === "missing association") f.state.ensRecords.set(registrationKey, "");
     await expect(f.manager.verify(f.value, hash)).rejects.toThrow("REGISTRATION_ENS_READBACK_FAILED");
   });
