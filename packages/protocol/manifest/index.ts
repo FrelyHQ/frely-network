@@ -1,3 +1,5 @@
+import { isSafePublicHttpUrl } from "@frely-network/shared-types";
+
 /** The only payment profile supported by the P0 registration manifest. */
 export const P0_PAYMENT_NETWORK = "hedera:testnet" as const;
 
@@ -89,14 +91,8 @@ function validateHttpsEndpoint(
   issues: ManifestValidationIssue[],
 ): value is `https://${string}` {
   if (!nonEmptyString(value, path, issues)) return false;
-  try {
-    const url = new URL(value);
-    if (url.protocol !== "https:" || url.hostname.length === 0) {
-      issues.push({ path, message: "must be an HTTPS URL" });
-      return false;
-    }
-  } catch {
-    issues.push({ path, message: "must be a valid HTTPS URL" });
+  if (!isSafePublicHttpUrl(value, { requireHttps: true })) {
+    issues.push({ path, message: "must be a valid public HTTPS URL" });
     return false;
   }
   return true;

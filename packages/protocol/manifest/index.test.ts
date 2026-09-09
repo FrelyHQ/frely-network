@@ -45,4 +45,23 @@ describe("P0 manifest validation", () => {
     expect(isValidManifest(manifest)).toBe(false);
     expect(() => validateManifest(manifest)).toThrow(/capabilities\[1\]/);
   });
+
+  test("rejects private or credential-bearing provider endpoints", () => {
+    expect(isValidManifest({
+      ...validManifest,
+      interfaces: [{ protocol: "responses", endpoint: "https://127.0.0.1/v1/responses" }],
+    })).toBe(false);
+    expect(isValidManifest({
+      ...validManifest,
+      interfaces: [{ protocol: "responses", endpoint: "https://user:pass@provider.example/v1/responses" }],
+    })).toBe(false);
+    expect(isValidManifest({
+      ...validManifest,
+      interfaces: [{ protocol: "responses", endpoint: "https://[::ffff:7f00:1]/v1/responses" }],
+    })).toBe(false);
+    expect(isValidManifest({
+      ...validManifest,
+      interfaces: [{ protocol: "responses", endpoint: "https://[fc00::1]/v1/responses" }],
+    })).toBe(false);
+  });
 });

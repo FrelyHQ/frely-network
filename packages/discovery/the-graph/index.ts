@@ -1,4 +1,4 @@
-import type { ProviderCandidate } from "@frely-network/shared-types";
+import { isSafePublicHttpUrl, type ProviderCandidate } from "@frely-network/shared-types";
 import {
   validateManifest,
   type P0CapabilityProviderManifest,
@@ -53,18 +53,19 @@ function asCapabilities(value: unknown): string[] {
 }
 
 function validUri(value: string): boolean {
-  try { return ["https:", "http:"].includes(new URL(value).protocol); } catch { return false; }
+  return isSafePublicHttpUrl(value, { requireHttps: false });
 }
 
 function metadataUri(value: string, gateway?: string): string | undefined {
   try {
     const parsed = new URL(value);
-    if (parsed.protocol === "http:" || parsed.protocol === "https:") return parsed.toString();
+    if ((parsed.protocol === "http:" || parsed.protocol === "https:") && isSafePublicHttpUrl(parsed.toString(), { requireHttps: false })) return parsed.toString();
     if (parsed.protocol !== "ipfs:" || !gateway) return undefined;
     const base = gateway.endsWith("/") ? gateway : `${gateway}/`;
-    return base.includes("{cid}")
+    const resolved = base.includes("{cid}")
       ? base.replace("{cid}", parsed.pathname.replace(/^\/+/, ""))
       : `${base}${parsed.pathname.replace(/^\/+/, "")}`;
+    return isSafePublicHttpUrl(resolved, { requireHttps: false }) ? resolved : undefined;
   } catch { return undefined; }
 }
 

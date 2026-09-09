@@ -50,14 +50,13 @@ bun run typecheck
 bun test
 ```
 
-The current checkout is the Broker/protocol scaffold. It now provides a bounded
-Broker MCP process shell and production container so the repository can be
-deployed and observed independently. `/healthz` proves only that this process is
-running; `/readyz` and `/mcp` fail closed with
-`BROKER_EXECUTION_NOT_IMPLEMENTED` until the discovery, identity, payment and
-execution orchestration is implemented. The target cross-project startup
-contract and its readiness gates remain documented before that implementation
-so that the public snapshot boundary stays explicit.
+The current checkout provides a bounded Broker MCP process and production
+container. `/healthz` proves that the process is running; `/readyz` reports
+readiness only when live Graph, ENS, ERC-8004, Hedera wallet, and Frely
+configuration is valid. `/mcp` exposes only `find_capability` and
+`use_capability`, and fails closed while the runtime is not ready. The target
+cross-project startup contract and its readiness gates remain documented so
+that the public snapshot boundary stays explicit.
 
 ## Cross-project local integration
 

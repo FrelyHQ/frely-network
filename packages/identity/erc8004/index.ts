@@ -6,13 +6,14 @@ import {
   type PublicClient,
 } from "viem";
 import { sepolia } from "viem/chains";
-import type { ProviderCandidate, ResolvedProvider } from "@frely-network/shared-types";
+import { isSafePublicHttpUrl, type ProviderCandidate, type ResolvedProvider } from "@frely-network/shared-types";
 import type { EnsReader, EnsRecords } from "@frely-network/ens";
 
 export interface Erc8004Config {
   rpcUrl: string;
   registryAddress: Address;
   requireHttps?: boolean;
+  fetcher?: (input: string, init?: RequestInit) => Promise<Response>;
 }
 
 export interface RegistrationMetadata {
@@ -41,7 +42,7 @@ const identityAbi = parseAbi(["function tokenURI(uint256 tokenId) view returns (
 function metadataUrl(uri: string): URL {
   let parsed: URL;
   try { parsed = new URL(uri); } catch { throw new Error("IDENTITY_VERIFICATION_FAILED"); }
-  if (!["https:", "http:"].includes(parsed.protocol)) throw new Error("IDENTITY_VERIFICATION_FAILED");
+  if (!isSafePublicHttpUrl(parsed.toString(), { requireHttps: true })) throw new Error("IDENTITY_VERIFICATION_FAILED");
   return parsed;
 }
 
@@ -61,7 +62,7 @@ export class ViemErc8004Reader implements Erc8004Reader {
     }
     const url = metadataUrl(uri);
     let response: Response;
-    try { response = await fetch(url); } catch { throw new Error("IDENTITY_VERIFICATION_FAILED"); }
+    try { response = await (this.config.fetcher ?? ((input) => fetch(input)))(url.toString()); } catch { throw new Error("IDENTITY_VERIFICATION_FAILED"); }
     if (!response.ok) throw new Error("IDENTITY_VERIFICATION_FAILED");
     let metadata: RegistrationMetadata;
     try { metadata = await response.json() as RegistrationMetadata; } catch { throw new Error("IDENTITY_VERIFICATION_FAILED"); }
@@ -78,7 +79,7 @@ function protocol(value: unknown): ResolvedProvider["protocol"] {
 function sameRegistration(value: string | undefined, registry: Address, agentId: string): boolean {
   if (!value) return false;
   const normalized = value.toLowerCase();
-  return normalized.includes(registry.toLowerCase()) && normalized.includes(agentId);
+  return normalized.includes(registry.toLowerCase()) && normalized.includes(`][${agentId.toLowerCase()}]`);
 }
 
 /** Composes ENS and ERC-8004 checks into the B-facing resolveProvider contract. */
@@ -95,7 +96,7 @@ export class ProviderIdentityResolver {
     if (identity.metadata.endpoint !== undefined) {
       let metadataEndpoint: URL;
       try { metadataEndpoint = new URL(identity.metadata.endpoint); } catch { throw new Error("IDENTITY_VERIFICATION_FAILED"); }
-      if (metadataEndpoint.protocol !== "https:") throw new Error("ENDPOINT_NOT_HTTPS");
+      if (!isSafePublicHttpUrl(metadataEndpoint.toString(), { requireHttps: true })) throw new Error("ENDPOINT_NOT_HTTPS");
     }
     const ens: EnsRecords = await this.ens.resolve(candidate.ensName, {
       registryAddress: identity.registryAddress,
@@ -104,7 +105,10 @@ export class ProviderIdentityResolver {
     if (!sameRegistration(ens.agentRegistration, identity.registryAddress, identity.agentId)) throw new Error("IDENTITY_VERIFICATION_FAILED");
     if (identity.metadata.ens && identity.metadata.ens !== candidate.ensName) throw new Error("IDENTITY_VERIFICATION_FAILED");
     const endpoint = new URL(ens.endpoint);
-    if (endpoint.protocol !== "https:") throw new Error("ENDPOINT_NOT_HTTPS");
+    if (!isSafePublicHttpUrl(endpoint.toString(), { requireHttps: true })) throw new Error("ENDPOINT_NOT_HTTPS");
+    if (identity.metadata.endpoint && new URL(identity.metadata.endpoint).toString() !== endpoint.toString()) {
+      throw new Error("IDENTITY_VERIFICATION_FAILED");
+    }
     return { id: candidate.id, ensName: candidate.ensName, endpoint: ens.endpoint, protocol: protocol(ens.protocol), verified: true };
   }
 }

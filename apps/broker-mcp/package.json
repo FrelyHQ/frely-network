@@ -5,5 +5,14 @@
   "type": "module",
   "scripts": {
     "start": "bun server.ts"
+  },
+  "dependencies": {
+    "@frely-network/broker": "workspace:*",
+    "@frely-network/ens": "workspace:*",
+    "@frely-network/erc8004": "workspace:*",
+    "@frely-network/hedera-x402": "workspace:*",
+    "@frely-network/shared-types": "workspace:*",
+    "@frely-network/the-graph": "workspace:*",
+    "viem": "^2.21.0"
   }
 }
