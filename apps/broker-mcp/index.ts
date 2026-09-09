@@ -1,1 +1,1 @@
-export { brokerMcpFetch } from "./service.ts";
+export { brokerMcpFetch, createBrokerMcpFetch } from "./service.ts";

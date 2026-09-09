@@ -19,6 +19,7 @@
         "@frely-network/hedera-x402": "workspace:*",
         "@frely-network/shared-types": "workspace:*",
         "@frely-network/the-graph": "workspace:*",
+        "@frely-network/x402-gateway": "workspace:*",
         "viem": "^2.21.0",
       },
     },
@@ -55,6 +56,7 @@
       "version": "0.0.0",
       "dependencies": {
         "@frely-network/hedera-x402": "workspace:*",
+        "@frely-network/shared-types": "workspace:*",
       },
     },
     "packages/identity/ens": {
