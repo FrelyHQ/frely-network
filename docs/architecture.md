@@ -67,6 +67,96 @@ private deployment operations, or a guarantee of production reproducibility.
 Public visibility is not a reason to place private topology or secrets in this
 repository.
 
+## Boundary-optimization-1 — Broker, A2A, and payment ownership
+
+Status: Baseline
+Review level: L9
+Source: Sponsor acceptance `ACC-001`–`ACC-006`, technical decisions
+`DEC-003`–`DEC-012`, and the P0 implementation plan
+
+`frely-network` is an external capability Broker, not a second Frely Gateway,
+Agent Runtime, or billing system. Its stable responsibility is:
+
+```text
+discover → verify → qualify → select → quote → pay → invoke → return evidence
+```
+
+`apps/broker-mcp` is the Host Agent adapter. It exposes the P0
+`find_capability` and `use_capability` operations and does not expose Graph,
+ENS, ERC-8004, or payment primitives directly to the Host Agent.
+
+A future A2A adapter is the Agent-facing invocation protocol. It should be a
+transport-neutral client package called by Broker core, not an implementation
+inside the MCP adapter. MCP is the local Host Agent surface; A2A is the remote
+Agent-to-Agent task and result protocol.
+
+Broker core may invoke a verified A2A Agent, Responses endpoint, or another
+explicitly allowlisted capability transport through a common invocation port.
+It must not copy Mastra/Swarm workflows, hold model credentials, or call a final
+Provider outside the Frely boundary.
+
+`packages/payment` owns the consumer-side Hedera x402 flow required by P0:
+decode real HTTP 402 requirements, enforce `maxAmount`, sign the payment,
+retry the unchanged request body, and retain settlement evidence.
+`packages/gateway/x402` is payee-side protocol support only: verify and settle
+payment requirements at a capability endpoint. It must not own Frely users,
+Plans, AccessPoints, Provider credentials, CPA routing, usage billing, or an
+internal ledger.
+
+Sponsor constraints remain authoritative for P0. Live The Graph discovery must
+change the selected endpoint, ENSv2/ERC-8004 verification must change execution
+eligibility, and real Hedera testnet/Blocky402 402 → payment → unchanged-body
+retry must complete the Vision call. A2A is an additive protocol seam and does
+not replace the P0 Broker MCP → Responses Provider acceptance path before that
+chain is complete.
+
+## Boundary-optimization-2 — Frely products, Swarm execution, and direct x402
+
+Status: Baseline
+Review level: L9
+Source: Cross-project product boundary and current Frely/Swarm design
+
+Frely is the owner of the four user-callable product surfaces:
+
+| Product | Meaning | Public owner |
+| --- | --- | --- |
+| `model` | Direct model access such as `gpt-5` | Frely |
+| `virtual-model` | A model-shaped product backed by an Agent, prompt wrapper, or renamed model | Frely |
+| `a2a-service` | A standard Agent-to-Agent service endpoint | Frely |
+| `mcp-service` | An MCP projection of a virtual-model or A2A service | Frely |
+
+All four surfaces are exposed through Frely's public API host. `a2a-service`
+must continue to work when `frely-network` is unavailable; Network is not a
+required runtime hop for A2A execution.
+
+Swarm only executes Agent runtime work. It does not publish user billing facts,
+calculate prices, reserve balances, collect Web2 or Web3 payments, or decide
+what a user owes. Frely derives one virtual-model/MCP invocation's billable
+consumption from the Swarm execution inputs it sent to Frely base-model APIs and
+the Swarm-produced output token count, then applies Frely pricing and performs
+Web2 charging. Swarm remains an internal execution dependency.
+
+Network may expose a direct x402 endpoint and may complete Hedera payment
+without passing the payment request through Frely. That endpoint is a Web3
+payment surface, not an A2A service surface. The amount to pay must be based on
+a Frely-issued quote or usage basis; Network must not tokenize, price, or infer
+the charge independently. Network owns wallet-side x402 payment, verification,
+settlement, replay, and payment-unknown handling. Frely owns the service
+execution and pricing facts; Swarm owns execution only.
+
+The resulting separation is:
+
+```text
+Frely: service endpoint + execution admission + usage derivation + pricing + Web2 billing
+Swarm: Agent execution only
+Network: Web3 discovery + direct x402 payment and settlement
+```
+
+The term `provider` is reserved for model/provider infrastructure where needed.
+User-facing and cross-project contracts should use `model`, `virtual-model`,
+`a2a-service`, `mcp-service`, `Agent`, `Capability`, `Service Endpoint`, and
+`Payment Recipient` instead of using `provider` as a generic synonym.
+
 The Broker endpoint discovered for the `vision-basic` path must be the Frely
 entry, not the Swarm runtime. Model invocations cannot enter Swarm outside that
 boundary, and Swarm cannot call a final model Provider outside the Frely
@@ -82,12 +172,13 @@ Source: Repository layout and P0 design
 
 | Component | Responsibility | Boundary |
 | --- | --- | --- |
-| `packages/protocol` | Manifest schema and shared contracts | Stable data shape between Broker stages and capability providers. |
+| `packages/protocol` | Manifest schema and shared contracts | Stable data shape between Broker stages and capability providers; future A2A shared types remain transport-neutral. |
 | `packages/discovery` | The Graph discovery adapters | Normalize externally indexed provider information; do not hardcode the final Provider. |
 | `packages/identity` | ENS and ERC-8004 verification adapters | Accept a Provider only after the configured identity checks pass. |
 | `packages/payment` | Hedera x402 client integration | Return an accepted payment result before paid invocation. |
-| `packages/broker` | Discover, select, pay, and execute orchestration | Coordinate services through contracts; do not access private runtime persistence. |
-| `packages/gateway` | Provider-side x402 gateway contract | Keep Provider-side admission separate from Broker-side selection. |
+| `packages/broker` | Discover, verify, qualify, select, pay, and invoke orchestration | Transport-neutral and stateless; do not access private runtime persistence or reproduce Frely commercial rules. |
+| `packages/a2a` (planned) | Agent-facing A2A client and shared task projection | AgentCard/Task/Message transport only; no Agent Runtime or Frely authorization ownership. |
+| `packages/gateway` | Provider-side x402 gateway contract | Payment admission/settlement only; keep payee-side verification separate from Broker-side selection. |
 | `apps/broker-mcp` | Host-agent MCP boundary | Expose Broker operations without exposing credentials or private service internals. |
 | `apps/explorer` | Future/provider exploration surface | Consume normalized manifests and verification results rather than private databases. |
 | `examples` | Vision capability example scaffolds | Reserve example package boundaries without claiming an executable provider or duplicating the Swarm runtime. |
