@@ -1,4 +1,5 @@
-import { brokerMcpFetch } from "./service.ts";
+import { createBrokerRuntimeFromEnv } from "./runtime.ts";
+import { createBrokerMcpFetch } from "./service.ts";
 
 function port(value: string | undefined): number {
   if (value === undefined) return 4100;
@@ -11,6 +12,8 @@ function port(value: string | undefined): number {
 }
 
 const hostname = process.env.HOST?.trim() || "127.0.0.1";
+const runtime = createBrokerRuntimeFromEnv();
+const brokerMcpFetch = createBrokerMcpFetch(runtime);
 const server = Bun.serve({
   hostname,
   port: port(process.env.PORT),

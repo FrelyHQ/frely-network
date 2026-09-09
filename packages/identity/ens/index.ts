@@ -6,6 +6,7 @@ import {
 } from "viem";
 import { normalize } from "viem/ens";
 import { sepolia } from "viem/chains";
+import { isSafePublicHttpUrl } from "@frely-network/shared-types";
 
 export const ENSIP25_AGENT_REGISTRATION_PREFIX = "agent-registration";
 export const ENSV2_SEPOLIA_CHAIN_ID = 11155111;
@@ -55,8 +56,7 @@ function assertEndpoint(endpoint: string, requireHttps: boolean): URL {
   } catch {
     throw new Error("ENS_ENDPOINT_MISSING");
   }
-  if (requireHttps && url.protocol !== "https:") throw new Error("ENDPOINT_NOT_HTTPS");
-  if (!["https:", "http:"].includes(url.protocol)) throw new Error("ENDPOINT_NOT_HTTPS");
+  if (!isSafePublicHttpUrl(url.toString(), { requireHttps })) throw new Error("ENDPOINT_NOT_HTTPS");
   return url;
 }
 
