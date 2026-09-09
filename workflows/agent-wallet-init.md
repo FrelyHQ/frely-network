@@ -9,11 +9,13 @@ mdq:
 
 Status: Draft
 Review level: L3
-Source: 2026-09-08 用户要求本地生成、引导充值、链上账户就绪、与 Broker 隔离，并允许在明确手续费上限内自动激活；loop-me
+Source: 2026-09-09 用户最终确认 SDK 本地生成→用户充值自动开户→SDK 激活核验→x402 signer；2026-09-08 已允许明确手续费上限内自动激活；loop-me
 
 本文件是 `agent-wallet-init` 的唯一流程定义。Loop 是为新设备或新的 Agent 身份准备专用钱包；同一钱包的重复运行是恢复，不是新建。Trigger 为用户执行 `agent wallet init`，不建立定时任务，不由 Broker 或业务请求触发。
 
 第一版仅支持 Hedera Testnet、ECDSA secp256k1、本地 POSIX 文件权限和 HBAR 初始化资金。CLI 与钱包模块独立运行，不依赖 Broker、Provider、x402 报价、付款授权 registry 或业务付款 journal。初始化不会开启业务支付、修改 Broker 配置、导入主钱包、关联指定 HTS token 或发送业务付款。
+
+正式实现使用 `@hiero-ledger/sdk` 在本地生成密钥。用户向派生的 EVM 地址充值时，由 Hedera 自动创建数字账户；后续 SDK 只激活与核验，不调用 `AccountCreateTransaction`，不要求已有 operator 私钥。Hiero CLI 只用于人工开发验证，不成为运行时依赖；此前讨论的“显式开户”已由用户明确改为本流程。
 
 首次运行输入：显式 `--network hedera:testnet`、`--max-fee-hbar`、`--reserve-hbar`；后两项分别是一次激活交易的最高手续费和初始化后要求保留的 HBAR，必须为正数、最多 8 位小数，内部转为 tinybar 整数。不得由 Agent 静默填写或提高金额。交互模式缺少金额时在本地提示用户输入；非交互模式缺少金额则退出。本文不把手续费上限当作预计费用。
 
@@ -42,13 +44,13 @@ Source: WINIT-001；WINIT-002；WINIT-007
 | 阶段 | 输入与动作 | 输出与交接条件 |
 | --- | --- | --- |
 | LocalReady | 校验参数、取得独占权、生成或读取同一钱包 | 私钥回读成功、公开身份和金额授权已落盘 |
-| AwaitFunding | 输出充值 Brief；按 EVM 地址查询 Mirror 账户和 HBAR 余额 | 网络、地址、账户 ID 一致；未删除；余额至少为 maxFee + reserve |
+| AwaitFunding | 输出充值 Brief；按 EVM 地址查询 Mirror 账户和 HBAR 余额；用户转账触发网络自动开户 | 网络、地址、账户 ID 一致；未删除；余额至少为 maxFee + reserve；保存数字账户 ID |
 | InspectAccount | 检查账户 key 与本地身份 | 单 ECDSA 公钥完全匹配则跳过激活；key=null 且 EVM 地址匹配则进入激活；其他类型或不匹配停止 |
 | Activate | 保存固定交易 ID 与提交意图，然后由新账户付费、使用其私钥签名并提交一次激活交易 | 记录原交易；查询结果不能单凭 SDK execute 返回值认定成功 |
 | Verify | 查询原交易记录和账户状态 | 激活记录成功且 payer 匹配；账户 key、地址匹配；当前余额至少 reserve |
 | Ready | 持久保存账户 ID、证据及时间 | 返回 `ready`、exit 0、钱包描述文件位置 |
 
-充值查询返回 404 只表示当前尚未观察到账户；网络错误不能当作未到账。仅观察用户向地址充值，不代替用户操作主钱包或水龙头。充值发送方自行承担其转账及自动开户成本，本次激活费用授权不包含发送方费用。
+充值查询返回 404 只表示当前尚未观察到账户；网络错误不能当作未到账。按 `/api/v1/accounts/<evmAddress>` 查询，响应的 evm_address 必须与派生地址一致，account 必须为数字 ID；取得 ID 后继续按该 ID 核验，不能把 0x 地址直接填入现有 payerAccountId。仅观察用户向地址充值，不代替用户操作主钱包或水龙头。充值发送方自行承担其转账及自动开户成本，本次激活费用授权不包含发送方费用。
 
 ## WINIT-004 — 自动激活权限与交易
 
@@ -68,7 +70,7 @@ Status: Draft
 Review level: L3
 Source: WINIT-002 至 WINIT-004；loop-me
 
-本次运行成功须同时满足：本地密钥与描述一致；可信 Mirror 返回未删除的数字账户 ID、匹配 EVM 地址与单 ECDSA 公钥；HBAR 余额至少 reserve；如本流程已有提交意图，必须核实原激活交易 SUCCESS、payer 和实际 transactionFee 不超过授权上限；证据与最终状态已落盘。若已有完整匹配账户且从未提交激活，则记录 `activation=not_needed`，不制造交易。成功表示该 HBAR 钱包账户在核验时可用，不包含服务调用或特定 token 可用性证明。
+本次运行成功须同时满足：本地密钥与描述一致；可信 Mirror 返回未删除的数字账户 ID、匹配 EVM 地址与单 ECDSA 公钥；HBAR 余额至少 reserve；如本流程已有提交意图，必须核实原激活交易 SUCCESS、payer、CRYPTOUPDATE 类型、目标账户、固定 memo 和实际 transactionFee 不超过授权上限；证据与最终状态已落盘。若已有完整匹配账户且从未提交激活，则记录 `activation=not_needed`，不制造交易。成功表示该 HBAR 钱包账户在核验时可用，不包含服务调用或特定 token 可用性证明。
 
 充值等待每 5 秒检查一次，单请求 10 秒超时，整个等待窗口最多 10 分钟；连续 3 次查询错误则提前暂停。只在首次显示、余额或阶段变化、失败及完成时输出信息，不逐次打印原始响应。交易及最终核验最多 6 轮、每轮间隔 5 秒、每次请求 10 秒；全部受 120 秒总时限约束。响应结构异常、重定向或地址不匹配停止，不继续签名。
 

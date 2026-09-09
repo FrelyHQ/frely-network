@@ -5,6 +5,8 @@ mdq:
 ---
 # 独立 Agent Wallet 初始化设计
 
+2026-09-09 更新：当前模块与 Broker 接入设计见 [SDK 钱包初始化与 signer 接入](2026-09-09-agent-wallet-sdk-design.md)。本文保留早期讨论背景；运行规则只维护在 [Workflow](../../../workflows/agent-wallet-init.md)。
+
 ## AWINIT-001 — 边界与唯一流程定义
 
 Status: Draft
