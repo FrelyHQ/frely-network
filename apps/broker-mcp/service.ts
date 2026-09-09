@@ -6,6 +6,11 @@ import {
 const SERVICE = "frely-network-broker-mcp";
 const MCP_PROTOCOL_VERSION = "2024-11-05";
 const MAX_MCP_BODY_BYTES = 128 * 1024;
+const PAYMENT_ADMISSION_NOT_CONFIGURED = "PAYMENT_ADMISSION_NOT_CONFIGURED";
+
+export interface BrokerMcpServiceOptions {
+  readonly paymentAdmission?: (request: Request) => Response | Promise<Response>;
+}
 
 export interface BrokerService {
   findCapability(capabilities: unknown): Promise<unknown>;
@@ -140,8 +145,24 @@ async function handleMcp(request: Request, runtime: BrokerRuntime): Promise<Resp
   }
 }
 
-export function createBrokerMcpFetch(runtime: BrokerRuntime): (request: Request) => Promise<Response> {
+export async function brokerMcpFetch(request: Request): Promise<Response> {
+  return createBrokerMcpFetch(defaultRuntime)(request);
+}
+
+/** Compose the fail-closed Broker routes with an explicitly configured payment boundary. */
+export function createBrokerMcpFetch(
+  input: BrokerRuntime | BrokerMcpServiceOptions,
+  suppliedOptions: BrokerMcpServiceOptions = {},
+): (request: Request) => Promise<Response> {
+  const runtime = isBrokerRuntime(input) ? input : defaultRuntime;
+  const options = isBrokerRuntime(input) ? suppliedOptions : input;
   return async (request) => {
+    const pathname = new URL(request.url).pathname;
+    if (pathname === "/a2a/payment/requirements" || pathname === "/a2a/payment/verify") {
+      return options.paymentAdmission
+        ? Promise.resolve(options.paymentAdmission(request))
+        : Promise.resolve(json({ code: PAYMENT_ADMISSION_NOT_CONFIGURED }, 503));
+    }
     const url = new URL(request.url);
     if (request.method === "GET" && url.pathname === "/healthz") {
       return json({ service: SERVICE, status: "ok" });
@@ -156,6 +177,6 @@ export function createBrokerMcpFetch(runtime: BrokerRuntime): (request: Request)
   };
 }
 
-export async function brokerMcpFetch(request: Request): Promise<Response> {
-  return createBrokerMcpFetch(defaultRuntime)(request);
+function isBrokerRuntime(value: BrokerRuntime | BrokerMcpServiceOptions): value is BrokerRuntime {
+  return Object.hasOwn(value, "ready") || Object.hasOwn(value, "broker");
 }

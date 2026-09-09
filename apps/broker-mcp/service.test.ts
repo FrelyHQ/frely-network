@@ -1,6 +1,8 @@
 import { describe, expect, test } from "bun:test";
 
 import { brokerMcpFetch, createBrokerMcpFetch } from "./service.ts";
+import { createFixtureHederaX402AdmissionVerifier } from "../../packages/payment/hedera-x402/index.ts";
+import { createX402PaymentAdmissionHandler } from "../../packages/gateway/x402/index.ts";
 
 describe("Broker MCP deployment boundary", () => {
   test("reports process health without claiming Broker readiness", async () => {
@@ -65,5 +67,21 @@ describe("Broker MCP deployment boundary", () => {
     }));
     expect(call.status).toBe(200);
     expect(await call.json()).toMatchObject({ result: { structuredContent: { payment: { network: "hedera:testnet" } } } });
+  });
+
+  test("only composes a configured payment admission handler into the Broker process", async () => {
+    const fetch = createBrokerMcpFetch({
+      paymentAdmission: createX402PaymentAdmissionHandler({
+        verifier: createFixtureHederaX402AdmissionVerifier({ now: () => "2026-09-09T03:00:00.000Z" }),
+        apiKey: "relay-secret",
+      }),
+    });
+    const response = await fetch(new Request("https://network.example/a2a/payment/requirements", {
+      method: "POST",
+      headers: { authorization: "Bearer relay-secret", "content-type": "application/json" },
+      body: JSON.stringify({ resource: "https://api.frely.cloud/a2a/tasks", method: "POST", requestHash: "a".repeat(64) }),
+    }));
+    expect(response.status).toBe(200);
+    expect(await response.json()).toMatchObject({ payment: { network: "hedera:testnet", scheme: "exact" } });
   });
 });

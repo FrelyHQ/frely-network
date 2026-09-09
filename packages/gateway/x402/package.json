@@ -6,6 +6,7 @@
   "exports": "./index.ts",
   "types": "./index.ts",
   "dependencies": {
-    "@frely-network/hedera-x402": "workspace:*"
+    "@frely-network/hedera-x402": "workspace:*",
+    "@frely-network/shared-types": "workspace:*"
   }
 }
