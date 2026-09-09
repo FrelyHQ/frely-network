@@ -1,5 +1,7 @@
 import { describe, expect, test } from "bun:test";
 import {
+  createLiveHederaX402AdmissionVerifier,
+  createLiveHederaX402PaymentSettlement,
   ExactHederaPaymentSigner,
   HederaX402Client,
   type HederaPaymentSigner,
@@ -12,6 +14,51 @@ function encode(value: unknown): string {
   for (const byte of bytes) binary += String.fromCharCode(byte);
   return btoa(binary);
 }
+
+const A2A_REQUEST = {
+  resource: "https://api.frely.cloud/a2a/tasks",
+  method: "POST" as const,
+  requestHash: "a".repeat(64),
+};
+
+const A2A_REQUIREMENT = {
+  scheme: "exact",
+  network: "hedera:testnet",
+  amount: "100",
+  asset: "0.0.0",
+  payTo: "0.0.1001",
+  maxTimeoutSeconds: 60,
+  extra: {},
+};
+
+const A2A_PAYMENT_REQUIRED = {
+  x402Version: 2,
+  resource: { url: A2A_REQUEST.resource },
+  accepts: [A2A_REQUIREMENT],
+};
+
+const A2A_CHALLENGE = {
+  contractVersion: "frely.payment-admission.v1" as const,
+  scheme: "exact" as const,
+  network: "hedera:testnet" as const,
+  requirementRevision: "quote-v1",
+  resource: A2A_REQUEST.resource,
+  paymentRequired: encode(A2A_PAYMENT_REQUIRED),
+  chargeQuote: {
+    quoteReference: "quote:a2a-v1",
+    billingUnit: "usd_micro" as const,
+    maximumChargeUnits: "1000000",
+    expiresAt: "2026-09-09T03:05:00.000Z",
+  },
+  expiresAt: "2026-09-09T03:05:00.000Z",
+};
+
+const A2A_PROOF = encode({
+  x402Version: 2,
+  resource: { url: A2A_REQUEST.resource },
+  accepted: A2A_REQUIREMENT,
+  payload: { transaction: "signed-in-memory" },
+});
 
 const requirement = {
   scheme: "exact",
@@ -51,6 +98,7 @@ describe("Hedera x402 client", () => {
     }, { method: "POST", url: "https://provider.example/v1/responses" });
 
     expect(payload.x402Version).toBe(2);
+    expect(payload.resource?.url).toBe("https://provider.example/v1/responses");
     expect(payload.accepted?.network).toBe("hedera:testnet");
     expect(typeof payload.payload.transaction).toBe("string");
   });
@@ -203,5 +251,118 @@ describe("Hedera x402 admission boundary", () => {
       payerReference: "sk_live_not-a-payment-reference",
     });
     await expect(verifier.verify({ ...REQUEST, requestId: "req_a2a_1", idempotencyKeyHash: "b".repeat(64), proof: "proof-a" })).rejects.toThrow("A2A_PAYMENT_ADMISSION_REFERENCE_INVALID");
+  });
+});
+
+describe("Live Hedera x402 admission adapter", () => {
+  test("decodes the opaque proof, calls the official verifier and stores only replay-safe facts", async () => {
+    const verified: Array<{ amount: string; payer: string }> = [];
+    const verifier = createLiveHederaX402AdmissionVerifier({
+      now: () => "2026-09-09T03:00:00.000Z",
+      requirements: async () => A2A_CHALLENGE,
+      facilitator: {
+        verify: async (_payload, requirement) => {
+          verified.push({ amount: requirement.amount, payer: "0.0.2002" });
+          return { isValid: true, payer: "0.0.2002" };
+        },
+        settle: async () => ({ success: true, network: "hedera:testnet", transaction: "unused" }),
+      },
+    });
+
+    const admission = await verifier.verify({
+      ...A2A_REQUEST,
+      requestId: "req_a2a_1",
+      idempotencyKeyHash: "b".repeat(64),
+      proof: A2A_PROOF,
+    });
+
+    expect(verified).toEqual([{ amount: "100", payer: "0.0.2002" }]);
+    expect(admission).toMatchObject({
+      paymentReference: expect.stringMatching(/^hedera:proof:[a-f0-9]{48}$/u),
+      payerReference: "0.0.2002",
+      asset: "0.0.0",
+      authorizedAmount: "100",
+      chargeQuote: A2A_CHALLENGE.chargeQuote,
+      replayStatus: "fresh",
+    });
+    expect(admission).not.toHaveProperty("proof");
+
+    await expect(verifier.verify({
+      ...A2A_REQUEST,
+      requestId: "req_a2a_1",
+      idempotencyKeyHash: "b".repeat(64),
+      proof: A2A_PROOF,
+    })).resolves.toMatchObject({ replayStatus: "replayed" });
+    await expect(verifier.verify({
+      ...A2A_REQUEST,
+      requestId: "req_a2a_2",
+      idempotencyKeyHash: "c".repeat(64),
+      proof: A2A_PROOF,
+    })).rejects.toMatchObject({ code: "payment_replayed", status: 402 });
+    expect(verified).toHaveLength(1);
+  });
+
+  test("rejects a proof whose accepted requirement does not match the payee challenge", async () => {
+    const verifier = createLiveHederaX402AdmissionVerifier({
+      now: () => "2026-09-09T03:00:00.000Z",
+      requirements: async () => A2A_CHALLENGE,
+      facilitator: {
+        verify: async () => ({ isValid: true, payer: "0.0.2002" }),
+        settle: async () => ({ success: true, network: "hedera:testnet", transaction: "unused" }),
+      },
+    });
+    const error = await verifier.verify({
+      ...A2A_REQUEST,
+      requestId: "req_a2a_1",
+      idempotencyKeyHash: "b".repeat(64),
+      proof: encode({ x402Version: 2, accepted: { ...A2A_REQUIREMENT, amount: "101" }, payload: { transaction: "signed-in-memory" } }),
+    }).catch((value: unknown) => value);
+    expect(error).toMatchObject({ code: "payment_invalid", status: 402 });
+  });
+
+  test("rejects a replay when the payee changes the bound maximum charge quote", async () => {
+    let maximumChargeUnits = "100";
+    const verifier = createLiveHederaX402AdmissionVerifier({
+      now: () => "2026-09-09T03:00:00.000Z",
+      requirements: async () => ({ ...A2A_CHALLENGE, chargeQuote: { ...A2A_CHALLENGE.chargeQuote, maximumChargeUnits } }),
+      facilitator: {
+        verify: async () => ({ isValid: true, payer: "0.0.2002" }),
+        settle: async () => ({ success: true, network: "hedera:testnet", transaction: "unused" }),
+      },
+    });
+    const input = { ...A2A_REQUEST, requestId: "req_a2a_1", idempotencyKeyHash: "b".repeat(64), proof: A2A_PROOF };
+    await expect(verifier.verify(input)).resolves.toMatchObject({ replayStatus: "fresh", chargeQuote: { maximumChargeUnits: "100" } });
+    maximumChargeUnits = "200";
+    await expect(verifier.verify(input)).rejects.toMatchObject({ code: "payment_replayed", status: 402 });
+  });
+});
+
+describe("Live Hedera x402 settlement adapter", () => {
+  test("delegates settlement and requires an injected real release implementation", async () => {
+    let releaseCalls = 0;
+    const settlement = createLiveHederaX402PaymentSettlement({
+      facilitator: {
+        verify: async () => ({ isValid: true, payer: "0.0.2002" }),
+        settle: async () => ({ success: true, network: "hedera:testnet", transaction: "0.0.3003@1.2", payer: "0.0.2002" }),
+      },
+      release: async (input) => {
+        releaseCalls += 1;
+        expect(input.paymentPayload.payload.transaction).toBe("signed-in-memory");
+        return { network: "hedera:testnet", status: "released", transactionId: "0.0.3003@1.3" };
+      },
+    });
+    const authorization = {
+      paymentPayload: { x402Version: 2 as const, accepted: A2A_REQUIREMENT, payload: { transaction: "signed-in-memory" } },
+      paymentRequirement: A2A_REQUIREMENT,
+    };
+
+    await expect(settlement.settle(authorization)).resolves.toMatchObject({
+      status: "settled",
+      transactionId: "0.0.3003@1.2",
+      payer: "0.0.2002",
+      authorizedAmount: "100",
+    });
+    await expect(settlement.release(authorization)).resolves.toMatchObject({ status: "released", transactionId: "0.0.3003@1.3" });
+    expect(releaseCalls).toBe(1);
   });
 });

@@ -81,6 +81,7 @@
       "version": "0.0.0",
       "dependencies": {
         "@frely-network/shared-types": "workspace:*",
+        "@x402/core": "2.25.0",
         "@x402/hedera": "2.25.0",
       },
     },

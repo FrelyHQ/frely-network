@@ -1,9 +1,10 @@
-export type ProviderProtocol = "responses" | "mcp" | "http";
+export type ProviderProtocol = "responses" | "a2a" | "mcp" | "http";
 
 /** A provider returned by live discovery before identity resolution. */
 export interface ProviderCandidate {
   id: string;
   ensName?: string;
+  protocol?: ProviderProtocol;
   capabilities: string[];
   supportsX402: boolean;
   reputation?: number;
@@ -32,6 +33,13 @@ export interface PaymentEvidence {
   network: string;
   transactionId?: string;
   payer?: string;
+  status?: "settled" | "released" | "pending_settlement";
+  paymentReference?: string;
+  authorizedAmount?: string;
+  billingUnit?: "usd_micro";
+  maximumChargeUnits?: string;
+  finalChargeUnits?: string;
+  releasedChargeUnits?: string;
 }
 
 /** The result returned after provider execution and payment settlement. */
@@ -191,6 +199,8 @@ export const A2A_TASK_KIND = "model.inference" as const;
 export const A2A_PAYMENT_CONTRACT_VERSION = "frely.payment-admission.v1" as const;
 export const A2A_PAYMENT_SCHEME = "exact" as const;
 export const A2A_PAYMENT_NETWORK = "hedera:testnet" as const;
+/** Frely's internal quote unit; x402 atomic amounts remain Network-owned. */
+export const A2A_BILLING_UNIT = "usd_micro" as const;
 
 export interface A2APaymentRequirementsRequest {
   readonly resource: string;
@@ -206,6 +216,14 @@ export interface A2APaymentChallenge {
   readonly requirementRevision: string;
   readonly resource: string;
   readonly paymentRequired: string;
+  readonly chargeQuote: A2AChargeQuote;
+  readonly expiresAt: string;
+}
+
+export interface A2AChargeQuote {
+  readonly quoteReference: string;
+  readonly billingUnit: typeof A2A_BILLING_UNIT;
+  readonly maximumChargeUnits: string;
   readonly expiresAt: string;
 }
 
@@ -228,6 +246,7 @@ export interface A2APaymentAdmission {
   readonly network: typeof A2A_PAYMENT_NETWORK;
   readonly asset: string;
   readonly authorizedAmount: string;
+  readonly chargeQuote: A2AChargeQuote;
   readonly verifiedAt: string;
   readonly expiresAt: string;
   readonly replayStatus: A2APaymentReplayStatus;

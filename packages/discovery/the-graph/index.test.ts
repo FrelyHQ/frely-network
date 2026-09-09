@@ -57,6 +57,17 @@ describe("The Graph discovery", () => {
     expect(providers[0]?.ensName).toBe("indexed.example.eth");
   });
 
+  test("marks a validated A2A manifest for protocol-aware identity resolution", async () => {
+    const discovery = new TheGraphDiscovery(
+      { endpoint: "https://graph.example/query", paymentNetwork: "hedera:testnet" },
+      async (endpoint) => endpoint.includes("graph.example")
+        ? response({ data: { agents: [{ agentId: "10", ensName: "a2a.example.eth", active: true, supportsX402: true, metadataUri: "https://metadata.example/10.json" }] } })
+        : response({ ...manifest, identity: { ens: "a2a.example.eth", agentId: "10" }, interfaces: [{ protocol: "a2a", endpoint: "https://provider.example/a2a" }] }),
+    );
+
+    await expect(discovery.findProviders(["vision"])).resolves.toMatchObject([{ id: "10", protocol: "a2a" }]);
+  });
+
   test("resolves ipfs agentURI through the configured metadata gateway", async () => {
     const discovery = new TheGraphDiscovery(
       { endpoint: "https://graph.example/query", paymentNetwork: "hedera:testnet", metadataGateway: "https://gateway.example/ipfs/{cid}" },

@@ -6,7 +6,7 @@ import {
 } from "viem";
 import { normalize } from "viem/ens";
 import { sepolia } from "viem/chains";
-import { isSafePublicHttpUrl } from "@frely-network/shared-types";
+import { isSafePublicHttpUrl, type ProviderProtocol } from "@frely-network/shared-types";
 
 export const ENSIP25_AGENT_REGISTRATION_PREFIX = "agent-registration";
 export const ENSV2_SEPOLIA_CHAIN_ID = 11155111;
@@ -41,12 +41,12 @@ export interface EnsRecords {
   name: string;
   resolver: Address;
   endpoint: string;
-  protocol: "responses" | "mcp" | "http";
+  protocol: "responses" | "a2a" | "mcp" | "http";
   agentRegistration?: string;
 }
 
 export interface EnsReader {
-  resolve(name: string, context?: { registryAddress?: Address; agentId?: string }): Promise<EnsRecords>;
+  resolve(name: string, context?: { registryAddress?: Address; agentId?: string; protocol?: ProviderProtocol }): Promise<EnsRecords>;
 }
 
 function assertEndpoint(endpoint: string, requireHttps: boolean): URL {
@@ -74,7 +74,7 @@ export class ViemEnsReader implements EnsReader {
     this.client = client ?? createPublicClient({ chain: sepolia, transport: http(config.rpcUrl) });
   }
 
-  async resolve(name: string, context?: { registryAddress?: Address; agentId?: string }): Promise<EnsRecords> {
+  async resolve(name: string, context?: { registryAddress?: Address; agentId?: string; protocol?: ProviderProtocol }): Promise<EnsRecords> {
     if (!name || !name.includes(".")) throw new Error("IDENTITY_VERIFICATION_FAILED");
     let normalizedName: string;
     try { normalizedName = normalize(name); } catch { throw new Error("IDENTITY_VERIFICATION_FAILED"); }
@@ -82,8 +82,9 @@ export class ViemEnsReader implements EnsReader {
     try { resolver = await this.client.getEnsResolver({ name: normalizedName }); }
     catch { throw new Error("IDENTITY_VERIFICATION_FAILED"); }
     if (!resolver) throw new Error("IDENTITY_VERIFICATION_FAILED");
+    const endpointKey = context?.protocol ? `agent-endpoint[${context.protocol}]` : this.config.agentEndpointKey;
     let endpoint: string | null;
-    try { endpoint = await this.client.getEnsText({ name: normalizedName, key: this.config.agentEndpointKey }); }
+    try { endpoint = await this.client.getEnsText({ name: normalizedName, key: endpointKey }); }
     catch { throw new Error("ENS_ENDPOINT_MISSING"); }
     if (!endpoint) throw new Error("ENS_ENDPOINT_MISSING");
     assertEndpoint(endpoint, this.config.requireHttps);
@@ -97,8 +98,8 @@ export class ViemEnsReader implements EnsReader {
       try { registration = await this.client.getEnsText({ name: normalizedName, key: registrationKey }) ?? ""; }
       catch { throw new Error("IDENTITY_VERIFICATION_FAILED"); }
     }
-    const protocolMatch = this.config.agentEndpointKey.match(/agent-endpoint\[([^\]]+)\]/i)?.[1];
-    const protocol = protocolMatch === "mcp" ? "mcp" : protocolMatch === "http" ? "http" : "responses";
+    const protocolMatch = endpointKey.match(/agent-endpoint\[([^\]]+)\]/i)?.[1]?.toLowerCase();
+    const protocol = protocolMatch === "a2a" ? "a2a" : protocolMatch === "mcp" ? "mcp" : protocolMatch === "http" ? "http" : "responses";
     return { name: normalizedName, resolver, endpoint, protocol, agentRegistration: registration || undefined };
   }
 }

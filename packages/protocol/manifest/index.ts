@@ -6,12 +6,17 @@ export const P0_PAYMENT_NETWORK = "hedera:testnet" as const;
 export type P0PaymentNetwork = typeof P0_PAYMENT_NETWORK;
 
 export interface ProviderInterface {
-  protocol: "responses" | "mcp" | "http";
+  protocol: "responses" | "a2a" | "mcp" | "http";
   endpoint: string;
 }
 
 export interface ResponsesProviderInterface {
   protocol: "responses";
+  endpoint: `https://${string}`;
+}
+
+export interface A2AProviderInterface {
+  protocol: "a2a";
   endpoint: `https://${string}`;
 }
 
@@ -40,8 +45,8 @@ export interface P0CapabilityProviderManifest {
     agentId?: string;
   };
   interfaces: [
-    ResponsesProviderInterface,
-    ...ResponsesProviderInterface[],
+    ResponsesProviderInterface | A2AProviderInterface,
+    ...(ResponsesProviderInterface | A2AProviderInterface)[],
   ];
   payment: {
     protocol: "x402";
@@ -143,8 +148,8 @@ export function validateManifest(value: unknown): P0CapabilityProviderManifest {
         issues.push({ path, message: "must be an object" });
         return;
       }
-      if (providerInterface.protocol !== "responses") {
-        issues.push({ path: `${path}.protocol`, message: 'must be "responses" for P0' });
+      if (providerInterface.protocol !== "responses" && providerInterface.protocol !== "a2a") {
+        issues.push({ path: `${path}.protocol`, message: 'must be "responses" or "a2a" for P0' });
       }
       validateHttpsEndpoint(providerInterface.endpoint, `${path}.endpoint`, issues);
     });
