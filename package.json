@@ -12,6 +12,7 @@
     "packages/discovery/*",
     "packages/identity/*",
     "packages/payment/*",
+    "packages/wallet/*",
     "packages/broker",
     "packages/gateway/*",
     "apps/*",
@@ -19,6 +20,7 @@
     "scripts/*"
   ],
   "scripts": {
+    "agent": "bun apps/agent-cli/index.ts",
     "payment:check": "bun scripts/payment-spike/index.ts",
     "typecheck": "tsc --project tsconfig.json",
     "test": "bun test",

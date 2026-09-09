@@ -19,6 +19,12 @@ test('live composition fixes source and defers key/environment reads until sign'
  expect(ports.source).toBe('testnet');
  expect(typeof ports.sign).toBe('function');
 });
+test('accepts file ECDSA references without reading their files',()=>{
+ const policy=loadPaymentConfig({...raw,signerRef:'file:/not-present/agent.key',keyType:'ecdsa'});
+ expect(typeof createLivePorts(policy,{} as Journal,async()=>null).sign).toBe('function');
+ for(const signerRef of ['file:relative','file:~/agent.key','file:///tmp/agent.key'])expect(()=>loadPaymentConfig({...raw,signerRef})).toThrow('CONFIG_INCOMPLETE');
+ expect(()=>loadPaymentConfig({...raw,signerRef:policy.signerRef,keyType:'ed25519'})).toThrow('CONFIG_INCOMPLETE');
+});
 test('approved disabled config does not require an approved journal destination',async()=>{
  const dir=realpathSync(mkdtempSync(join(tmpdir(),'frely-disabled-')));const configPath=join(dir,'config.json');const registryPath=join(dir,'registry.json');
  writeFileSync(configPath,JSON.stringify({...raw,enabled:false,journalPath:join(dir,'must-not-open.sqlite')}));

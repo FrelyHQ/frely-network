@@ -60,9 +60,9 @@ Source: 用户已允许到账后在明确上限内自动激活；WINIT-007
 
 金额在首次运行明确后，到账无需再次确认。权限只覆盖当前钱包、Testnet、一次固定目的激活交易；不能借此授权其他付款、提款、授信或账户换 key。单笔 maxTransactionFee 必须等于保存的 maxFee；任何失败、超时、恢复或重新运行不得自动提高上限或产生第二笔新激活交易。
 
-拟采用 `AccountUpdateTransaction` 更新该账户的 memo 为 `frely-agent-wallet`，目标账户和 transactionId 的 payer 都是新账户的数字 ID；不设置新 key、不更改 staking 或 token association、不包含资产转账。使用匹配 EVM 地址的本地 ECDSA 私钥签名。交易有效期固定 120 秒，提交总超时 30 秒，关闭 SDK 自动生成新 transactionId 的重试；代码必须解码核对交易类型、账户、memo、payer、费用上限和有效期后才允许提交。
+采用 `AccountUpdateTransaction` 更新该账户的 memo 为 `frely-agent-wallet`，目标账户和 transactionId 的 payer 都是新账户的数字 ID；不设置新 key、不更改 staking 或 token association、不包含资产转账。使用匹配 EVM 地址的本地 ECDSA 私钥签名。交易有效期固定 120 秒，提交总超时 30 秒，关闭 SDK 自动生成新 transactionId 的重试；代码必须解码核对交易类型、账户、memo、payer、费用上限和有效期后才允许提交。
 
-这是基于官方“空账户作为 payer 并使用匹配 ECDSA 签名可补全”规则作出的设计选择；官方示例使用 TopicCreate，不直接证明本方案的 AccountUpdate 组合已验证。该组合需先完成最小 Testnet 兼容性验收，未通过不得改用向第三方转账或创建额外实体作静默回退。此项当前仍是会影响实现的未决验证，规格尚未完成。
+这是基于官方“空账户作为 payer 并使用匹配 ECDSA 签名可补全”规则作出的设计选择。2026-09-09 已通过正式 CLI 的最小 Testnet 验收：新账户 `0.0.10431569` 的 AccountUpdate 主记录与补全子记录均为 SUCCESS，随后 Ready 和同目录只读复跑通过。详见 [验收记录](../docs/verification/2026-09-09-agent-wallet-testnet-acceptance.md)。本次证据关闭该组合的技术兼容性缺口，不等同于主网或业务付款验收；失败时仍不得静默改用第三方转账或创建额外实体。
 
 ## WINIT-005 — Success signal、失败与恢复
 
@@ -70,7 +70,7 @@ Status: Draft
 Review level: L3
 Source: WINIT-002 至 WINIT-004；loop-me
 
-本次运行成功须同时满足：本地密钥与描述一致；可信 Mirror 返回未删除的数字账户 ID、匹配 EVM 地址与单 ECDSA 公钥；HBAR 余额至少 reserve；如本流程已有提交意图，必须核实原激活交易 SUCCESS、payer、CRYPTOUPDATE 类型、目标账户、固定 memo 和实际 transactionFee 不超过授权上限；证据与最终状态已落盘。若已有完整匹配账户且从未提交激活，则记录 `activation=not_needed`，不制造交易。成功表示该 HBAR 钱包账户在核验时可用，不包含服务调用或特定 token 可用性证明。
+本次运行成功须同时满足：本地密钥与描述一致；可信 Mirror 返回未删除的数字账户 ID、匹配 EVM 地址与单 ECDSA 公钥；HBAR 余额至少 reserve；如本流程已有提交意图，必须核实原激活交易 SUCCESS、payer、CRYPTOUPDATEACCOUNT 类型、目标账户、固定 memo 和实际 transactionFee 不超过授权上限；证据与最终状态已落盘。若已有完整匹配账户且从未提交激活，则记录 `activation=not_needed`，不制造交易。成功表示该 HBAR 钱包账户在核验时可用，不包含服务调用或特定 token 可用性证明。
 
 充值等待每 5 秒检查一次，单请求 10 秒超时，整个等待窗口最多 10 分钟；连续 3 次查询错误则提前暂停。只在首次显示、余额或阶段变化、失败及完成时输出信息，不逐次打印原始响应。交易及最终核验最多 6 轮、每轮间隔 5 秒、每次请求 10 秒；全部受 120 秒总时限约束。响应结构异常、重定向或地址不匹配停止，不继续签名。
 
@@ -108,6 +108,6 @@ Source: 2026-09-08 官方文档及本地 SDK 只读检查
 - [账户更新](https://docs.hedera.com/native/accounts/update)：可更新 memo。
 - [官方 SDK 空账户示例](https://github.com/hiero-ledger/hiero-sdk-js/blob/main/examples/account/transfer-using-evm-address.js)：展示新账户付费并签名完成补全，其具体交易为 TopicCreate。
 
-仍需关闭的设计项：AccountUpdate 激活组合的最小兼容性证据。实际 maxFee、reserve 是每次首次运行的必填授权输入，并非要由实施者猜测的默认值。
+AccountUpdate 激活组合的最小 Testnet 兼容性证据已于 2026-09-09 取得，见 WINIT-004 及验收记录。实际 maxFee、reserve 仍是每次首次运行的必填授权输入，不把本次验收额度改为默认值。
 
-文档维护范围仅为本文件和配套设计入口；既有付款、allowance、Broker 文档不随本次改写。维护顺序：核对用户范围与官方依据→写入单一流程定义和边界引用→检查 ID、生命周期、链接、未决项及权限→请求用户审阅。当前为 Draft，未实现、未运行，未完成 Workflow Definition of Done。
+文档维护范围仅为本文件和配套设计入口；既有付款、allowance、Broker 文档不随本次改写。维护顺序：核对用户范围与官方依据→写入单一流程定义和边界引用→检查 ID、生命周期、链接、未决项及权限→请求用户审阅。最小实现、基础检查和本次真实 Testnet 充值/激活/复跑已完成；兼容性缺口已关闭。本文仍为 Draft 待审阅，不据一次验收自动宣告所有 Definition of Done 条件完成。

@@ -87,6 +87,8 @@ Status: Draft
 Review level: L3
 Source: 2026-09-09 本机 npm CLI 及 Testnet Mirror 实测
 
+实现状态：最小钱包模块、薄 CLI 与四项基础检查已完成。2026-09-09 正式 SDK/CLI 已完成真实 Testnet 充值、AccountUpdate 激活及同目录不重发验收，详见 [验收记录](../../verification/2026-09-09-agent-wallet-testnet-acceptance.md)。下述 Hiero CLI 探测是较早的独立开发记录，不与已激活的 SDK 钱包混淆；本规格保持 Draft 等待文档审阅。
+
 使用 npm exec 调用已发布 @hiero-ledger/hiero-cli@1.2.0，没有全局安装。已执行 help、credentials list、credentials generate，并再次 list 证实存储存在。生成参数为 alias=frely-init-probe-20260909、key-type=ecdsa、key-manager=local_encrypted、network=testnet；密钥由 CLI 写入本地 KMS，未读取或导出私钥。
 
 公开证据：keyRefId=kr_014973f3c811d298；publicKey=02902497c7e750448e6cb09810fcb57bfe0a6dacf1ca435fc256eec62353ce9f22。用本地 SDK 2.85.0 的 PublicKey.toEvmAddress 派生地址 0x9ac65750f18aebf9c14b164f0592aec32a977304。该地址的官方 Testnet Mirror 查询返回 HTTP 404，当前尚未观察到账户。
@@ -103,8 +105,8 @@ Source: WINIT-004 至 WINIT-007；AWS-006
 
 验证仅包括基本密钥文件兼容、模拟到账激活正常路径、重复运行不换 key、提交未知不重发、交接到现有 signer 的离线签名，以及新增包类型检查。基础测试通过后，专用 Testnet 钱包的充值、激活交易和 Mirror 公钥核验分别记录，不能用原生开户或激活交易替代真实 x402 付费验收。
 
-尚未验证：AccountUpdate memo 方式在当前 Testnet 的空账户激活结果；CLI 1.2.0 是否能在不导出私钥且明确限制费用的条件下继续该测试钱包的激活。前者是正式 Workflow 的上线验收前提，后者只影响开发验证工具。不得静默以转账第三方、创建额外实体或修改 CLI 已安装版本绕过。
+已验证：AccountUpdate memo 方式在 Testnet 新账户 `0.0.10431569` 的空账户激活、最终 Ready 及同目录复跑；充值和激活是两笔分别核验的交易，总费用含网络自动开户子记录。尚未验证的 Hiero CLI 1.2.0 费用控制只影响独立开发验证工具，不阻塞已采用的 SDK 路径。仍不得静默以转账第三方或创建额外实体作为激活回退。
 
-实际 maxFee、reserve 是运行时必填用户授权，不由规格虚构金额。未充值、未激活时保留 Draft 与明确的验证缺口，不宣称链上验收或完整 Workflow Definition of Done 已完成。
+实际 maxFee、reserve 仍是运行时必填用户授权，不由本次验收值设置默认额度。该次链上验收通过不等于真实 x402 服务付款、主网适用性或完整 Workflow Definition of Done 自动完成。
 
-本轮文档维护范围：新建本设计入口，更新唯一 Workflow 的用户决定和账户发现交接，给 2026-09-08 设计加入当前入口链接。其余旧付款/allowance 文档和未提交改动不动。校验 ID、Draft 生命周期、相对链接、实际分支状态及私钥脱敏后提交文档；当前没有编写正式实现代码。
+本轮文档维护范围：新建本设计入口，更新唯一 Workflow 的用户决定和账户发现交接，给 2026-09-08 设计加入当前入口链接。其余旧付款/allowance 文档和未提交改动不动。本次维护仅更新本规格和唯一 Workflow 的验收状态，并加入独立验收记录；保留 Draft 生命周期，核对链接和公开证据，不修改旧 allowance 或 Broker 配置。

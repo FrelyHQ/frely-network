@@ -7,6 +7,7 @@ import type {
   Policy,
   Selection,
 } from "./types.ts";
+import { fileKeyPath } from "./key-file.ts";
 
 const MAX_ATOMIC = 9_223_372_036_854_775_807n;
 const MAX_HEADER_BYTES = 64 * 1024;
@@ -84,7 +85,8 @@ export function validPolicy(value: unknown): value is Policy {
     typeof value.journalPath !== "string" ||
     value.journalPath.length === 0 ||
     typeof value.signerRef !== "string" ||
-    !SIGNER_REF.test(value.signerRef) ||
+    (!SIGNER_REF.test(value.signerRef) &&
+      !(value.keyType === "ecdsa" && fileKeyPath(value.signerRef) !== null)) ||
     (value.keyType !== "ecdsa" && value.keyType !== "ed25519") ||
     typeof value.credentialRef !== "string" ||
     value.credentialRef.length === 0

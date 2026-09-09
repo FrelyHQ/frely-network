@@ -11,6 +11,7 @@
     "json-bigint": "1.0.0"
   },
   "devDependencies": {
+    "@frely-network/agent-wallet": "workspace:*",
     "@types/json-bigint": "1.0.4"
   }
 }

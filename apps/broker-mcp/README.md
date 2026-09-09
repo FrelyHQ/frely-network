@@ -143,6 +143,12 @@ See the [x402 architecture](../../docs/architecture.md#x402-architecture-1--clie
 and [payment workflow](../../workflows/hedera-auto-payment.md) for the input,
 authorization and recovery contracts.
 
+An SDK-created wallet is handed off through the [Agent wallet CLI](../agent-cli/README.md).
+Merge only its four `paymentIdentity` fields into an existing approved Policy,
+preserve all business settings plus the existing registry and journal paths, and
+keep the first handoff `enabled=false`. Wallet initialization does not enable or
+reload Broker payment.
+
 Integration mode is not a free-service guarantee: W must explicitly provide the
 allowed test billing or payment exemption arrangement. The Broker never bypasses
 Frely authentication and never calls Swarm directly.

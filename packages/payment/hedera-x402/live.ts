@@ -3,8 +3,11 @@ import {createNetworkCheck} from './network.ts';
 import {createSdkSigner} from './signer.ts';
 import {boundedVerifier} from './verifier.ts';
 import {loadPaymentConfig,resolveSigningKey} from './config.ts';
+import {createFileKeyResolver} from './file-signer.ts';
 export function createLivePorts(policy:Policy,journal:Journal,parseService:Ports['parseService']):Ports{
  const approved=loadPaymentConfig(policy);
  if(!approved.enabled)throw Error('CONFIG_INCOMPLETE');
- return {source:'testnet',journal,parseService,now:Date.now,fetcher:request=>fetch(request),sign:createSdkSigner(approved,resolveSigningKey),checkNetwork:createNetworkCheck(approved,request=>fetch(request)),verify:boundedVerifier(approved,request=>fetch(request))};
+ const fetcher=(request:Request)=>fetch(request);
+ const resolveKey=approved.signerRef.startsWith('file:')?createFileKeyResolver(approved,fetcher):resolveSigningKey;
+ return {source:'testnet',journal,parseService,now:Date.now,fetcher,sign:createSdkSigner(approved,resolveKey),checkNetwork:createNetworkCheck(approved,fetcher),verify:boundedVerifier(approved,fetcher)};
 }

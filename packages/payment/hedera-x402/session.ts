@@ -240,9 +240,13 @@ export function createPaymentSession(config: Policy, ports: Ports) {
         save(id, { phase: "authorized" });
         let signed;
         try {
-          signed = await bounded(ports.sign(structuredClone(checked.selection)), 10_000, "SIGNING_TIMEOUT");
-        } catch {
-          return finish({ ...base, reason: "SIGNING_FAILED" });
+          const signingTimeout = policy.signerRef.startsWith("file:") ? 25_000 : 10_000;
+          signed = await bounded(ports.sign(structuredClone(checked.selection)), signingTimeout, "SIGNING_TIMEOUT");
+        } catch (error) {
+          const permitted = new Set(["SIGNER_UNAVAILABLE", "SIGNER_MISMATCH", "NETWORK_CHECK_FAILED"]);
+          const reason = policy.signerRef.startsWith("file:") && error instanceof Error && permitted.has(error.message)
+            ? error.message : "SIGNING_FAILED";
+          return finish({ ...base, reason });
         }
         if (!signed.transactionId || !signed.signedDigest)
           return finish({ ...base, reason: "SIGNING_INVALID" });

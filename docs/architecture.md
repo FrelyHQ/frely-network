@@ -184,8 +184,10 @@ matching metadata and account readiness. There is no automatic asset switching.
 `captureSha256` values. Policy loading validates these approvals and rejects
 symlink aliases. Capture approval hashes the JSON array `[source, capturedAt,
 method, url, bodySha256, status, paymentRequiredHeader]` in that order.
-`signerRef` is an `env:VARIABLE_NAME` reference, with explicit `ecdsa` or
-`ed25519` key type. The key is resolved only at signing. Optional service
+`signerRef` supports the existing `env:VARIABLE_NAME` reference with explicit
+`ecdsa` or `ed25519` key type. It also supports an operator-prepared local file
+reference for ECDSA only, as specified by [the local Agent key design](superpowers/specs/2026-09-08-hedera-local-key-design.md).
+The key is resolved only at signing. Optional service
 credentials use separate environment references through
 `FRELY_PAYMENT_CREDENTIALS`; business credentials are never reused for a
 facilitator or Mirror query. Policy files contain no secret values.
