@@ -1,0 +1,61 @@
+---
+const steps = [
+  {
+    id: "discover",
+    title: "Discover",
+    body: "Find capability providers on-chain via The Graph and ENS.",
+  },
+  {
+    id: "verify",
+    title: "Verify",
+    body: "Confirm identity with ENSv2 / ERC-8004 before any payment.",
+  },
+  {
+    id: "pay",
+    title: "Pay",
+    body: "Settle with Hedera x402 and Blocky402 — real testnet payment.",
+  },
+  {
+    id: "execute",
+    title: "Execute",
+    body: "Call the provider over A2A and return structured results.",
+  },
+] as const;
+---
+
+<section
+  id="flow"
+  aria-labelledby="flow-heading"
+  class="mx-auto max-w-6xl px-6 pb-24 pt-8"
+  data-testid="capability-flow"
+>
+  <div class="mb-10 max-w-2xl">
+    <p class="text-sm font-medium tracking-wide text-[var(--primary)]">P0 path</p>
+    <h2
+      id="flow-heading"
+      class="mt-2 text-3xl font-semibold tracking-tight text-[var(--foreground)] sm:text-4xl"
+    >
+      Discover → Verify → Pay → Execute
+    </h2>
+    <p class="mt-3 text-[var(--muted-foreground)]">
+      The hackathon demo is driven by CLI / A2A — this page explains the path. Evidence UIs never invent success from fixtures.
+    </p>
+  </div>
+
+  <ol class="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+    {
+      steps.map((step, index) => (
+        <li
+          data-testid={`flow-step-${step.id}`}
+          class="relative rounded-xl border border-[var(--border)] bg-[color-mix(in_oklch,var(--card)_80%,transparent)] p-5 backdrop-blur-sm"
+        >
+          <span class="text-xs font-semibold tracking-[0.14em] text-[var(--primary)]">
+            {String(index + 1).padStart(2, "0")}
+          </span>
+          <h3 class="mt-3 text-lg font-semibold text-[var(--foreground)]">{step.title}</h3>
+          <p class="mt-2 text-sm leading-relaxed text-[var(--muted-foreground)]">{step.body}</p>
+        </li>
+      ))
+    }
+  </ol>
+</section>

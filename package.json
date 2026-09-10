@@ -14,7 +14,8 @@
     "packages/payment/*",
     "packages/broker",
     "packages/gateway/*",
-    "apps/*",
+    "apps/broker-mcp",
+    "apps/explorer",
     "examples/*",
     "scripts/*"
   ],

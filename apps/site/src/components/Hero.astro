@@ -1,0 +1,93 @@
+---
+const GITHUB = "https://github.com/FrelyHQ/frely-network";
+const tags = ["ENS", "ERC-8004", "The Graph", "Hedera", "x402"];
+---
+
+<section id="top" class="relative min-h-[100svh] overflow-hidden" data-testid="hero">
+  <div aria-hidden="true" class="pointer-events-none absolute inset-0">
+    <div
+      class="animate-drift absolute -right-24 top-24 h-[420px] w-[420px] rounded-full blur-2xl"
+      style="background: color-mix(in oklch, var(--primary) 20%, transparent);"
+    >
+    </div>
+    <div
+      class="absolute bottom-0 left-0 right-0 h-40"
+      style="background: linear-gradient(to top, var(--muted), transparent);"
+    >
+    </div>
+    <svg
+      class="absolute inset-x-0 bottom-[18%] hidden h-24 w-full opacity-40 md:block"
+      viewBox="0 0 1200 120"
+      fill="none"
+      preserveAspectRatio="none"
+    >
+      <path
+        class="flow-connector"
+        d="M40 80 C 220 20, 380 20, 560 70 S 900 110, 1160 40"
+        stroke="var(--primary)"
+        stroke-width="2"
+        stroke-linecap="round"></path>
+    </svg>
+  </div>
+
+  <div
+    class="relative mx-auto grid min-h-[100svh] max-w-6xl items-center gap-12 px-6 pb-20 pt-28 lg:grid-cols-[1.05fr_0.95fr]"
+  >
+    <div>
+      <p class="animate-rise text-sm font-medium tracking-[0.16em] text-[var(--primary)] uppercase">
+        Frely Network
+      </p>
+      <h1
+        class="animate-rise-delay-1 mt-4 max-w-xl text-4xl font-semibold leading-[1.08] tracking-tight text-[var(--foreground)] sm:text-5xl lg:text-[3.35rem]"
+      >
+        Open agent capability network
+      </h1>
+      <p
+        class="animate-rise-delay-2 mt-5 max-w-lg text-base leading-relaxed text-[var(--muted-foreground)] sm:text-lg"
+      >
+        Let an agent discover, verify, pay for, and use capabilities it does not have — Graph
+        discovery, ENS / ERC-8004 identity, Hedera x402 settlement.
+      </p>
+      <div class="animate-rise-delay-3 mt-8 flex flex-wrap items-center gap-3">
+        <a
+          href={GITHUB}
+          target="_blank"
+          rel="noreferrer"
+          class="btn btn-primary btn-lg"
+          data-testid="cta-github"
+        >
+          View on GitHub
+        </a>
+        <a href="#flow" class="btn btn-outline btn-lg" data-testid="cta-flow">See the path</a>
+      </div>
+    </div>
+
+    <div class="animate-rise-delay-2 relative justify-self-center lg:justify-self-end">
+      <div
+        class="relative overflow-hidden rounded-2xl border border-[var(--border)] bg-[color-mix(in_oklch,var(--card)_80%,transparent)] p-8 shadow-sm backdrop-blur-md"
+      >
+        <div data-testid="hero-logo">
+          <img
+            src="/logo.jpg"
+            alt="Frely Network"
+            width="420"
+            height="140"
+            class="h-auto w-full max-w-[360px] object-contain"
+          />
+        </div>
+        <p class="mt-6 text-sm text-[var(--muted-foreground)]">
+          Dual plane: EVM identity & discovery · Hedera payment
+        </p>
+        <ul class="mt-4 flex flex-wrap gap-2 text-xs font-medium text-[var(--foreground)]">
+          {
+            tags.map((tag) => (
+              <li class="rounded-md border border-[var(--border)] bg-[var(--muted)] px-2.5 py-1">
+                {tag}
+              </li>
+            ))
+          }
+        </ul>
+      </div>
+    </div>
+  </div>
+</section>

@@ -1,0 +1,18 @@
+# dependencies
+node_modules/
+
+# build
+dist/
+.astro/
+
+# env / os
+.env
+.env.*
+.DS_Store
+Thumbs.db
+
+# test leftovers
+test-results/
+playwright-report/
+playwright.config.*
+e2e/
