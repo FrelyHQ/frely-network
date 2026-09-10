@@ -1,14 +1,29 @@
 ---
 const GITHUB = "https://github.com/FrelyHQ/frely-network";
+const pathname = Astro.url.pathname;
+const onEvidence = pathname.startsWith("/evidence");
 ---
 
-<header class="absolute inset-x-0 top-0 z-20">
+<header class={`${onEvidence ? "relative" : "absolute"} inset-x-0 top-0 z-20`}>
   <div class="mx-auto flex h-16 max-w-6xl items-center justify-between px-6">
-    <a href="#top" class="flex items-center gap-2.5" aria-label="Frely Network home">
+    <a href="/" class="flex items-center gap-2.5" aria-label="Frely Network home">
       <img src="/logo.jpg" alt="" width="132" height="36" class="h-8 w-auto object-contain" />
     </a>
     <nav class="flex items-center gap-6 text-sm text-[var(--muted-foreground)]">
-      <a href="#flow" class="transition-colors hover:text-[var(--foreground)]">How it works</a>
+      {
+        !onEvidence && (
+          <a href="#flow" class="transition-colors hover:text-[var(--foreground)]">
+            How it works
+          </a>
+        )
+      }
+      <a
+        href="/evidence"
+        class={`transition-colors hover:text-[var(--foreground)] ${onEvidence ? "font-semibold text-[var(--foreground)]" : ""}`}
+        data-testid="nav-evidence"
+      >
+        Evidence
+      </a>
       <a
         href={GITHUB}
         target="_blank"

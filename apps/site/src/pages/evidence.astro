@@ -1,0 +1,22 @@
+---
+import BaseLayout from "../layouts/BaseLayout.astro";
+import Header from "../components/Header.astro";
+import EvidenceBoard from "../components/EvidenceBoard.astro";
+
+const year = new Date().getFullYear();
+---
+
+<BaseLayout
+  title="Execution evidence — Frely Network"
+  description="Read-only execution evidence console (Issue #17 / API-010). Displays Broker projection when available; never invents success."
+>
+  <main>
+    <Header />
+    <EvidenceBoard />
+    <footer class="border-t border-[var(--border)] py-8 text-center text-sm text-[var(--muted-foreground)]">
+      <p>
+        © {year} Frely Network · Evidence UI is not proof that Discover → Pay → Execute completed.
+      </p>
+    </footer>
+  </main>
+</BaseLayout>
