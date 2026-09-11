@@ -1,0 +1,24 @@
+{
+  "schema": "frely-network.release-config.v1",
+  "version": 1,
+  "target": {
+    "id": "frely-network",
+    "tag_selector": "frely-network",
+    "deploy_host": "ctb-eu",
+    "instance": "frely-network",
+    "compose_project": "frely-network",
+    "environment": "production",
+    "platform": "linux/amd64",
+    "public_health_url": "https://network.frely.cloud/readyz",
+    "compose_file": "compose.production.yaml",
+    "published_port": 13600,
+    "allowed_stages": ["build", "deploy", "verify", "release"]
+  },
+  "host": {
+    "id": "ctb-eu",
+    "release_root": "/opt/frely-network",
+    "release_state_root": "/var/lib/frely-network/releases",
+    "environment_file": "/etc/frely-network/production.env",
+    "runner": "/usr/local/sbin/release-frely-network"
+  }
+}

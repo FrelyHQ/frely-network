@@ -21,6 +21,7 @@
   "scripts": {
     "build": "bun build apps/broker-mcp/server.ts --target=bun --outfile=dist/broker-mcp.js",
     "start": "bun dist/broker-mcp.js",
+    "release": "bun ops/release/release-cli.mjs",
     "typecheck": "tsc --project tsconfig.json",
     "test": "bun test",
     "verify:compose": "docker compose --env-file .env.example -f compose.production.yaml config --quiet",
