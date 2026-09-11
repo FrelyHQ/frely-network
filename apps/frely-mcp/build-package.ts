@@ -10,6 +10,8 @@ const result = await Bun.build({
   target: "bun",
   format: "esm",
   minify: true,
+  // worker/proto 包不能把构建机绝对路径打进单文件。
+  external: ["@grpc/grpc-js", "pino", "thread-stream"],
 });
 
 if (!result.success) {
@@ -24,6 +26,10 @@ if (!artifact) {
 }
 
 const body = await artifact.text();
+if (body.includes("/Users/") || body.includes("workspace:")) {
+  console.error("PACKAGE_BUILD_FAILED");
+  process.exit(1);
+}
 const source = body.startsWith("#!") ? body : `#!/usr/bin/env bun\n${body}`;
 await mkdir(outDir, { recursive: true });
 await writeFile(outFile, source);

@@ -53,11 +53,17 @@ async function buildAndPack(): Promise<{
 
 test("packed artifact is a Bun CLI without workspace dependencies or secrets", async () => {
   const packed = await buildAndPack();
-  const manifest = await Bun.file(join(packed.unpackDir, "package/package.json")).json();
-  expect(manifest.name).toBe("frely-mcp");
-  expect(manifest.bin).toEqual({ "frely-mcp": "dist/frely-mcp.js" });
-  expect(JSON.stringify(manifest.dependencies ?? {})).not.toContain("workspace:");
-  expect(packed.files).toEqual(["README.md", "dist/frely-mcp.js", "package.json"]);
-  expect((await run([join(packed.installDir, "node_modules/.bin/frely-mcp"), "--help"], packed.installDir)).exitCode).toBe(0);
-  await packed.cleanup();
-});
+  try {
+    const manifest = await Bun.file(join(packed.unpackDir, "package/package.json")).json();
+    const bundle = await Bun.file(join(packed.unpackDir, "package/dist/frely-mcp.js")).text();
+    expect(manifest.name).toBe("frely-mcp");
+    expect(manifest.bin).toEqual({ "frely-mcp": "dist/frely-mcp.js" });
+    expect(JSON.stringify(manifest.dependencies ?? {})).not.toContain("workspace:");
+    expect(packed.files).toEqual(["README.md", "dist/frely-mcp.js", "package.json"]);
+    expect(bundle).not.toContain("/Users/");
+    expect(bundle).not.toContain("workspace:");
+    expect((await run([join(packed.installDir, "node_modules/.bin/frely-mcp"), "--help"], packed.installDir)).exitCode).toBe(0);
+  } finally {
+    await packed.cleanup();
+  }
+}, 60_000);
