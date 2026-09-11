@@ -19,7 +19,11 @@ export function prepareFrelyRequest(config: ExecutionConfig, provider: ResolvedP
   return {
     method: "POST",
     url: provider.endpoint,
-    headers: { authorization: `Bearer ${config.callerKey}`, "content-type": "application/json" },
+    headers: {
+      authorization: `Bearer ${config.callerKey}`,
+      "content-type": "application/json",
+      ...(request.payment?.requestId ? { "x-frely-request-id": request.payment.requestId } : {}),
+    },
     body: JSON.stringify({ model: "vision-basic", instructions: request.task, input: [{ role: "user", content: [{ type: "input_image", image_url: image.toString() }] }], stream: false, store: false }),
     providerId: provider.id,
     payment: request.payment as PreparedRequest["payment"],

@@ -1,17 +1,22 @@
 // Protocol test only: all identity and execution responses are synthetic.
 import { StdioServerTransport } from "@modelcontextprotocol/sdk/server/stdio.js";
-import { createBroker } from "@frely-network/broker";
-import { createBrokerServer } from "../server.ts";
-const discovery = {
-  async findProviders(capabilities: string[]) {
-    return [{ id: "mock-use", capabilities, supportsX402: false }];
+import { parseResolvedCapability } from "@frely-network/capability-resolution";
+import successFixture from "../../../packages/protocol/capability-resolution/fixtures/success.json";
+import type { FrelyMcpRuntime } from "../runtime.ts";
+import { createFrelyMcpServer } from "../server.ts";
+
+const runtime: FrelyMcpRuntime = {
+  async findCapability() {
+    return parseResolvedCapability(successFixture);
   },
+  async useCapability(request) {
+    if (request.capabilities.includes("invalid")) throw new Error("CAPABILITY_NOT_SUPPORTED");
+    return {
+      provider: { id: "provider-1", ensName: "vision.example.eth" },
+      identityVerificationSource: "frely-network",
+      output: { output_text: "synthetic result" },
+    };
+  },
+  close() {},
 };
-const broker = createBroker({
-  ...discovery,
-  async resolveProvider(candidate) {
-    return { id: candidate.id, protocol: "responses" as const, endpoint: "https://frely.example/v1/responses", verified: !candidate.capabilities.includes("invalid") };
-  },
-  async execute() { return { output_text: "synthetic result" }; },
-});
-await createBrokerServer(discovery, broker).connect(new StdioServerTransport());
+await createFrelyMcpServer(runtime).connect(new StdioServerTransport());

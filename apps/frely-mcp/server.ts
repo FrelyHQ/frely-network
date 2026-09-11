@@ -1,32 +1,73 @@
 import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { z } from "zod";
-import type { CapabilityRequest, CapabilityResult, ProviderCandidate } from "@frely-network/shared-types";
+import type { CapabilityResult, PaymentEvidence, PaymentOutcome } from "@frely-network/shared-types";
+import type { FrelyMcpRuntime } from "./runtime.ts";
 
-export function createBrokerServer(discovery: {
-  findProviders(capabilities: string[]): Promise<ProviderCandidate[]>;
-}, broker?: { useCapability(request: CapabilityRequest): Promise<CapabilityResult> }): McpServer {
-  const server = new McpServer({ name: "frely-broker", version: "0.0.0" });
+const known = new Set([
+  "NO_PROVIDER",
+  "NETWORK_DISCOVERY_FAILED",
+  "IDENTITY_VERIFICATION_FAILED",
+  "CAPABILITY_NOT_SUPPORTED",
+  "CONFIG_INVALID",
+  "NETWORK_UNAVAILABLE",
+  "WALLET_NOT_READY",
+  "PAYMENT_DISABLED",
+  "PROVIDER_NOT_AUTHORIZED",
+  "QUOTE_MISMATCH",
+  "BUDGET_EXCEEDED",
+  "PAYMENT_UNKNOWN",
+  "PROVIDER_EXECUTION_FAILED",
+]);
+
+type ToolResult = CapabilityResult & { identityVerificationSource: "frely-network" };
+
+function toolError(error: unknown) {
+  const code = error instanceof Error && known.has(error.message) ? error.message : "EXECUTION_FAILED";
+  return { isError: true as const, content: [{ type: "text" as const, text: code }] };
+}
+
+function publicEvidence(evidence: PaymentEvidence): PaymentEvidence {
+  const { signedDigest, ...safe } = evidence;
+  return signedDigest === undefined ? evidence : safe;
+}
+
+function publicResult(result: ToolResult): ToolResult {
+  const outcome: PaymentOutcome | undefined = result.paymentOutcome;
+  if (!outcome?.evidence) return result;
+  return {
+    ...result,
+    paymentOutcome: { ...outcome, evidence: publicEvidence(outcome.evidence) },
+  };
+}
+
+function asToolResponse(structuredContent: object, isError = false) {
+  const payload = structuredContent as { [key: string]: unknown };
+  return {
+    ...(isError ? { isError: true as const } : {}),
+    structuredContent: payload,
+    content: [{ type: "text" as const, text: JSON.stringify(payload) }],
+  };
+}
+
+export function createFrelyMcpServer(runtime: FrelyMcpRuntime): McpServer {
+  const server = new McpServer({ name: "frely-mcp", version: "0.1.0" });
   server.registerTool("find_capability", {
-    description: "Discover candidate providers for all requested capabilities. Candidates have not been identity-verified.",
+    description: "Resolve a verified provider for the requested capabilities from Frely Network. Does not invoke Relay or read the wallet.",
     inputSchema: { capabilities: z.array(z.string().trim().min(1)).min(1) },
+    annotations: { readOnlyHint: true, destructiveHint: false, idempotentHint: true, openWorldHint: true },
   }, async ({ capabilities }) => {
     try {
-      const providers = await discovery.findProviders(capabilities);
-      const structuredContent = { providers };
-      return { structuredContent, content: [{ type: "text", text: JSON.stringify(structuredContent) }] };
+      return asToolResponse(await runtime.findCapability(capabilities));
     } catch (error) {
-      const known = ["NO_PROVIDER", "GRAPH_QUERY_FAILED", "GRAPH_SCHEMA_INVALID", "CAPABILITY_NOT_SUPPORTED"];
-      const code = error instanceof Error && known.includes(error.message) ? error.message : "DISCOVERY_FAILED";
-      return { isError: true, content: [{ type: "text", text: code }] };
+      return toolError(error);
     }
   });
-  if (broker) server.registerTool("use_capability", {
-    description: "Select and verify a provider, then invoke Frely with an optional approved x402 payment budget.",
+  server.registerTool("use_capability", {
+    description: "Re-resolve, authorize the local Provider profile, then pay and invoke the approved Relay.",
     inputSchema: {
       capabilities: z.array(z.string().trim().min(1)).min(1),
       task: z.string().trim().min(1),
       input: z.object({ image_url: z.string().url() }).strict(),
-      maxAmount: z.string().regex(/^[1-9][0-9]*$/).optional(),
       payment: z.object({
         requestId: z.string().regex(/^[A-Za-z0-9._-]{1,128}$/),
         budget: z.object({
@@ -34,20 +75,18 @@ export function createBrokerServer(discovery: {
           asset: z.string().min(1),
           maxAmountAtomic: z.string().max(128).regex(/^(0|[1-9][0-9]*)$/),
         }).strict(),
-        acceptIndex: z.number().int().nonnegative().optional(),
-      }).strict().optional(),
+      }).strict(),
     },
+    annotations: { readOnlyHint: false, destructiveHint: true, idempotentHint: true, openWorldHint: true },
   }, async (request) => {
     try {
-      const result = await broker.useCapability(request);
+      const result = publicResult(await runtime.useCapability(request));
       const isError = result.paymentOutcome
         ? result.paymentOutcome.decision === "blocked" || result.paymentOutcome.decision === "paused" || result.paymentOutcome.serviceStatus === "failed"
         : false;
-      return { ...(isError ? { isError: true } : {}), structuredContent: { ...result }, content: [{ type: "text", text: JSON.stringify(result) }] };
+      return asToolResponse(result, isError);
     } catch (error) {
-      const known = ["NO_PROVIDER", "GRAPH_QUERY_FAILED", "GRAPH_SCHEMA_INVALID", "CAPABILITY_NOT_SUPPORTED", "IDENTITY_VERIFICATION_FAILED", "PROTOCOL_NOT_SUPPORTED", "ENDPOINT_NOT_HTTPS", "EXECUTION_CONFIG_INVALID", "BUDGET_CHECK_UNAVAILABLE", "BUDGET_INVALID", "LEGACY_BUDGET_UNSUPPORTED", "BUDGET_INPUT_CONFLICT", "PAYMENT_DISABLED", "IDENTITY_CONFIG_INVALID", "EXECUTION_ORIGIN_MISMATCH", "INPUT_INVALID", "INPUT_UNSUPPORTED", "PAYMENT_REQUIRED", "PROVIDER_EXECUTION_FAILED", "PROVIDER_RESULT_INVALID"];
-      const code = error instanceof Error && known.includes(error.message) ? error.message : "EXECUTION_FAILED";
-      return { isError: true, content: [{ type: "text", text: code }] };
+      return toolError(error);
     }
   });
   return server;
