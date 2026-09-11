@@ -136,20 +136,35 @@ consumption from the Swarm execution inputs it sent to Frely base-model APIs and
 the Swarm-produced output token count, then applies Frely pricing and performs
 Web2 charging. Swarm remains an internal execution dependency.
 
-Network may expose a direct x402 endpoint and may complete Hedera payment
-without passing the payment request through Frely. That endpoint is a Web3
-payment surface, not an A2A service surface. The amount to pay must be based on
-a Frely-issued quote or usage basis; Network must not tokenize, price, or infer
-the charge independently. Network owns wallet-side x402 payment, verification,
-settlement, replay, and payment-unknown handling. Frely owns the service
-execution and pricing facts; Swarm owns execution only.
+Network exposes `POST /x402/frely/responses` as the paid resource. The resource
+uses x402 v2 `exact` requirements. Network configuration owns the x402 amount,
+asset, recipient, expiry, verifier, settlement and replay state. Frely does not
+receive the payment proof or payment protocol headers.
 
-The resulting separation is:
+The request boundary is:
 
 ```text
-Frely: service endpoint + execution admission + usage derivation + pricing + Web2 billing
-Swarm: Agent execution only
-Network: Web3 discovery + direct x402 payment and settlement
+Client -> Network x402 resource
+       <- PAYMENT-REQUIRED
+Client -> Network payment proof
+       -> verify + replay claim
+Network -> Frely POST /v1/responses with Bearer API key
+Frely   -> Network service response
+Network -> Hedera settlement
+       -> Client service response + PAYMENT-RESPONSE
+```
+
+A non-success Frely response prevents settlement. Network A2A invocation uses
+Frely's Bearer-authenticated A2A JSON-RPC endpoint and carries no x402 headers.
+The production Compose profile persists replay claims in the `x402-replay`
+volume. A multi-replica deployment requires a shared atomic replay store.
+
+The project separation is:
+
+```text
+Frely: service endpoint + execution admission + usage + Web2 billing
+Swarm: Agent execution
+Network: Web3 discovery + x402 verification + replay + settlement
 ```
 
 The term `provider` is reserved for model/provider infrastructure where needed.

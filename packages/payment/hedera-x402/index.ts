@@ -388,8 +388,7 @@ export class HederaX402Client {
     const retryHeaders = cloneHeaders(request.headers);
     if (required.x402Version === 1) {
       retryHeaders.set("X-PAYMENT", paymentHeader);
-      // The Frely A2A ingress has one opaque proof header independent of the
-      // underlying x402 wire version; keep the legacy provider header too.
+      // Preserve the v2-compatible proof alias for providers that accept both wire versions.
       retryHeaders.set("PAYMENT-SIGNATURE", paymentHeader);
     }
     else {
@@ -551,6 +550,53 @@ export function createHederaX402FacilitatorFromConfig(
     verifyPayerSignature: createHederaVerifyPayerSignature(),
   });
   return createHederaX402Facilitator(signer, options);
+}
+
+export interface HederaX402GatewayPorts {
+  readonly verifier: {
+    verify(payload: PaymentPayload, requirement: PaymentRequirement): Promise<{ isValid: boolean; payer?: string }>;
+  };
+  readonly settler: {
+    settle(payload: PaymentPayload, requirement: PaymentRequirement): Promise<{ success: boolean; network: string; transaction?: string; payer?: string }>;
+  };
+}
+
+/** Adapts the official Hedera facilitator to the Network-owned x402 resource gateway. */
+export function createHederaX402GatewayPorts(
+  accountId: string,
+  privateKey: string,
+  options: { readonly aliasPolicy?: "reject" | "allow" } = {},
+): HederaX402GatewayPorts {
+  const facilitator = createHederaX402FacilitatorFromConfig(accountId, privateKey, options);
+  return {
+    verifier: {
+      verify: async (payload, requirement) => {
+        const result = await facilitator.verify(
+          toOfficialPaymentPayload(payload),
+          toOfficialPaymentRequirement(requirement),
+        );
+        return {
+          isValid: result.isValid === true,
+          ...(typeof result.payer === "string" && safeReference(result.payer) ? { payer: result.payer } : {}),
+        };
+      },
+    },
+    settler: {
+      settle: async (payload, requirement) => {
+        const result = await facilitator.settle(
+          toOfficialPaymentPayload(payload),
+          toOfficialPaymentRequirement(requirement),
+        );
+        const network = canonicalNetwork(result.network);
+        return {
+          success: result.success === true && network !== undefined && safeChainReference(result.transaction),
+          network: network ?? String(result.network),
+          ...(safeChainReference(result.transaction) ? { transaction: result.transaction } : {}),
+          ...(typeof result.payer === "string" && safeReference(result.payer) ? { payer: result.payer } : {}),
+        };
+      },
+    },
+  };
 }
 
 export interface LiveHederaX402AdmissionVerifierOptions {

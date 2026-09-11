@@ -1,8 +1,6 @@
 import { describe, expect, test } from "bun:test";
 
 import { brokerMcpFetch, createBrokerMcpFetch } from "./service.ts";
-import { createFixtureHederaX402AdmissionVerifier } from "../../packages/payment/hedera-x402/index.ts";
-import { createX402PaymentAdmissionHandler } from "../../packages/gateway/x402/index.ts";
 
 describe("Broker MCP deployment boundary", () => {
   test("reports process health without claiming Broker readiness", async () => {
@@ -10,10 +8,7 @@ describe("Broker MCP deployment boundary", () => {
     const readiness = await brokerMcpFetch(new Request("http://service/readyz"));
 
     expect(health.status).toBe(200);
-    expect(await health.json()).toEqual({
-      service: "frely-network-broker-mcp",
-      status: "ok",
-    });
+    expect(await health.json()).toEqual({ service: "frely-network-broker-mcp", status: "ok" });
     expect(readiness.status).toBe(503);
     expect(await readiness.json()).toEqual({
       service: "frely-network-broker-mcp",
@@ -32,14 +27,11 @@ describe("Broker MCP deployment boundary", () => {
     expect(await response.json()).toEqual({
       jsonrpc: "2.0",
       id: 1,
-      error: {
-        code: -32004,
-        message: "BROKER_NOT_READY",
-      },
+      error: { code: -32004, message: "BROKER_NOT_READY" },
     });
   });
 
-  test("exposes only the Broker tools and keeps discovery/payment primitives behind the boundary", async () => {
+  test("exposes only the Broker tools and keeps primitives behind the boundary", async () => {
     const fetcher = createBrokerMcpFetch({
       ready: true,
       broker: {
@@ -60,28 +52,51 @@ describe("Broker MCP deployment boundary", () => {
     }));
     const listBody = await list.json() as { result: { tools: Array<{ name: string }> } };
     expect(listBody.result.tools.map((tool) => tool.name)).toEqual(["find_capability", "use_capability"]);
-
-    const call = await fetcher(new Request("http://service/mcp", {
-      method: "POST",
-      body: JSON.stringify({ jsonrpc: "2.0", id: 3, method: "tools/call", params: { name: "use_capability", arguments: { capabilities: ["vision"], task: "describe" } } }),
-    }));
-    expect(call.status).toBe(200);
-    expect(await call.json()).toMatchObject({ result: { structuredContent: { payment: { network: "hedera:testnet" } } } });
   });
 
-  test("only composes a configured payment admission handler into the Broker process", async () => {
-    const fetch = createBrokerMcpFetch({
-      paymentAdmission: createX402PaymentAdmissionHandler({
-        verifier: createFixtureHederaX402AdmissionVerifier({ now: () => "2026-09-09T03:00:00.000Z" }),
-        apiKey: "relay-secret",
-      }),
+  test("routes the Network-owned paid Frely resource and fails closed when unconfigured", async () => {
+    let called = 0;
+    const configured = createBrokerMcpFetch({
+      x402Responses: async (request) => {
+        called += 1;
+        expect(new URL(request.url).pathname).toBe("/x402/frely/responses");
+        return Response.json({ ok: true });
+      },
     });
-    const response = await fetch(new Request("https://network.example/a2a/payment/requirements", {
-      method: "POST",
-      headers: { authorization: "Bearer relay-secret", "content-type": "application/json" },
-      body: JSON.stringify({ resource: "https://api.frely.cloud/a2a/tasks", method: "POST", requestHash: "a".repeat(64) }),
-    }));
-    expect(response.status).toBe(200);
-    expect(await response.json()).toMatchObject({ payment: { network: "hedera:testnet", scheme: "exact" } });
+    const paidResource = await configured(new Request("https://network.frely.cloud/x402/frely/responses", { method: "POST" }));
+    expect(paidResource.status).toBe(200);
+    expect(called).toBe(1);
+
+    const unconfigured = createBrokerMcpFetch({});
+    const unavailable = await unconfigured(new Request("https://network.frely.cloud/x402/frely/responses", { method: "POST" }));
+    expect(unavailable.status).toBe(503);
+    expect(await unavailable.json()).toEqual({ code: "X402_RESOURCE_NOT_CONFIGURED" });
+  });
+
+  test("requires the paid resource for production readiness", async () => {
+    const runtime = {
+      ready: true,
+      broker: {
+        findCapability: async () => [],
+        useCapability: async () => ({ ok: true }),
+      },
+    };
+    const missing = createBrokerMcpFetch(runtime, { requireX402Responses: true });
+    const unavailable = await missing(new Request("http://service/readyz"));
+    expect(unavailable.status).toBe(503);
+    expect(await unavailable.json()).toMatchObject({ code: "X402_RESOURCE_NOT_CONFIGURED" });
+
+    const configured = createBrokerMcpFetch(runtime, {
+      requireX402Responses: true,
+      x402Responses: async () => Response.json({ ok: true }),
+    });
+    const ready = await configured(new Request("http://service/readyz"));
+    expect(ready.status).toBe(200);
+  });
+
+  test("does not expose the retired Relay admission endpoints", async () => {
+    const fetcher = createBrokerMcpFetch({});
+    const response = await fetcher(new Request("https://network.frely.cloud/a2a/payment/verify", { method: "POST" }));
+    expect(response.status).toBe(404);
   });
 });

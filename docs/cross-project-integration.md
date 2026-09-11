@@ -52,8 +52,8 @@ gates and a safe smoke flow. It does not include:
 - publication or synchronization of either private canonical repository;
 - committed API keys, service tokens, wallets or real request bodies;
 - a second Vision runtime in `frely-network` or Frely;
-- a claim that the model MCP path, the Hedera x402 path or a complete combined local
-  environment is already implemented;
+- a claim that the model MCP path or a complete combined local environment is
+  delivered by this repository;
 - any model invocation path that bypasses Frely on entry to or exit from
   Swarm.
 
@@ -68,7 +68,7 @@ Source: Current public snapshot contracts
 | Broker orchestration | `frely-network` | Host Agent through Broker MCP | Shared discovery, identity, payment and execution contracts | Do not read Relay or Swarm persistence or store their credentials. |
 | Provider discovery | `frely-network` | Broker discovery stage | The Graph adapter and normalized Provider manifest | The paid `vision-basic` endpoint must resolve to Frely, not directly to Swarm. |
 | Web3 identity | `frely-network` | Broker verification stage | ENS and ERC-8004 adapters | Do not execute an unverified Provider endpoint. |
-| Planned payment | `frely-network` | Broker payment stage | Hedera x402 contract | Do not claim the combined payment flow before it is implemented and evidenced. |
+| Network x402 resource | `frely-network` | x402 client | `POST /x402/frely/responses` | Payment headers terminate at Network; Frely receives a Bearer-authenticated Responses request. |
 | Agent-model admission and billing | public `frely` snapshot | Broker or another local caller | Frely `POST /v1/responses` and the `vision-basic` AccessPoint | Do not expose the Swarm service identity or any downstream credential to the caller. |
 | Virtual-model execution | public `swarm` snapshot | Local Frely Provider dispatch | Swarm `POST /v1/responses` with model `vision-basic` | Do not allow a caller to select a base-model URL, model or credential. |
 | Agent base-model access | public `frely` snapshot | Swarm Agent runtime | A separately authorized Frely base-model AccessPoint | Do not accept an external caller identity or recurse into an Agent AccessPoint. |
@@ -93,8 +93,9 @@ Host Agent
   -> The Graph discovery
   -> ENS / ERC-8004 verification
   -> Provider selection
-  -> planned Hedera x402 payment gate
-  -> local Frely Agent-model entry
+  -> Network `POST /x402/frely/responses`
+     -> Hedera x402 verification + replay claim
+     -> Frely `POST /v1/responses` with Network's Frely API key
      -> caller API-key authentication
      -> `vision-basic` AccessPoint and entitlement resolution
      -> demo pricing and billing admission
@@ -243,7 +244,7 @@ Source: Current snapshot health contracts and target request path
 | Frely Agent-model path | `vision-basic` Provider model, price, Plan and caller entitlement are enabled. | Reject before Swarm dispatch. |
 | Broker discovery | A verified manifest resolves the paid endpoint to Frely. | Abort before payment or invocation. |
 | Identity | ENS/ERC-8004 checks accept the selected identity. | Abort before payment or invocation. |
-| Planned payment | Hedera x402 result is accepted when that stage is implemented. | Do not invoke the paid entry. |
+| Network x402 resource | Requirements, verifier, settlement credentials and persistent replay path are configured. | Return a payment-resource error; do not call Frely. |
 | Execution | Frely returns a bounded Responses result for an image request. | Report a safe category without secrets or raw bodies. |
 
 Swarm `/readyz` confirms loaded configuration; it is not a live probe of the
@@ -256,13 +257,11 @@ Status: Planned
 Review level: L3
 Source: Minimum Vision request contract
 
-1. Discover and verify the `vision-basic` Provider manifest, whose execution
-   endpoint is Frely.
-2. Run the planned Hedera x402 gate only when its implementation is available;
-   otherwise label the demo gap explicitly.
-3. Send Frely `POST /v1/responses` with the caller's Frely API key, model
-   `vision-basic`, at least one `input_image` with an HTTP(S) URL, and bounded
-   text instructions.
+1. Discover and verify the `vision-basic` Provider manifest.
+2. Call Network `POST /x402/frely/responses` and satisfy its Hedera x402
+   requirement.
+3. Verify Network sends Frely `POST /v1/responses` with Network's Frely API key,
+   model `vision-basic`, and no payment protocol headers.
 4. Verify Frely performs admission and dispatches to Swarm using the separate
    service token.
 5. Verify Swarm sends the Agent model call to the configured Frely base-model
@@ -348,8 +347,8 @@ Source: Current implementation state and remaining gaps
    closed-loop cross-project smoke check.
 5. Point the Broker's selected execution endpoint at Frely and add the Broker
    stages to that verified loop.
-6. Implement and evidence the Hedera x402 stage separately; do not substitute
-   Frely's internal demo billing for that sponsor integration.
+6. Keep Hedera x402 verification, replay state and settlement in Network. Keep
+   Frely billing and payment-protocol state separated.
 7. Add a thin coordinator only when it can preserve each repository's config,
    readiness, secret and cleanup boundaries.
 
@@ -371,7 +370,7 @@ The combined development flow is complete only when:
 - missing Frely, Swarm, credential, AccessPoint or development Provider
   configuration fails
   visibly and safely;
-- the Hedera x402 state is described truthfully as implemented or still a gap;
+- the Network x402 resource verifies payment, claims replay state, calls Frely without payment headers, and settles after a successful Frely response;
 - validation output and logs contain no secrets or raw user/model bodies; and
 - the documentation does not claim production readiness, a complete model MCP
   interface or a one-command environment that has not been verified.
@@ -386,9 +385,10 @@ The Swarm snapshot implements component-level Responses-compatible
 `vision-basic` behavior. The Frely snapshot contains generic Provider,
 AccessPoint, pricing and billing mechanisms, but the Frely → Swarm → Frely
 closed loop has not yet been evidenced in a complete seeded local environment.
-`frely-network` remains a Broker/protocol scaffold without the combined
-coordinator, and the continuous Hedera x402 path has not been evidenced in
-this slice.
+`frely-network` exposes a Network-owned x402 Responses resource with persistent
+single-instance replay claims and Hedera settlement. The combined Frely →
+Swarm → Frely coordinator remains outside this slice. Multi-replica Network
+requires a shared atomic replay store.
 
 Those limits are intentional status statements. The current milestone aligns
 the executable boundary and documentation; it does not claim that the full
