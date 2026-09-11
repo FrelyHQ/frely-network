@@ -19,23 +19,22 @@
         "@frely-network/agent-wallet": "workspace:*",
       },
     },
-    "apps/broker-mcp": {
-      "name": "@frely-network/broker-mcp",
-      "version": "0.0.0",
-      "dependencies": {
-        "@frely-network/broker": "workspace:*",
-        "@frely-network/ens": "workspace:*",
-        "@frely-network/erc8004": "workspace:*",
-        "@frely-network/hedera-x402": "workspace:*",
-        "@frely-network/shared-types": "workspace:*",
-        "@frely-network/the-graph": "workspace:*",
-        "@modelcontextprotocol/sdk": "1.30.0",
-        "zod": "4.5.4",
-      },
-    },
     "apps/explorer": {
       "name": "@frely-network/explorer",
       "version": "0.0.0",
+    },
+    "apps/frely-mcp": {
+      "name": "frely-mcp",
+      "version": "0.0.0",
+      "dependencies": {
+        "@frely-network/agent-wallet": "workspace:*",
+        "@frely-network/broker": "workspace:*",
+        "@frely-network/capability-resolution": "workspace:*",
+        "@frely-network/hedera-x402": "workspace:*",
+        "@frely-network/shared-types": "workspace:*",
+        "@modelcontextprotocol/sdk": "1.30.0",
+        "zod": "4.5.4",
+      },
     },
     "examples/vision-basic": {
       "name": "@frely-network/vision-basic",
@@ -175,8 +174,6 @@
     "@frely-network/agent-wallet": ["@frely-network/agent-wallet@workspace:packages/wallet/agent-wallet"],
 
     "@frely-network/broker": ["@frely-network/broker@workspace:packages/broker"],
-
-    "@frely-network/broker-mcp": ["@frely-network/broker-mcp@workspace:apps/broker-mcp"],
 
     "@frely-network/capability-resolution": ["@frely-network/capability-resolution@workspace:packages/protocol/capability-resolution"],
 
@@ -479,6 +476,8 @@
     "forge-light": ["forge-light@1.1.4", "", {}, "sha512-Nr0xdu93LJawgBZVU/tC+A+4pbKqigdY5PRBz8CXNm4e5saAZIqU2Qe9+nVFtVO5TWCHSgvI0LaZZuatgE5J1g=="],
 
     "forwarded": ["forwarded@0.2.0", "", {}, "sha512-buRG0fpBtRHSTCOASe6hD258tEubFoRLb4ZNA6NxMVHNw2gOcwHo9wyablzMzOA5z9xA9L1KNjk/Nt6MT9aYow=="],
+
+    "frely-mcp": ["frely-mcp@workspace:apps/frely-mcp"],
 
     "fresh": ["fresh@2.0.0", "", {}, "sha512-Rx/WycZ60HOaqLKAi6cHRKKI7zxWbJ31MhntmtwMoaTeF7XFH9hhBp8vITaMidfljRQ6eYWCKkaTK+ykVJHP2A=="],
 
