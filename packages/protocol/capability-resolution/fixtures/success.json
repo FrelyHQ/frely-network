@@ -2,9 +2,9 @@
   "schemaVersion": 1,
   "requestedCapabilities": ["vision"],
   "provider": {
-    "id": "vision-provider",
-    "ensName": "vision-provider.example.eth",
-    "endpoint": "https://vision-provider.example/v1/responses",
+    "id": "provider-1",
+    "ensName": "vision.example.eth",
+    "endpoint": "https://relay.example.com/v1/responses",
     "protocol": "responses"
   },
   "identity": {

@@ -86,3 +86,18 @@ test("rejects responses outside the frozen safe boundary", () => {
     expect(() => parseResolvedCapability(value)).toThrow("INVALID_RESPONSE");
   }
 });
+
+test("rejects local endpoints with FQDN trailing dots", () => {
+  for (const endpoint of [
+    "https://localhost./v1/responses",
+    "https://LOCALHOST./v1/responses",
+    "https://provider.local./v1/responses",
+  ]) {
+    expect(() =>
+      parseResolvedCapability({
+        ...success,
+        provider: { ...success.provider, endpoint },
+      }),
+    ).toThrow("INVALID_RESPONSE");
+  }
+});

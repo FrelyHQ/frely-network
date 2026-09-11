@@ -43,7 +43,7 @@ const capabilities = z
 const safeEndpoint = (value: string): boolean => {
   try {
     const url = new URL(value);
-    const host = url.hostname.toLowerCase();
+    const host = url.hostname.toLowerCase().replace(/\.+$/, "");
     const ipHost = host.replace(/^\[|\]$/g, "");
 
     return (
