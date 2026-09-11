@@ -2,6 +2,8 @@ import { expect, test } from "bun:test";
 import successFixture from "../../packages/protocol/capability-resolution/fixtures/success.json";
 import { FrelyNetworkClient, type NetworkFetcher } from "./network-client.ts";
 
+process.env.FRELY_API_KEY = "network-secret";
+
 const networkConfig = {
   baseUrl: "https://network.example",
   apiKeyRef: "env:FRELY_API_KEY" as const,

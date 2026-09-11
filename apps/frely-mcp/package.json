@@ -1,20 +1,22 @@
 {
   "name": "frely-mcp",
-  "version": "0.0.0",
-  "private": true,
+  "version": "0.1.0",
   "type": "module",
-  "dependencies": {
-    "@frely-network/broker": "workspace:*",
-    "@frely-network/capability-resolution": "workspace:*",
-    "@frely-network/hedera-x402": "workspace:*",
-    "@frely-network/agent-wallet": "workspace:*",
-    "@frely-network/shared-types": "workspace:*",
-    "@modelcontextprotocol/sdk": "1.30.0",
-    "zod": "4.5.4"
+  "bin": {
+    "frely-mcp": "dist/frely-mcp.js"
   },
-  "scripts": {
-    "start": "bun index.ts",
-    "test": "bun test server.test.ts mock.test.ts payment.test.ts",
-    "start:mock": "bun fixtures/mock-server.ts"
+  "files": [
+    "dist",
+    "README.md"
+  ],
+  "engines": {
+    "bun": ">=1.4.0"
+  },
+  "os": [
+    "darwin",
+    "linux"
+  ],
+  "publishConfig": {
+    "access": "public"
   }
 }
