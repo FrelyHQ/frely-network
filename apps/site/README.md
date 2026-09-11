@@ -2,10 +2,10 @@
 
 Static Astro showcase. Interaction:
 
-1. **Splash** — full-viewport Spline + corner brand. One visual **Click Me** (from the scene); the page uses an invisible hit layer so Reveal still works across the iframe.
-2. **Reveal** (same page) — product copy focus; Spline fades out; How it works below
+1. **Splash** — full-viewport Spline + corner brand. Soft ambient loader (no giant poster flash). One visual **Click Me** from the scene; page owns an invisible hit layer.
+2. **Reveal** (same page) — product copy; Spline fades; splash overlay is removed from layout so scrolling up never hits a blank black region.
 
-On narrow screens the iframe is skipped (poster only), so the page shows its own Click Me pill.
+On narrow screens the iframe is skipped; ambient + page Click Me remain.
 
 No return to splash. No evidence console on this branch.
 

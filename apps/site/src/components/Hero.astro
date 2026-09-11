@@ -1,8 +1,8 @@
 ---
 /**
  * Full-viewport Spline stage.
- * Splash: brand corner + page-owned Click Me.
- * Reveal: product copy focus; Spline fades out (no return to splash).
+ * Splash: brand + scene Click Me (page owns hit layer).
+ * Reveal: product copy; Spline fades; splash is removed from layout (no ghost black scroll).
  */
 const GITHUB = "https://github.com/FrelyHQ/frely-network";
 const tags = ["ENS", "ERC-8004", "The Graph", "Hedera", "x402"];
@@ -12,22 +12,17 @@ const splineScene = import.meta.env.PUBLIC_SPLINE_SCENE as string | undefined;
 const splinePublic =
   (import.meta.env.PUBLIC_SPLINE_PUBLIC as string | undefined) || DEFAULT_SPLINE_PUBLIC;
 const useViewer = Boolean(splineScene);
-const FALLBACK_POSTER =
-  "https://community-filepreview.spline.design/e41b79f5-7a6d-4123-814b-7d2e60ce7c44.jpg";
 ---
 
 <section id="top" class="stage" data-testid="stage" data-state="splash">
-  <!-- Full-bleed Spline (splash hero; fades on reveal). Poster stays until iframe paints. -->
+  <!-- Ambient stage + Spline. No full-bleed poster — that read as a giant photo flash. -->
   <div class="stage-spline" data-testid="spline-layer" aria-hidden="true">
-    <img
-      class="stage-spline-fallback"
-      src={FALLBACK_POSTER}
-      alt=""
-      width="1600"
-      height="900"
-      decoding="async"
-      data-testid="spline-fallback"
-    />
+    <div class="stage-ambient" data-testid="spline-ambient">
+      <div class="ambient-glow"></div>
+      <div class="ambient-ring ambient-ring--a"></div>
+      <div class="ambient-ring ambient-ring--b"></div>
+      <div class="ambient-core"></div>
+    </div>
     {
       useViewer ? (
         <div class="stage-spline-frame" data-testid="spline-viewer-host">
@@ -52,10 +47,9 @@ const FALLBACK_POSTER =
         ></iframe>
       )
     }
-    <div class="stage-spline-veil"></div>
   </div>
 
-  <!-- Splash chrome: one visual Click Me (inside Spline). Page owns the hit target. -->
+  <!-- Absolute overlay — must NOT consume document height after reveal -->
   <div class="stage-splash" data-testid="splash">
     <p class="stage-brand" data-testid="splash-brand">Frely Network</p>
     <button
@@ -71,7 +65,6 @@ const FALLBACK_POSTER =
     </button>
   </div>
 
-  <!-- Reveal: product focus -->
   <div class="stage-reveal" data-testid="reveal" hidden>
     <div class="reveal-panel animate-rise">
       <p class="reveal-eyebrow" data-testid="hero-brand">Frely Network</p>
@@ -119,11 +112,11 @@ const FALLBACK_POSTER =
       after.hidden = false;
       after.setAttribute("aria-hidden", "false");
     }
-    // Soft scroll lock release — page can grow past splash
     document.body.classList.add("is-revealed");
-    window.setTimeout(() => {
-      reveal?.querySelector("h1")?.scrollIntoView({ behavior: "smooth", block: "center" });
-    }, 320);
+    // Stay at top of reveal — do not leave a ghost splash region above the copy
+    window.requestAnimationFrame(() => {
+      window.scrollTo({ top: 0, behavior: "auto" });
+    });
   };
 
   clickMe?.addEventListener("click", goReveal);
@@ -138,11 +131,10 @@ const FALLBACK_POSTER =
   if (iframe instanceof HTMLIFrameElement) {
     const markReady = () => stage?.classList.add("is-spline-ready");
     iframe.addEventListener("load", markReady);
-    // If already complete (bfcache / fast cache)
     try {
       if (iframe.contentDocument?.readyState === "complete") markReady();
     } catch {
-      // cross-origin — wait for load only
+      // cross-origin
     }
   }
 </script>
@@ -150,28 +142,86 @@ const FALLBACK_POSTER =
 <style>
   .stage {
     position: relative;
-    min-height: 100svh;
     isolation: isolate;
+  }
+
+  .stage[data-state="splash"] {
+    min-height: 100svh;
   }
 
   .stage-spline {
     position: fixed;
     inset: 0;
     z-index: 0;
-    background: #000;
+    background: #05070d;
     transition:
-      opacity 0.85s cubic-bezier(0.22, 1, 0.36, 1),
-      visibility 0.85s;
+      opacity 0.75s cubic-bezier(0.22, 1, 0.36, 1),
+      visibility 0.75s;
   }
 
-  .stage-spline-fallback {
+  .stage-ambient {
     position: absolute;
     inset: 0;
-    width: 100%;
-    height: 100%;
-    object-fit: cover;
-    object-position: center;
-    opacity: 1;
+    display: grid;
+    place-items: center;
+    transition: opacity 0.7s ease;
+  }
+
+  .ambient-glow {
+    position: absolute;
+    width: min(52vw, 420px);
+    height: min(52vw, 420px);
+    border-radius: 50%;
+    background: radial-gradient(circle, rgba(59, 130, 246, 0.28), transparent 68%);
+    filter: blur(8px);
+    animation: ambient-breathe 3.6s ease-in-out infinite;
+  }
+
+  .ambient-ring {
+    position: absolute;
+    border-radius: 50%;
+    border: 1px solid rgba(147, 197, 253, 0.18);
+  }
+
+  .ambient-ring--a {
+    width: min(38vw, 280px);
+    height: min(22vw, 150px);
+    transform: rotateX(66deg) rotateZ(-8deg);
+    animation: ambient-spin 18s linear infinite;
+  }
+
+  .ambient-ring--b {
+    width: min(48vw, 360px);
+    height: min(28vw, 190px);
+    border-color: rgba(96, 165, 250, 0.12);
+    transform: rotateX(66deg) rotateZ(12deg);
+    animation: ambient-spin 26s linear infinite reverse;
+  }
+
+  .ambient-core {
+    width: 18px;
+    height: 18px;
+    border-radius: 50%;
+    background: radial-gradient(circle at 35% 30%, #fff, #93c5fd 45%, #2563eb 100%);
+    box-shadow: 0 0 24px rgba(96, 165, 250, 0.55);
+  }
+
+  @keyframes ambient-breathe {
+    0%,
+    100% {
+      transform: scale(0.92);
+      opacity: 0.7;
+    }
+    50% {
+      transform: scale(1.05);
+      opacity: 1;
+    }
+  }
+
+  @keyframes ambient-spin {
+    to {
+      transform: rotateX(66deg) rotateZ(352deg);
+    }
   }
 
   .stage-spline-frame {
@@ -182,8 +232,7 @@ const FALLBACK_POSTER =
     border: 0;
     background: transparent;
     opacity: 0;
-    transition: opacity 0.6s ease;
-    /* Clicks must hit our page control — scene CTA is visual only */
+    transition: opacity 0.9s ease;
     pointer-events: none;
   }
 
@@ -191,13 +240,8 @@ const FALLBACK_POSTER =
     opacity: 1;
   }
 
-  .stage-spline-veil {
-    position: absolute;
-    inset: 0;
-    pointer-events: none;
-    background: radial-gradient(ellipse 60% 50% at 50% 48%, transparent 20%, rgba(0, 0, 0, 0.35) 100%);
+  .stage.is-spline-ready .stage-ambient {
     opacity: 0;
-    transition: opacity 0.7s ease;
   }
 
   .stage[data-state="revealed"] .stage-spline {
@@ -206,14 +250,12 @@ const FALLBACK_POSTER =
     pointer-events: none;
   }
 
+  /* Overlay only — never adds a second 100svh to the document */
   .stage-splash {
-    position: relative;
+    position: absolute;
+    inset: 0;
     z-index: 2;
-    min-height: 100svh;
     pointer-events: none;
-    transition:
-      opacity 0.45s ease,
-      visibility 0.45s;
   }
 
   .stage-brand {
@@ -230,10 +272,6 @@ const FALLBACK_POSTER =
     pointer-events: none;
   }
 
-  /*
-    Before Spline paints: show our pill (poster may lack CTA).
-    After ready: hide the pill — scene already has one Click Me; we keep an invisible hit layer.
-  */
   .click-me {
     pointer-events: auto;
     position: absolute;
@@ -245,7 +283,6 @@ const FALLBACK_POSTER =
     margin: 0;
     padding: 0;
     border: 0;
-    border-radius: 0;
     background: transparent;
     color: #f4f7fb;
     cursor: pointer;
@@ -276,7 +313,6 @@ const FALLBACK_POSTER =
   }
 
   .stage.is-spline-ready .click-me-label {
-    /* Scene CTA is visible — avoid duplicate chrome */
     position: absolute;
     width: 1px;
     height: 1px;
@@ -296,9 +332,7 @@ const FALLBACK_POSTER =
   }
 
   .stage[data-state="revealed"] .stage-splash {
-    opacity: 0;
-    visibility: hidden;
-    pointer-events: none;
+    display: none;
   }
 
   .stage-reveal {
@@ -308,6 +342,7 @@ const FALLBACK_POSTER =
     display: grid;
     place-items: center;
     padding: 5.5rem 1.5rem 3rem;
+    background: var(--background);
   }
 
   .stage[data-state="splash"] .stage-reveal {
@@ -379,15 +414,13 @@ const FALLBACK_POSTER =
     color: var(--muted-foreground);
   }
 
-  /* Mobile: prefer poster — Spline iframe is heavy; keep visible page Click Me */
   @media (max-width: 640px) {
     .stage-spline-frame {
       display: none;
     }
 
-    .stage-spline-fallback {
+    .stage-ambient {
       opacity: 1;
-      filter: saturate(1.05) brightness(0.92);
     }
 
     .stage.is-spline-ready .click-me-label {
