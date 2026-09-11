@@ -11,9 +11,19 @@ const year = new Date().getFullYear();
   <main>
     <Header />
     <Hero />
-    <CapabilityFlow />
-    <footer class="border-t border-[var(--border)] py-8 text-center text-sm text-[var(--muted-foreground)]">
-      <p data-testid="site-footer">© {year} Frely Network</p>
-    </footer>
+    <div class="after-reveal" data-testid="after-reveal" hidden aria-hidden="true">
+      <CapabilityFlow />
+      <footer class="border-t border-[var(--border)] py-8 text-center text-sm text-[var(--muted-foreground)]">
+        <p data-testid="site-footer">© {year} Frely Network</p>
+      </footer>
+    </div>
   </main>
 </BaseLayout>
+
+<style>
+  .after-reveal {
+    position: relative;
+    z-index: 5;
+    background: var(--background);
+  }
+</style>

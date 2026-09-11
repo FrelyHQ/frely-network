@@ -1,56 +1,79 @@
 ---
 /**
- * Immersive hero inspired by Spline community "AiData Model Interaction"
- * (https://app.spline.design/community/file/e41b79f5-7a6d-4123-814b-7d2e60ce7c44).
- * Community files need Export → Viewer (scene.splinecode) to embed natively.
- * Until that URL is provided, we render a matching interactive data-model canvas
- * and keep a drop-in <spline-viewer> hook via PUBLIC_SPLINE_SCENE.
+ * Full-viewport Spline stage.
+ * Splash: brand corner + page-owned Click Me.
+ * Reveal: product copy focus; Spline fades out (no return to splash).
  */
 const GITHUB = "https://github.com/FrelyHQ/frely-network";
 const tags = ["ENS", "ERC-8004", "The Graph", "Hedera", "x402"];
+const DEFAULT_SPLINE_PUBLIC =
+  "https://my.spline.design/aidatamodelinteraction-yXFK4f6oAzDsrDztvyJ1dXk4/";
 const splineScene = import.meta.env.PUBLIC_SPLINE_SCENE as string | undefined;
+const splinePublic =
+  (import.meta.env.PUBLIC_SPLINE_PUBLIC as string | undefined) || DEFAULT_SPLINE_PUBLIC;
+const useViewer = Boolean(splineScene);
+const FALLBACK_POSTER =
+  "https://community-filepreview.spline.design/e41b79f5-7a6d-4123-814b-7d2e60ce7c44.jpg";
 ---
 
-<section id="top" class="relative min-h-[100svh] overflow-hidden" data-testid="hero">
-  <!-- Full-bleed atmosphere -->
-  <div aria-hidden="true" class="pointer-events-none absolute inset-0">
-    <div
-      class="absolute inset-0"
-      style="background:
-        radial-gradient(ellipse 70% 55% at 72% 42%, rgba(37,99,235,0.28), transparent 58%),
-        radial-gradient(ellipse 50% 40% at 18% 20%, rgba(96,165,250,0.12), transparent 55%),
-        linear-gradient(180deg, #05070d 0%, #070b14 55%, #05070d 100%);"
-    >
-    </div>
-    <div
-      class="absolute inset-0 opacity-[0.35]"
-      style="background-image: linear-gradient(rgba(148,163,184,0.06) 1px, transparent 1px), linear-gradient(90deg, rgba(148,163,184,0.06) 1px, transparent 1px); background-size: 64px 64px; mask-image: radial-gradient(ellipse 80% 70% at 60% 45%, black, transparent);"
-    >
-    </div>
+<section id="top" class="stage" data-testid="stage" data-state="splash">
+  <!-- Full-bleed Spline (splash hero; fades on reveal). Poster stays until iframe paints. -->
+  <div class="stage-spline" data-testid="spline-layer" aria-hidden="true">
+    <img
+      class="stage-spline-fallback"
+      src={FALLBACK_POSTER}
+      alt=""
+      width="1600"
+      height="900"
+      decoding="async"
+      data-testid="spline-fallback"
+    />
+    {
+      useViewer ? (
+        <div class="stage-spline-frame" data-testid="spline-viewer-host">
+          <script
+            is:inline
+            type="module"
+            src="https://unpkg.com/@splinetool/viewer@1.9.82/build/spline-viewer.js"
+          ></script>
+          <spline-viewer
+            url={splineScene}
+            style="width:100%;height:100%;background:transparent;"
+          ></spline-viewer>
+        </div>
+      ) : (
+        <iframe
+          title="Frely Network scene"
+          src={splinePublic}
+          class="stage-spline-frame"
+          loading="eager"
+          allow="autoplay; fullscreen"
+          data-testid="spline-iframe"
+        ></iframe>
+      )
+    }
+    <div class="stage-spline-veil"></div>
   </div>
 
-  <div
-    class="relative mx-auto grid min-h-[100svh] max-w-6xl items-center gap-10 px-6 pb-16 pt-24 lg:grid-cols-[0.95fr_1.05fr] lg:gap-6"
-  >
-    <div class="relative z-10 max-w-xl">
-      <p
-        class="animate-rise text-sm font-semibold tracking-[0.22em] text-[var(--primary)] uppercase"
-        data-testid="hero-brand"
-      >
-        Frely Network
-      </p>
-      <h1
-        class="animate-rise-delay-1 mt-4 text-4xl font-extrabold leading-[1.05] tracking-tight text-[var(--foreground)] sm:text-5xl lg:text-[3.4rem]"
-      >
-        Open agent capability network
-      </h1>
-      <p
-        class="animate-rise-delay-2 mt-5 max-w-md text-base leading-relaxed text-[var(--muted-foreground)] sm:text-lg"
-      >
+  <!-- Splash chrome -->
+  <div class="stage-splash" data-testid="splash">
+    <p class="stage-brand" data-testid="splash-brand">Frely Network</p>
+    <button type="button" class="click-me" data-testid="click-me" aria-label="Enter Frely Network">
+      <span>Click Me</span>
+      <span class="click-me-arrow" aria-hidden="true">↓</span>
+    </button>
+  </div>
+
+  <!-- Reveal: product focus -->
+  <div class="stage-reveal" data-testid="reveal" hidden>
+    <div class="reveal-panel animate-rise">
+      <p class="reveal-eyebrow" data-testid="hero-brand">Frely Network</p>
+      <h1 class="reveal-title" data-testid="reveal-title">Open agent capability network</h1>
+      <p class="reveal-body" data-testid="reveal-body">
         Let an agent discover, verify, pay for, and use capabilities it does not have — Graph
         discovery, ENS / ERC-8004 identity, Hedera x402 settlement.
       </p>
-      <div class="animate-rise-delay-3 mt-8 flex flex-wrap items-center gap-3">
+      <div class="reveal-actions">
         <a
           href={GITHUB}
           target="_blank"
@@ -62,226 +85,281 @@ const splineScene = import.meta.env.PUBLIC_SPLINE_SCENE as string | undefined;
         </a>
         <a href="#flow" class="btn btn-ghost btn-lg" data-testid="cta-flow">See the path</a>
       </div>
-      <ul class="animate-rise-delay-3 mt-8 flex flex-wrap gap-2" data-testid="hero-tags">
+      <ul class="reveal-tags" data-testid="hero-tags">
         {
           tags.map((tag) => (
-            <li class="rounded-full border border-[var(--border)] bg-white/[0.03] px-3 py-1 text-xs font-medium text-[var(--muted-foreground)]">
-              {tag}
-            </li>
+            <li>{tag}</li>
           ))
         }
       </ul>
-    </div>
-
-    <div class="relative z-10 h-[min(62vh,520px)] w-full justify-self-stretch lg:h-[min(72vh,640px)]">
-      {
-        splineScene ? (
-          <div class="absolute inset-0" data-testid="spline-viewer-host">
-            <script is:inline type="module" src="https://unpkg.com/@splinetool/viewer@1.9.82/build/spline-viewer.js"></script>
-            <spline-viewer
-              url={splineScene}
-              style="width:100%;height:100%;background:transparent;"
-            ></spline-viewer>
-          </div>
-        ) : (
-          <div class="absolute inset-0" data-testid="data-model-stage">
-            <canvas id="data-model" class="h-full w-full touch-none" aria-hidden="true"></canvas>
-            <div
-              class="pointer-events-none absolute inset-x-0 bottom-4 flex justify-center"
-            >
-              <p class="rounded-full border border-[var(--border)] bg-black/40 px-3 py-1 text-[11px] tracking-wide text-[var(--muted-foreground)] backdrop-blur-md">
-                Dual plane · EVM identity & discovery · Hedera payment
-              </p>
-            </div>
-          </div>
-        )
-      }
+      <p class="reveal-note">Dual plane · EVM identity & discovery · Hedera payment</p>
     </div>
   </div>
 </section>
 
-{
-  !splineScene && (
-    <script>
-      const canvas = document.getElementById("data-model") as HTMLCanvasElement | null;
-      if (canvas) {
-        const ctx = canvas.getContext("2d");
-        if (ctx) {
-          const dpr = Math.min(window.devicePixelRatio || 1, 2);
-          let w = 0;
-          let h = 0;
-          let raf = 0;
-          const mouse = { x: 0.5, y: 0.45, tx: 0.5, ty: 0.45 };
-          const NODE_COUNT = 42;
-          type Node = {
-            x: number;
-            y: number;
-            z: number;
-            r: number;
-            phase: number;
-            speed: number;
-          };
-          const nodes: Node[] = Array.from({ length: NODE_COUNT }, (_, i) => {
-            const t = i / NODE_COUNT;
-            const ring = 0.35 + (i % 3) * 0.12;
-            const ang = t * Math.PI * 2 * 2.3;
-            return {
-              x: Math.cos(ang) * ring,
-              y: Math.sin(ang * 0.85) * ring * 0.72,
-              z: Math.sin(ang * 1.4) * 0.55,
-              r: 1.6 + (i % 5) * 0.45,
-              phase: Math.random() * Math.PI * 2,
-              speed: 0.35 + Math.random() * 0.55,
-            };
-          });
+<script>
+  const stage = document.getElementById("top");
+  const clickMe = document.querySelector("[data-testid='click-me']");
+  const reveal = document.querySelector("[data-testid='reveal']");
+  const after = document.querySelector("[data-testid='after-reveal']");
 
-          const resize = () => {
-            const rect = canvas.getBoundingClientRect();
-            w = rect.width;
-            h = rect.height;
-            canvas.width = Math.floor(w * dpr);
-            canvas.height = Math.floor(h * dpr);
-            ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
-          };
+  const goReveal = () => {
+    if (!stage || stage.dataset.state === "revealed") return;
+    stage.dataset.state = "revealed";
+    document.documentElement.dataset.landing = "revealed";
+    if (reveal instanceof HTMLElement) reveal.hidden = false;
+    if (after instanceof HTMLElement) {
+      after.hidden = false;
+      after.setAttribute("aria-hidden", "false");
+    }
+    // Soft scroll lock release — page can grow past splash
+    document.body.classList.add("is-revealed");
+    window.setTimeout(() => {
+      reveal?.querySelector("h1")?.scrollIntoView({ behavior: "smooth", block: "center" });
+    }, 320);
+  };
 
-          const project = (x: number, y: number, z: number, t: number) => {
-            const mx = (mouse.x - 0.5) * 0.55;
-            const my = (mouse.y - 0.5) * 0.4;
-            const rotY = t * 0.18 + mx;
-            const rotX = my * 0.6;
-            const cosY = Math.cos(rotY);
-            const sinY = Math.sin(rotY);
-            const cosX = Math.cos(rotX);
-            const sinX = Math.sin(rotX);
-            let X = x * cosY - z * sinY;
-            let Z = x * sinY + z * cosY;
-            let Y = y * cosX - Z * sinX;
-            Z = y * sinX + Z * cosX;
-            const perspective = 2.4 / (2.4 + Z);
-            return {
-              sx: w * 0.52 + X * Math.min(w, h) * 0.42 * perspective,
-              sy: h * 0.48 + Y * Math.min(w, h) * 0.42 * perspective,
-              depth: Z,
-              scale: perspective,
-            };
-          };
+  clickMe?.addEventListener("click", goReveal);
+  clickMe?.addEventListener("keydown", (e) => {
+    if (e instanceof KeyboardEvent && (e.key === "Enter" || e.key === " ")) {
+      e.preventDefault();
+      goReveal();
+    }
+  });
 
-          const draw = (time: number) => {
-            const t = time * 0.001;
-            mouse.x += (mouse.tx - mouse.x) * 0.06;
-            mouse.y += (mouse.ty - mouse.y) * 0.06;
-            ctx.clearRect(0, 0, w, h);
+  const iframe = document.querySelector("[data-testid='spline-iframe']");
+  if (iframe instanceof HTMLIFrameElement) {
+    const markReady = () => stage?.classList.add("is-spline-ready");
+    iframe.addEventListener("load", markReady);
+    // If already complete (bfcache / fast cache)
+    try {
+      if (iframe.contentDocument?.readyState === "complete") markReady();
+    } catch {
+      // cross-origin — wait for load only
+    }
+  }
+</script>
 
-            const g = ctx.createRadialGradient(w * 0.55, h * 0.45, 0, w * 0.55, h * 0.45, Math.min(w, h) * 0.55);
-            g.addColorStop(0, "rgba(59,130,246,0.18)");
-            g.addColorStop(0.45, "rgba(37,99,235,0.06)");
-            g.addColorStop(1, "rgba(0,0,0,0)");
-            ctx.fillStyle = g;
-            ctx.fillRect(0, 0, w, h);
+<style>
+  .stage {
+    position: relative;
+    min-height: 100svh;
+    isolation: isolate;
+  }
 
-            // orbital rings
-            for (let i = 0; i < 3; i++) {
-              const pulse = 0.55 + Math.sin(t * 0.9 + i) * 0.08;
-              ctx.beginPath();
-              ctx.ellipse(
-                w * 0.52 + (mouse.x - 0.5) * 24,
-                h * 0.48 + (mouse.y - 0.5) * 18,
-                Math.min(w, h) * (0.22 + i * 0.09) * pulse,
-                Math.min(w, h) * (0.14 + i * 0.055) * pulse,
-                Math.PI / 6 + t * 0.12 * (i % 2 === 0 ? 1 : -1),
-                0,
-                Math.PI * 2,
-              );
-              ctx.strokeStyle = `rgba(96,165,250,${0.22 - i * 0.05})`;
-              ctx.lineWidth = 1.2;
-              ctx.stroke();
-            }
+  .stage-spline {
+    position: fixed;
+    inset: 0;
+    z-index: 0;
+    background: #000;
+    transition:
+      opacity 0.85s cubic-bezier(0.22, 1, 0.36, 1),
+      visibility 0.85s;
+  }
 
-            const projected = nodes.map((n, i) => {
-              const wobble = Math.sin(t * n.speed + n.phase) * 0.04;
-              return {
-                ...project(n.x + wobble, n.y, n.z + Math.cos(t * n.speed + i) * 0.03, t),
-                r: n.r,
-                i,
-              };
-            });
-            projected.sort((a, b) => a.depth - b.depth);
+  .stage-spline-fallback {
+    position: absolute;
+    inset: 0;
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+    object-position: center;
+    opacity: 1;
+  }
 
-            for (let i = 0; i < projected.length; i++) {
-              for (let j = i + 1; j < projected.length; j++) {
-                const a = projected[i];
-                const b = projected[j];
-                const dx = a.sx - b.sx;
-                const dy = a.sy - b.sy;
-                const dist = Math.hypot(dx, dy);
-                if (dist < 110) {
-                  ctx.beginPath();
-                  ctx.moveTo(a.sx, a.sy);
-                  ctx.lineTo(b.sx, b.sy);
-                  ctx.strokeStyle = `rgba(147,197,253,${(1 - dist / 110) * 0.28})`;
-                  ctx.lineWidth = 1;
-                  ctx.stroke();
-                }
-              }
-            }
+  .stage-spline-frame {
+    position: absolute;
+    inset: 0;
+    width: 100%;
+    height: 100%;
+    border: 0;
+    background: transparent;
+    opacity: 0;
+    transition: opacity 0.6s ease;
+  }
 
-            for (const p of projected) {
-              const radius = p.r * (1.2 + p.scale);
-              const glow = ctx.createRadialGradient(p.sx, p.sy, 0, p.sx, p.sy, radius * 4);
-              glow.addColorStop(0, "rgba(147,197,253,0.55)");
-              glow.addColorStop(1, "rgba(147,197,253,0)");
-              ctx.fillStyle = glow;
-              ctx.beginPath();
-              ctx.arc(p.sx, p.sy, radius * 4, 0, Math.PI * 2);
-              ctx.fill();
-              ctx.beginPath();
-              ctx.arc(p.sx, p.sy, radius, 0, Math.PI * 2);
-              ctx.fillStyle = p.i % 7 === 0 ? "#93c5fd" : "#60a5fa";
-              ctx.fill();
-            }
+  .stage.is-spline-ready .stage-spline-frame {
+    opacity: 1;
+  }
 
-            // core
-            const core = project(0, 0, 0, t);
-            const coreGlow = ctx.createRadialGradient(core.sx, core.sy, 0, core.sx, core.sy, 70);
-            coreGlow.addColorStop(0, "rgba(255,255,255,0.85)");
-            coreGlow.addColorStop(0.2, "rgba(96,165,250,0.55)");
-            coreGlow.addColorStop(1, "rgba(37,99,235,0)");
-            ctx.fillStyle = coreGlow;
-            ctx.beginPath();
-            ctx.arc(core.sx, core.sy, 70, 0, Math.PI * 2);
-            ctx.fill();
+  .stage-spline-veil {
+    position: absolute;
+    inset: 0;
+    pointer-events: none;
+    background: radial-gradient(ellipse 60% 50% at 50% 48%, transparent 20%, rgba(0, 0, 0, 0.35) 100%);
+    opacity: 0;
+    transition: opacity 0.7s ease;
+  }
 
-            raf = requestAnimationFrame(draw);
-          };
+  .stage[data-state="revealed"] .stage-spline {
+    opacity: 0;
+    visibility: hidden;
+    pointer-events: none;
+  }
 
-          const onMove = (clientX: number, clientY: number) => {
-            const rect = canvas.getBoundingClientRect();
-            mouse.tx = (clientX - rect.left) / rect.width;
-            mouse.ty = (clientY - rect.top) / rect.height;
-          };
+  .stage-splash {
+    position: relative;
+    z-index: 2;
+    min-height: 100svh;
+    display: grid;
+    place-items: center;
+    pointer-events: none;
+    transition:
+      opacity 0.45s ease,
+      visibility 0.45s;
+  }
 
-          resize();
-          window.addEventListener("resize", resize);
-          canvas.addEventListener("pointermove", (e) => onMove(e.clientX, e.clientY));
-          canvas.addEventListener(
-            "pointerleave",
-            () => {
-              mouse.tx = 0.5;
-              mouse.ty = 0.45;
-            },
-          );
-          raf = requestAnimationFrame(draw);
+  .stage-brand {
+    position: absolute;
+    top: 1.35rem;
+    left: 1.5rem;
+    margin: 0;
+    font-size: 0.8rem;
+    font-weight: 700;
+    letter-spacing: 0.22em;
+    text-transform: uppercase;
+    color: var(--primary);
+    pointer-events: none;
+  }
 
-          document.addEventListener(
-            "astro:before-swap",
-            () => {
-              cancelAnimationFrame(raf);
-              window.removeEventListener("resize", resize);
-            },
-            { once: true },
-          );
-        }
-      }
-    </script>
-  )
-}
+  .click-me {
+    pointer-events: auto;
+    display: inline-flex;
+    align-items: center;
+    gap: 0.45rem;
+    /* Sit near the floating subject / scene CTA */
+    margin-top: min(8vh, 72px);
+    padding: 0.7rem 1.15rem;
+    border-radius: 999px;
+    border: 1px solid rgba(148, 163, 184, 0.28);
+    background: rgba(12, 16, 24, 0.72);
+    color: #f4f7fb;
+    font: inherit;
+    font-size: 0.92rem;
+    font-weight: 600;
+    letter-spacing: 0.02em;
+    cursor: pointer;
+    backdrop-filter: blur(12px);
+    box-shadow: 0 10px 40px rgba(0, 0, 0, 0.35);
+    transition:
+      transform 0.2s ease,
+      border-color 0.2s ease,
+      background 0.2s ease;
+  }
+
+  .click-me:hover {
+    transform: translateY(-2px);
+    border-color: rgba(96, 165, 250, 0.55);
+    background: rgba(20, 28, 44, 0.85);
+  }
+
+  .click-me:focus-visible {
+    outline: 2px solid var(--ring);
+    outline-offset: 3px;
+  }
+
+  .click-me-arrow {
+    opacity: 0.8;
+    animation: pulse-glow 1.8s ease-in-out infinite;
+  }
+
+  .stage[data-state="revealed"] .stage-splash {
+    opacity: 0;
+    visibility: hidden;
+    pointer-events: none;
+  }
+
+  .stage-reveal {
+    position: relative;
+    z-index: 3;
+    min-height: 100svh;
+    display: grid;
+    place-items: center;
+    padding: 5.5rem 1.5rem 3rem;
+  }
+
+  .stage[data-state="splash"] .stage-reveal {
+    display: none;
+  }
+
+  .reveal-panel {
+    width: min(42rem, 100%);
+    margin-inline: auto;
+    text-align: center;
+  }
+
+  .reveal-eyebrow {
+    margin: 0;
+    font-size: 0.8rem;
+    font-weight: 700;
+    letter-spacing: 0.22em;
+    text-transform: uppercase;
+    color: var(--primary);
+  }
+
+  .reveal-title {
+    margin: 1rem 0 0;
+    font-size: clamp(2.1rem, 4.5vw, 3.35rem);
+    font-weight: 800;
+    line-height: 1.05;
+    letter-spacing: -0.02em;
+  }
+
+  .reveal-body {
+    margin: 1.15rem auto 0;
+    max-width: 34rem;
+    font-size: 1.05rem;
+    line-height: 1.65;
+    color: var(--muted-foreground);
+  }
+
+  .reveal-actions {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.75rem;
+    margin-top: 1.75rem;
+    justify-content: center;
+  }
+
+  .reveal-tags {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.5rem;
+    margin: 1.5rem 0 0;
+    padding: 0;
+    list-style: none;
+    justify-content: center;
+  }
+
+  .reveal-tags li {
+    border: 1px solid var(--border);
+    border-radius: 999px;
+    padding: 0.3rem 0.75rem;
+    font-size: 0.75rem;
+    font-weight: 500;
+    color: var(--muted-foreground);
+    background: rgba(255, 255, 255, 0.03);
+  }
+
+  .reveal-note {
+    margin: 1.1rem 0 0;
+    font-size: 0.75rem;
+    color: var(--muted-foreground);
+  }
+
+  /* Mobile: prefer poster — Spline iframe is heavy */
+  @media (max-width: 640px) {
+    .stage-spline-frame {
+      display: none;
+    }
+
+    .stage-spline-fallback {
+      opacity: 1;
+      filter: saturate(1.05) brightness(0.92);
+    }
+
+    .click-me {
+      margin-top: min(22vh, 160px);
+    }
+  }
+</style>

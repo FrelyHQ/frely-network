@@ -1,17 +1,26 @@
 # Frely Network — landing (`apps/site`)
 
-Static Astro showcase for Frely Network (landing only). Visual language is inspired by the Spline community piece [AiData Model Interaction](https://app.spline.design/community/file/e41b79f5-7a6d-4123-814b-7d2e60ce7c44): dark immersive stage, interactive data-model hero, blue accent.
+Static Astro showcase. Interaction:
 
-## Spline scene (optional)
+1. **Splash** — full-viewport Spline + corner brand + page-owned **Click Me**
+2. **Reveal** (same page) — product copy focus; Spline fades out; How it works below
 
-Community files are not embeddable until you **Export → Code / Viewer** and get a `https://prod.spline.design/.../scene.splinecode` URL. Then:
+No return to splash. No evidence console on this branch.
+
+## Spline
+
+Default Public URL (iframe):
+
+`https://my.spline.design/aidatamodelinteraction-yXFK4f6oAzDsrDztvyJ1dXk4/`
+
+Optional `apps/site/.env`:
 
 ```bash
-# apps/site/.env
+PUBLIC_SPLINE_PUBLIC=https://my.spline.design/your-scene/
 PUBLIC_SPLINE_SCENE=https://prod.spline.design/YOUR_ID/scene.splinecode
 ```
 
-Without that env var, the page uses the built-in interactive canvas (mouse-reactive orbital network).
+Mobile uses the community poster fallback instead of the heavy iframe.
 
 ## Scripts
 
@@ -22,5 +31,3 @@ npm run dev      # http://localhost:3010
 npm run build
 npm run preview
 ```
-
-Outside the Bun workspaces on purpose (same pattern as `ui/site-astro`) so npm installs cleanly.
