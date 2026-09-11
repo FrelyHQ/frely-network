@@ -76,6 +76,20 @@ export function outcomeOrWalletError(outcome: PaymentOutcome): PaymentOutcome {
   return outcome;
 }
 
+// MCP SDK connect() 在 stdin 仍监听时就返回；会话寿命跟 stdin EOF / 信号，不跟 connect()。
+export function waitUntilStdioCloses(input: NodeJS.ReadableStream = process.stdin): Promise<void> {
+  return new Promise((resolve) => {
+    const stream = input as NodeJS.ReadableStream & { readableEnded?: boolean };
+    if (stream.readableEnded) {
+      resolve();
+      return;
+    }
+    const finish = () => resolve();
+    input.once("end", finish);
+    input.once("close", finish);
+  });
+}
+
 function createStartExecutor(config: FrelyMcpConfig, policy: Policy, journal: Journal | undefined) {
   if (!policy.enabled || !journal) throw new Error("PAYMENT_DISABLED");
   const live = createLivePorts(policy, journal, parseFrelyResponse);
@@ -126,6 +140,7 @@ async function runStart(args: string[]): Promise<number> {
   process.once("SIGTERM", onSignal);
   try {
     await createFrelyMcpServer(runtime).connect(new StdioServerTransport());
+    await waitUntilStdioCloses();
     return 0;
   } finally {
     process.removeListener("SIGINT", onSignal);

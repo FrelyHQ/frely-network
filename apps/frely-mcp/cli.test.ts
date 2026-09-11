@@ -6,11 +6,12 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import rawPolicy from "../../scripts/payment-spike/fixtures/synthetic/policy.json";
 import successFixture from "../../packages/protocol/capability-resolution/fixtures/success.json";
-import { runCli } from "./index.ts";
+import { PassThrough } from "node:stream";
+import { runCli, waitUntilStdioCloses } from "./index.ts";
 
 const known = new Set(["INPUT_INVALID", "CONFIG_INVALID", "CONFIG_INCOMPLETE", "WALLET_NOT_READY", "EXECUTION_FAILED"]);
 
-async function createStartFixture() {
+async function createStartFixture(options: { enabled?: boolean } = {}) {
   const directory = await realpath(await mkdtemp(join(tmpdir(), "frely-mcp-cli-")));
   const paymentConfigPath = join(directory, "payment.json");
   const paymentRegistryPath = join(directory, "registry.json");
@@ -21,9 +22,10 @@ async function createStartFixture() {
   const relayKey = `FRELY_RELAY_API_KEY_${suffix}`;
   process.env[networkKey] = "test-network-key";
   process.env[relayKey] = "test-relay-key";
+  const enabled = options.enabled === true;
   const policy = {
     ...structuredClone(rawPolicy),
-    enabled: false,
+    enabled,
     resourceUrl: successFixture.provider.endpoint,
     journalPath,
   };
@@ -31,7 +33,7 @@ async function createStartFixture() {
   await writeFile(paymentRegistryPath, JSON.stringify({
     version: 1,
     configPaths: [paymentConfigPath],
-    journalPaths: [],
+    journalPaths: enabled ? [journalPath] : [],
     captureSha256: [],
   }));
   await writeFile(configPath, JSON.stringify({
@@ -93,6 +95,20 @@ test("check and start require an absolute --config", async () => {
   }
 });
 
+test("stdio session wait does not resolve while the stream is open", async () => {
+  const stdin = new PassThrough();
+  stdin.resume();
+  let ended = false;
+  const waiting = waitUntilStdioCloses(stdin).then(() => {
+    ended = true;
+  });
+  await Bun.sleep(30);
+  expect(ended).toBe(false);
+  stdin.end();
+  await waiting;
+  expect(ended).toBe(true);
+});
+
 test("start writes only MCP frames and does not resolve on boot", async () => {
   const fixture = await createStartFixture();
   const transport = new StdioClientTransport({
@@ -107,6 +123,31 @@ test("start writes only MCP frames and does not resolve on boot", async () => {
     await client.connect(transport);
     const tools = await client.listTools();
     expect(tools.tools.map((tool) => tool.name)).toEqual(["find_capability", "use_capability"]);
+    expect(errors.join("")).toBe("");
+  } finally {
+    await client.close();
+    await transport.close();
+    await fixture.cleanup();
+  }
+});
+
+test("enabled start keeps serving until stdin EOF", async () => {
+  const fixture = await createStartFixture({ enabled: true });
+  const transport = new StdioClientTransport({
+    command: process.execPath,
+    args: [join(import.meta.dir, "index.ts"), "start", "--config", fixture.configPath],
+    stderr: "pipe",
+  });
+  const errors: string[] = [];
+  transport.stderr?.on("data", (chunk) => errors.push(String(chunk)));
+  const client = new Client({ name: "cli-test", version: "0.0.0" });
+  try {
+    await client.connect(transport);
+    const first = await client.listTools();
+    await Bun.sleep(50);
+    const second = await client.listTools();
+    expect(first.tools.map((tool) => tool.name)).toEqual(["find_capability", "use_capability"]);
+    expect(second.tools.map((tool) => tool.name)).toEqual(["find_capability", "use_capability"]);
     expect(errors.join("")).toBe("");
   } finally {
     await client.close();
