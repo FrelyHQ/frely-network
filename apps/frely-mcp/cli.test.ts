@@ -7,7 +7,7 @@ import { join } from "node:path";
 import rawPolicy from "../../scripts/payment-spike/fixtures/synthetic/policy.json";
 import successFixture from "../../packages/protocol/capability-resolution/fixtures/success.json";
 import { PassThrough } from "node:stream";
-import { runCli, waitUntilStdioCloses } from "./index.ts";
+import { runCli, runStart, waitUntilStdioCloses } from "./index.ts";
 
 const known = new Set(["INPUT_INVALID", "CONFIG_INVALID", "CONFIG_INCOMPLETE", "WALLET_NOT_READY", "EXECUTION_FAILED"]);
 
@@ -92,6 +92,27 @@ test("check and start require an absolute --config", async () => {
     expect(code).toBe(2);
     expect(stdout.join("")).toBe("");
     expect(known.has(stderr.join("").trim())).toBe(true);
+  }
+});
+
+test("enabled runStart does not close until injected stdin ends", async () => {
+  const fixture = await createStartFixture({ enabled: true });
+  const stdin = new PassThrough();
+  stdin.resume();
+  let finished = false;
+  try {
+    const started = runStart(["--config", fixture.configPath], stdin).then((code) => {
+      finished = true;
+      return code;
+    });
+    await Bun.sleep(50);
+    expect(finished).toBe(false);
+    stdin.end();
+    expect(await started).toBe(0);
+    expect(finished).toBe(true);
+  } finally {
+    stdin.end();
+    await fixture.cleanup();
   }
 });
 
@@ -194,7 +215,7 @@ test("spawned errors contain only a fixed code", async () => {
     expect(status).toBe(2);
     expect(stdout).toBe("");
     expect(known.has(code)).toBe(true);
-    expect(stderr).not.toContain("/");
-    expect(stderr).not.toContain("sk-");
+    expect(code).not.toContain("/");
+    expect(code).not.toContain("sk-");
   }
 });

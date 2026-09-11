@@ -1,5 +1,6 @@
 #!/usr/bin/env bun
 import { createInterface } from "node:readline/promises";
+import { Readable } from "node:stream";
 import { parseArgs } from "node:util";
 import { main as walletMain, type CliIO } from "../agent-cli/index.ts";
 import { createPaidExecutor, parseFrelyResponse } from "@frely-network/broker";
@@ -77,16 +78,18 @@ export function outcomeOrWalletError(outcome: PaymentOutcome): PaymentOutcome {
 }
 
 // MCP SDK connect() 在 stdin 仍监听时就返回；会话寿命跟 stdin EOF / 信号，不跟 connect()。
-export function waitUntilStdioCloses(input: NodeJS.ReadableStream = process.stdin): Promise<void> {
+export function waitUntilStdioCloses(input: Readable = process.stdin): Promise<void> {
   return new Promise((resolve) => {
-    const stream = input as NodeJS.ReadableStream & { readableEnded?: boolean };
-    if (stream.readableEnded) {
+    const stream = input as Readable & { readableEnded?: boolean; destroyed?: boolean };
+    const finished = () => Boolean(stream.readableEnded || stream.destroyed);
+    if (finished()) {
       resolve();
       return;
     }
     const finish = () => resolve();
     input.once("end", finish);
     input.once("close", finish);
+    if (finished()) resolve();
   });
 }
 
@@ -115,7 +118,10 @@ async function runCheck(args: string[], io: CliIO): Promise<number> {
   return result.status === "ready" ? 0 : 2;
 }
 
-async function runStart(args: string[]): Promise<number> {
+export async function runStart(
+  args: string[],
+  input: Readable = process.stdin,
+): Promise<number> {
   const config = await loadFrelyMcpConfig(parseConfigFlag(args));
   const policy = await loadApprovedPaymentConfig(config.paymentConfigPath, config.paymentRegistryPath);
   const journal = policy.enabled ? openJournal(policy.journalPath) : undefined;
@@ -139,8 +145,8 @@ async function runStart(args: string[]): Promise<number> {
   process.once("SIGINT", onSignal);
   process.once("SIGTERM", onSignal);
   try {
-    await createFrelyMcpServer(runtime).connect(new StdioServerTransport());
-    await waitUntilStdioCloses();
+    await createFrelyMcpServer(runtime).connect(new StdioServerTransport(input, process.stdout));
+    await waitUntilStdioCloses(input);
     return 0;
   } finally {
     process.removeListener("SIGINT", onSignal);
@@ -151,6 +157,10 @@ async function runStart(args: string[]): Promise<number> {
 
 export async function runCli(args: string[], io: CliIO = processIo()): Promise<number> {
   try {
+    if (args[0] === "--help" || args[0] === "-h") {
+      io.stdout("frely-mcp wallet init --network hedera:testnet [wallet options]\nfrely-mcp check --config /absolute/config.json\nfrely-mcp start --config /absolute/config.json\n");
+      return 0;
+    }
     if (args[0] === "wallet") return await walletMain(args, io);
     if (args[0] === "check") return await runCheck(args.slice(1), io);
     if (args[0] === "start") return await runStart(args.slice(1));
