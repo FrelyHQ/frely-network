@@ -39,11 +39,11 @@ export async function readBoundedJson(path: string): Promise<unknown> {
   return JSON.parse(new TextDecoder("utf-8",{fatal:true}).decode(buffer.subarray(0,offset))) as unknown;
  }finally{await handle.close();}
 }
-export async function readPaymentRegistry():Promise<Registry>{
- try{const path=process.env.FRELY_PAYMENT_REGISTRY;if(!path||!isAbsolute(path))throw Error();return parseRegistry(await readBoundedJson(path));}catch{throw Error("CONFIG_INCOMPLETE");}
+export async function readPaymentRegistry(registryPath?:string):Promise<Registry>{
+ try{const path=registryPath??process.env.FRELY_PAYMENT_REGISTRY;if(!path||!isAbsolute(path))throw Error();return parseRegistry(await readBoundedJson(path));}catch{throw Error("CONFIG_INCOMPLETE");}
 }
-export async function loadApprovedPaymentConfig(configPath:string){
- const registry=await readPaymentRegistry();
+export async function loadApprovedPaymentConfig(configPath:string,registryPath?:string){
+ const registry=await readPaymentRegistry(registryPath);
  const path=await authorizedExistingPath(configPath,registry.configPaths);
  const policy=loadPaymentConfig(await readBoundedJson(path));
  if(policy.enabled)await authorizedJournalDestination(policy.journalPath,registry.journalPaths);

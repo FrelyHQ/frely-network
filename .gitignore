@@ -1,5 +1,7 @@
 node_modules/
 dist/
+apps/frely-mcp/dist/
+*.tgz
 coverage/
 *.tsbuildinfo
 

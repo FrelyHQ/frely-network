@@ -1,5 +1,6 @@
 export { openLocalWallet } from './local-wallet.ts';
 export { initWallet } from './init.ts';
+export { readReadyWalletIdentity } from './read-ready.ts';
 export type {
   Account,
   ChainPort,

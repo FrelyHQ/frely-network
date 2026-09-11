@@ -19,20 +19,6 @@
         "@frely-network/agent-wallet": "workspace:*",
       },
     },
-    "apps/broker-mcp": {
-      "name": "@frely-network/broker-mcp",
-      "version": "0.0.0",
-      "dependencies": {
-        "@frely-network/broker": "workspace:*",
-        "@frely-network/ens": "workspace:*",
-        "@frely-network/erc8004": "workspace:*",
-        "@frely-network/hedera-x402": "workspace:*",
-        "@frely-network/shared-types": "workspace:*",
-        "@frely-network/the-graph": "workspace:*",
-        "@modelcontextprotocol/sdk": "1.30.0",
-        "zod": "4.5.4",
-      },
-    },
     "apps/capability-service": {
       "name": "@frely-network/capability-service",
       "version": "0.0.0",
@@ -46,6 +32,27 @@
     "apps/explorer": {
       "name": "@frely-network/explorer",
       "version": "0.0.0",
+    },
+    "apps/frely-mcp": {
+      "name": "frely-mcp",
+      "version": "0.1.0",
+      "bin": {
+        "frely-mcp": "dist/frely-mcp.js",
+      },
+      "dependencies": {
+        "@grpc/grpc-js": "1.12.6",
+        "pino": "10.1.0",
+        "thread-stream": "3.2.0",
+      },
+      "devDependencies": {
+        "@frely-network/agent-wallet": "workspace:*",
+        "@frely-network/broker": "workspace:*",
+        "@frely-network/capability-resolution": "workspace:*",
+        "@frely-network/hedera-x402": "workspace:*",
+        "@frely-network/shared-types": "workspace:*",
+        "@modelcontextprotocol/sdk": "1.30.0",
+        "zod": "4.5.4",
+      },
     },
     "examples/vision-basic": {
       "name": "@frely-network/vision-basic",
@@ -185,8 +192,6 @@
     "@frely-network/agent-wallet": ["@frely-network/agent-wallet@workspace:packages/wallet/agent-wallet"],
 
     "@frely-network/broker": ["@frely-network/broker@workspace:packages/broker"],
-
-    "@frely-network/broker-mcp": ["@frely-network/broker-mcp@workspace:apps/broker-mcp"],
 
     "@frely-network/capability-resolution": ["@frely-network/capability-resolution@workspace:packages/protocol/capability-resolution"],
 
@@ -492,6 +497,8 @@
 
     "forwarded": ["forwarded@0.2.0", "", {}, "sha512-buRG0fpBtRHSTCOASe6hD258tEubFoRLb4ZNA6NxMVHNw2gOcwHo9wyablzMzOA5z9xA9L1KNjk/Nt6MT9aYow=="],
 
+    "frely-mcp": ["frely-mcp@workspace:apps/frely-mcp"],
+
     "fresh": ["fresh@2.0.0", "", {}, "sha512-Rx/WycZ60HOaqLKAi6cHRKKI7zxWbJ31MhntmtwMoaTeF7XFH9hhBp8vITaMidfljRQ6eYWCKkaTK+ykVJHP2A=="],
 
     "function-bind": ["function-bind@1.1.2", "", {}, "sha512-7XHNxH7qX9xG5mIwxkhumTox/MIRNcOgDrxWsMt2pAr23WHp6MrRlN7FBSFpCpr+oVO0F744iUgR82nJMfG2SA=="],
@@ -720,7 +727,7 @@
 
     "quick-format-unescaped": ["quick-format-unescaped@4.0.4", "", {}, "sha512-tYC1Q1hgyRuHgloV/YXs2w15unPVh8qfu/qCTfhTYamaw7fyhumKa2yGpdSo87vY32rIclj+4fWYQXUMs9EHvg=="],
 
-    "range-parser": ["range-parser@1.3.0", "", {}, "sha512-hek2mFQpPuI4E1BBKrSto+BU3e3x4xuarsbiwr3+lf7p44juvFMV0XFWQAP3xUyqXA4RrXLIoaSUGbSt056ZMw=="],
+    "range-parser": ["range-parser@1.2.1", "", {}, "sha512-Hrgsx+orqoygnmhFbKaHE6c296J+HTAQXoxEF6gNupROmmGJRoyzfG3ccAveqCBrwr/2yxQ5BVd/GTl5agOwSg=="],
 
     "raw-body": ["raw-body@3.0.2", "", { "dependencies": { "bytes": "~3.1.2", "http-errors": "~2.0.1", "iconv-lite": "~0.7.0", "unpipe": "~1.0.0" } }, "sha512-K5zQjDllxWkf7Z5xJdV0/B0WTNqx6vxG70zJE4N0kBs4LovmEYWJzQGxC9bS9RAKu3bgM40lrd5zoLJ12MQ5BA=="],
 
@@ -999,8 +1006,6 @@
     "@react-native/dev-middleware/serve-static/send/debug": ["debug@2.6.9", "", { "dependencies": { "ms": "2.0.0" } }, "sha512-bC7ElrdJaJnPbAP+1EotYvqZsb3ecl5wi6Bfi6BJTUcNowp6cvspg0jXznRTKDjm/E7AdgFBVeAPVMNcKGsHMA=="],
 
     "@react-native/dev-middleware/serve-static/send/fresh": ["fresh@0.5.2", "", {}, "sha512-zJ2mQYM18rEFOudeV4GShTGIQ7RbzA7ozbU9I/XBpm7kqgMywgmylMwXHxZJmkVoYkna9d2pVXVXPdYTP9ej8Q=="],
-
-    "@react-native/dev-middleware/serve-static/send/range-parser": ["range-parser@1.2.1", "", {}, "sha512-Hrgsx+orqoygnmhFbKaHE6c296J+HTAQXoxEF6gNupROmmGJRoyzfG3ccAveqCBrwr/2yxQ5BVd/GTl5agOwSg=="],
 
     "@react-native/dev-middleware/serve-static/send/debug/ms": ["ms@2.0.0", "", {}, "sha512-Tpp60P6IUJDTuOq/5Z8cdskzJujfwqfOTkrwIwj7IRISpnkJnT6SyJ4PCPnGMoFjC9ddhal5KVIYtAt97ix05A=="],
   }

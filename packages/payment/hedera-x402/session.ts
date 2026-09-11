@@ -230,11 +230,13 @@ export function createPaymentSession(config: Policy, ports: Ports) {
         save(id, { quote: checked.selection.requirements });
         try {
           await ports.checkNetwork(structuredClone(checked.selection));
-        } catch {
+        } catch (error) {
           return finish({
             ...base,
             decision: "paused",
-            reason: "NETWORK_CHECK_FAILED",
+            reason: error instanceof Error && error.message === "WALLET_NOT_READY"
+              ? "WALLET_NOT_READY"
+              : "NETWORK_CHECK_FAILED",
           });
         }
         save(id, { phase: "authorized" });

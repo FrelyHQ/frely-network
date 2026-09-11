@@ -1,6 +1,7 @@
 import { expect, test } from "bun:test";
 import { Client } from "@modelcontextprotocol/sdk/client/index.js";
 import { StdioClientTransport } from "@modelcontextprotocol/sdk/client/stdio.js";
+import successFixture from "../../packages/protocol/capability-resolution/fixtures/success.json";
 
 async function query(capabilities: string[], scenario = "success") {
   const transport = new StdioClientTransport({
@@ -23,16 +24,11 @@ async function query(capabilities: string[], scenario = "success") {
   }
 }
 
-test("fixed mock candidates use all-capability matching and repeatable results", async () => {
+test("fixed mock returns the verified capability with repeatable results", async () => {
   const vision = await query(["vision"]);
   expect(vision.isError).not.toBe(true);
-  const providers = (vision.structuredContent as { providers: { id: string }[] }).providers;
-  expect(providers.map((p) => p.id)).toEqual(["mock-vision-basic", "mock-vision-ocr"]);
+  expect(vision.structuredContent).toEqual(successFixture);
   expect(await query(["vision"])).toEqual(vision);
-  const ocr = await query(["vision", "ocr"]);
-  expect(ocr.structuredContent).toEqual({ providers: [{ id: "mock-vision-ocr", capabilities: ["vision", "ocr"], supportsX402: false }] });
-  expect(JSON.stringify(vision)).not.toContain('"endpoint"');
-  expect(JSON.stringify(vision)).not.toContain('"verified"');
 });
 
 test("unknown capabilities and empty scenario return NO_PROVIDER", async () => {
@@ -46,5 +42,5 @@ test("unknown capabilities and empty scenario return NO_PROVIDER", async () => {
 test("query-error scenario returns an explicit tool error", async () => {
   const result = await query(["vision"], "query-error");
   expect(result.isError).toBe(true);
-  expect(result.content).toEqual([{ type: "text", text: "GRAPH_QUERY_FAILED" }]);
+  expect(result.content).toEqual([{ type: "text", text: "NETWORK_DISCOVERY_FAILED" }]);
 });

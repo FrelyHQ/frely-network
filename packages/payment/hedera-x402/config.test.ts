@@ -29,7 +29,6 @@ test('approved disabled config does not require an approved journal destination'
  const dir=realpathSync(mkdtempSync(join(tmpdir(),'frely-disabled-')));const configPath=join(dir,'config.json');const registryPath=join(dir,'registry.json');
  writeFileSync(configPath,JSON.stringify({...raw,enabled:false,journalPath:join(dir,'must-not-open.sqlite')}));
  writeFileSync(registryPath,JSON.stringify({version:1,configPaths:[configPath],journalPaths:[],captureSha256:[]}));
- const before=process.env.FRELY_PAYMENT_REGISTRY;process.env.FRELY_PAYMENT_REGISTRY=registryPath;
- try{expect((await loadApprovedPaymentConfig(configPath)).enabled).toBe(false);}
- finally{if(before===undefined)delete process.env.FRELY_PAYMENT_REGISTRY;else process.env.FRELY_PAYMENT_REGISTRY=before;rmSync(dir,{recursive:true,force:true});}
+ try{expect((await loadApprovedPaymentConfig(configPath,registryPath)).enabled).toBe(false);}
+ finally{rmSync(dir,{recursive:true,force:true});}
 });

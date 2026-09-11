@@ -1,0 +1,36 @@
+{
+  "name": "frely-mcp",
+  "version": "0.1.0",
+  "type": "module",
+  "bin": {
+    "frely-mcp": "dist/frely-mcp.js"
+  },
+  "files": [
+    "dist",
+    "README.md"
+  ],
+  "engines": {
+    "bun": ">=1.4.0"
+  },
+  "os": [
+    "darwin",
+    "linux"
+  ],
+  "publishConfig": {
+    "access": "public"
+  },
+  "dependencies": {
+    "@grpc/grpc-js": "1.12.6",
+    "pino": "10.1.0",
+    "thread-stream": "3.2.0"
+  },
+  "devDependencies": {
+    "@frely-network/agent-wallet": "workspace:*",
+    "@frely-network/broker": "workspace:*",
+    "@frely-network/capability-resolution": "workspace:*",
+    "@frely-network/hedera-x402": "workspace:*",
+    "@frely-network/shared-types": "workspace:*",
+    "@modelcontextprotocol/sdk": "1.30.0",
+    "zod": "4.5.4"
+  }
+}

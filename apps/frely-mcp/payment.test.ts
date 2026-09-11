@@ -13,10 +13,18 @@ test("use_capability carries a budgeted payment through stdio with structured ev
     } });
     expect(result.isError).not.toBe(true);
     const structured = result.structuredContent as Record<string, any>;
+    expect(structured.identityVerificationSource).toBe("frely-network");
+    expect(structured.provider).toEqual({ id: "provider-1", ensName: "vision.example.eth" });
     expect(structured.paymentOutcome.paymentStatus).toBe("settled");
     expect(structured.paymentOutcome.serviceStatus).toBe("succeeded");
     expect(structured.payment.transactionId).toBe("synthetic-tx");
     expect(structured.output).toEqual({ output_text: "synthetic output" });
     expect(result.content).toEqual([{ type: "text", text: JSON.stringify(result.structuredContent) }]);
+    const dumped = JSON.stringify(result);
+    expect(dumped).not.toContain("synthetic-digest");
+    expect(dumped).not.toContain("signerRef");
+    expect(dumped).not.toContain("journalPath");
+    expect(dumped).not.toContain("walletDir");
+    expect(dumped).not.toContain("FRELY_RELAY_API_KEY");
   } finally { await client.close(); await transport.close(); }
 });

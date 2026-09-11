@@ -522,3 +522,19 @@ test("signing is bounded at ten seconds and cannot dispatch a late result", asyn
     expect(h.counts.http).toBe(1);
   } finally { h.close(); }
 }, 15_000);
+test("wallet not ready from checkNetwork is not rewritten as network failure", async () => {
+  const h = createHarness();
+  h.ports.checkNetwork = async () => {
+    throw new Error("WALLET_NOT_READY");
+  };
+  try {
+    const result = await h.session.execute(h.request);
+    expect(result.reason).toBe("WALLET_NOT_READY");
+    expect(result.decision).toBe("paused");
+    expect(result.paymentStatus).toBe("not_paid");
+    expect(h.counts.sign).toBe(0);
+    expect(h.counts.http).toBe(1);
+  } finally {
+    h.close();
+  }
+});
