@@ -76,6 +76,7 @@ const paymentAdmission = process.env.FRELY_NETWORK_A2A_PAYMENT_FIXTURE === "1"
     verifier: livePaymentVerifier(),
     ...(process.env.FRELY_NETWORK_RELAY_API_KEY ? { apiKey: process.env.FRELY_NETWORK_RELAY_API_KEY } : {}),
   });
+runtime.paymentReady = paymentAdmission !== undefined;
 const brokerMcpFetch = createBrokerMcpFetch(runtime, {
   ...(paymentAdmission === undefined ? {} : { paymentAdmission }),
 });
