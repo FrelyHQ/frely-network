@@ -21,7 +21,16 @@ import type {
   SettleResponse as X402SettleResponse,
   VerifyResponse as X402VerifyResponse,
 } from "@x402/core/types";
-import { createClientHederaSigner, PrivateKey, type FacilitatorHederaSigner } from "@x402/hedera";
+import {
+  createClientHederaSigner,
+  createHederaClient,
+  createHederaPreflightTransfer,
+  createHederaSignAndSubmitTransaction,
+  createHederaVerifyPayerSignature,
+  PrivateKey,
+  toFacilitatorHederaSigner,
+  type FacilitatorHederaSigner,
+} from "@x402/hedera";
 import { ExactHederaScheme as ExactHederaFacilitatorScheme } from "@x402/hedera/exact/facilitator";
 import { ExactHederaScheme } from "@x402/hedera/exact/client";
 
@@ -525,6 +534,23 @@ export function createHederaX402Facilitator(
 ): x402Facilitator {
   const scheme = new ExactHederaFacilitatorScheme(signer, options);
   return new x402Facilitator().register(HEDERA_TESTNET_NETWORK, scheme);
+}
+
+/** Creates the facilitator signer from process-owned configuration without exposing the key. */
+export function createHederaX402FacilitatorFromConfig(
+  accountId: string,
+  privateKey: string,
+  options: { readonly aliasPolicy?: "reject" | "allow" } = {},
+): x402Facilitator {
+  const key = PrivateKey.fromStringECDSA(privateKey);
+  const buildClient = (network: string) => createHederaClient(network);
+  const signer = toFacilitatorHederaSigner({
+    getAddresses: () => [accountId],
+    signAndSubmitTransaction: createHederaSignAndSubmitTransaction(buildClient, key),
+    preflightTransfer: createHederaPreflightTransfer(),
+    verifyPayerSignature: createHederaVerifyPayerSignature(),
+  });
+  return createHederaX402Facilitator(signer, options);
 }
 
 export interface LiveHederaX402AdmissionVerifierOptions {
