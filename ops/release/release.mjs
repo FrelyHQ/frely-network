@@ -1,7 +1,7 @@
 #!/usr/bin/env bun
 import { execFileSync } from "node:child_process";
 import { createHash } from "node:crypto";
-import { closeSync, existsSync, mkdirSync, openSync, readFileSync, renameSync, writeFileSync } from "node:fs";
+import { closeSync, existsSync, mkdirSync, openSync, readFileSync, renameSync, rmSync, writeFileSync } from "node:fs";
 import { dirname, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 
@@ -94,12 +94,16 @@ export function writeManifestOnce(path, value) {
 function deploy(options) {
   const manifest = readManifest(options);
   assertHost();
+  const lock = resolve(CONFIG.host.release_state_root, ".deploy.lock");
+  try { mkdirSync(lock); } catch (error) { if (error?.code === "EEXIST") fail("release_deploy_locked"); throw error; }
+  try {
   const compose = resolve(ROOT, CONFIG.target.compose_file);
   run("docker", ["compose", "-p", CONFIG.target.compose_project, "-f", compose, "--env-file", CONFIG.host.environment_file, "up", "-d", "--no-build", "--no-deps", "--pull", "never", "--wait", "--wait-timeout", "120", "broker-mcp"], {
     env: { FRELY_NETWORK_IMAGE: manifest.image.digest },
   });
   updateReleasePointers(manifest);
   process.stdout.write(`${JSON.stringify({ schema: "frely-network.release-deploy-result.v1", status: "completed", release_id: manifest.release_id, target: manifest.target, host: manifest.host })}\n`);
+  } finally { rmSync(lock, { recursive: true, force: true }); }
 }
 
 export function updateReleasePointers(manifest, root = CONFIG.host.release_state_root) {
