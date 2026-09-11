@@ -11,5 +11,7 @@ test("intermediate entrypoint has no legacy discovery or identity dependencies",
 test("README identifies the renamed app without documenting a legacy service", async () => {
   const readme = await readFile(new URL("./README.md", import.meta.url), "utf8");
   expect(readme).not.toContain("apps/broker-mcp");
-  expect(readme).toContain("not a usable MCP service");
+  expect(readme).toContain("wallet init");
+  expect(readme).toContain("frely-mcp check");
+  expect(readme).toContain("frely-mcp start");
 });

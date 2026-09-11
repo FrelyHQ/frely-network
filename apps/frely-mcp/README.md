@@ -1,26 +1,29 @@
 # Frely MCP
 
-This renamed app currently provides the safe local configuration boundary and the
-Frely Network capability-resolution client. It is **not a usable MCP service**
-yet: `bun run --cwd apps/frely-mcp start` exits with `FRELY_MCP_NOT_READY` until
-the later MCP tool-wiring task lands.
+本地 stdio MCP：Host Agent 通过 Frely Network 取得已验证 Relay，再用本机 Agent Wallet 在唯一授权 profile 下完成 x402 付款调用。
 
-The current code reads a bounded local configuration file, accepts only `env:`
-secret references, and resolves capabilities through the Network service. It does
-not perform Graph discovery, ENS/ERC-8004 verification, provider execution, or
-payment. A successful unit test is not evidence of Network admission, provider
-business output, or settlement.
+## CLI
+
+```text
+frely-mcp wallet init --network hedera:testnet [wallet options]
+frely-mcp check --config /absolute/config.json
+frely-mcp start --config /absolute/config.json
+```
+
+- `wallet init` 交给现有 `apps/agent-cli` 的 `main()`，不复制第二套钱包流程。
+- `check` 只读：读取外层配置、确认两个 env 引用、Ready 钱包、付款 profile，比较 payer/signer/provider/resource，并调用一次 Network resolve。不打开 journal、不调用 Relay、不签名。disabled profile 保持 disabled。
+- `start` 用官方 `StdioServerTransport` 提供 `find_capability` 与 `use_capability`。stdout 只允许 MCP 协议帧；启动本身不触发 resolve 或付款。
+
+外层配置只保存 `env:` 引用，不保存 Network / Relay 密钥。付款 profile 与 Agent Wallet 独立；签名发生在 402 与预算通过之后。
 
 ## Verify
 
-From the repository root, use Bun 1.4.0:
+从仓库根目录使用 Bun 1.4.0：
 
 ```sh
 npm exec --yes --package=bun@1.4.0 -- bun install --frozen-lockfile
-npm exec --yes --package=bun@1.4.0 -- bun test apps/frely-mcp/config.test.ts apps/frely-mcp/network-client.test.ts
-npm exec --yes --package=bun@1.4.0 -- bun test packages/protocol/capability-resolution/index.test.ts
+npm exec --yes --package=bun@1.4.0 -- bun test apps/frely-mcp/cli.test.ts apps/frely-mcp/check.test.ts packages/wallet/agent-wallet/read-ready.test.ts packages/payment/hedera-x402/config.test.ts
 npm exec --yes --package=bun@1.4.0 -- bun run typecheck
 ```
 
-For development, `FRELY_API_KEY` is an environment reference resolved only when
-the Network client makes a request; do not put its value in the config file.
+测试只用 synthetic Resource Server 与 fake Network；不会发起真实 HBAR，也不会发布 npm。

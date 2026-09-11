@@ -67,15 +67,15 @@ describe("Frely stdio MCP", () => {
       expect(JSON.stringify(result)).not.toContain("secret.example");
     });
   });
-  test("Task 1 entry is not ready without stdout or fake fallback", async () => {
+  test("CLI without a command writes a fixed error and no stdout", async () => {
     for (const config of [{}, { GRAPH_ENDPOINT: "invalid-secret-url", PAYMENT_NETWORK: "hedera:testnet" }]) {
       const child = Bun.spawn([process.execPath, import.meta.dir + "/index.ts"], {
         env: { PATH: process.env.PATH ?? "", GRAPH_ENDPOINT: "", PAYMENT_NETWORK: "", ...config }, stdout: "pipe", stderr: "pipe", stdin: "ignore",
       });
       const [stdout, stderr, status] = await Promise.all([new Response(child.stdout).text(), new Response(child.stderr).text(), child.exited]);
-      expect(status).toBe(1);
+      expect(status).toBe(2);
       expect(stdout).toBe("");
-      expect(stderr.trim()).toBe("FRELY_MCP_NOT_READY");
+      expect(stderr.trim()).toBe("INPUT_INVALID");
     }
   });
 });

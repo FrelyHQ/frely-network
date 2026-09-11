@@ -132,13 +132,16 @@ async function pathExists(path: string): Promise<boolean> {
   }
 }
 
-async function ensureWalletDirectory(walletDir: string): Promise<void> {
+function assertSupportedWalletDir(walletDir: string): void {
   if (process.platform === 'win32' || typeof process.getuid !== 'function' ||
     typeof constants.O_NOFOLLOW !== 'number' || !isAbsolute(walletDir) ||
     normalize(walletDir) !== walletDir || walletDir === posix.parse(walletDir).root || /[\0\r\n]/.test(walletDir)) {
     throw failure('WALLET_STATE_INVALID');
   }
+}
 
+async function walkWalletDirectory(walletDir: string, create: boolean): Promise<void> {
+  assertSupportedWalletDir(walletDir);
   const root = posix.parse(walletDir).root;
   let current = root;
   for (const part of walletDir.slice(root.length).split('/').filter(Boolean)) {
@@ -147,15 +150,20 @@ async function ensureWalletDirectory(walletDir: string): Promise<void> {
       const info = await lstat(current);
       if (!info.isDirectory() || info.isSymbolicLink()) throw failure('WALLET_STATE_INVALID');
     } catch (error) {
+      if (error instanceof Error && error.message === 'WALLET_STATE_INVALID') throw error;
       if ((error as NodeJS.ErrnoException).code !== 'ENOENT') throw error;
+      if (!create) throw failure('WALLET_STATE_INVALID');
       await mkdir(current, { mode: 0o700 });
     }
   }
-
   const info = await lstat(walletDir);
   if (!info.isDirectory() || info.uid !== currentUid() || (info.mode & 0o7777) !== 0o700) {
     throw failure('WALLET_STATE_INVALID');
   }
+}
+
+async function ensureWalletDirectory(walletDir: string): Promise<void> {
+  await walkWalletDirectory(walletDir, true);
 }
 
 async function validateRegularFile(path: string, mode: number, limit?: number): Promise<void> {
@@ -268,6 +276,29 @@ function validateSnapshot(value: Snapshot, key: PrivateKey, keyPath: string): Sn
   return { wallet, state };
 }
 
+// 只读路径不建目录、不加 SQLite 锁；readSecret:false 不读私钥内容。
+export async function readExistingWalletFiles(
+  walletDir: string,
+  options: { readSecret: boolean },
+): Promise<{ snapshot: Snapshot; keyPath: string; key?: PrivateKey }> {
+  await walkWalletDirectory(walletDir, false);
+  const keyPath = join(walletDir, 'agent.key');
+  const walletPath = join(walletDir, 'wallet.json');
+  const statePath = join(walletDir, 'init-state.json');
+  if (await pathExists(join(walletDir, '.save-intent'))) throw failure('WALLET_STATE_INVALID');
+  await Promise.all([
+    validateRegularFile(keyPath, 0o600, KEY_LIMIT),
+    validateRegularFile(walletPath, 0o600, JSON_LIMIT),
+    validateRegularFile(statePath, 0o600, JSON_LIMIT),
+  ]);
+  const wallet = parseWallet(await readJson(walletPath));
+  const state = parseState(await readJson(statePath));
+  if (wallet.signerRef !== `file:${keyPath}`) throw failure('WALLET_STATE_INVALID');
+  if (!options.readSecret) return { snapshot: { wallet, state }, keyPath };
+  const key = await readKeyFile(keyPath);
+  return { snapshot: validateSnapshot({ wallet, state }, key, keyPath), keyPath, key };
+}
+
 function detachSnapshot(snapshot: Snapshot): Snapshot {
   return structuredClone(snapshot);
 }
@@ -320,16 +351,7 @@ export async function openLocalWallet(options: Options): Promise<WalletStore> {
     let snapshot: Snapshot;
 
     if (existing.every(Boolean)) {
-      await Promise.all([
-        validateRegularFile(keyPath, 0o600, KEY_LIMIT),
-        validateRegularFile(walletPath, 0o600, JSON_LIMIT),
-        validateRegularFile(statePath, 0o600, JSON_LIMIT),
-      ]);
-      const key = await readKeyFile(keyPath);
-      snapshot = validateSnapshot({
-        wallet: parseWallet(await readJson(walletPath)),
-        state: parseState(await readJson(statePath)),
-      }, key, keyPath);
+      snapshot = (await readExistingWalletFiles(dir, { readSecret: true })).snapshot;
       if (requestedLimits && (requestedLimits.maxFeeTinybar !== snapshot.state.limits.maxFeeTinybar ||
         requestedLimits.reserveTinybar !== snapshot.state.limits.reserveTinybar)) {
         throw failure('INIT_CONFIG_CONFLICT');
