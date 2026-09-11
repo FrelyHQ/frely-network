@@ -12,7 +12,7 @@ import { parseResolvedCapability } from "@frely-network/capability-resolution";
 import { createCapabilityServiceFetch } from "../../capability-service/service.ts";
 import successFixture from "../../../packages/protocol/capability-resolution/fixtures/success.json";
 
-type Counts = { resolve: number; sign: number; settle: number; dispatch: number };
+type Counts = { resolve: number; sign: number; settle: number; dispatch: number; mirror: number };
 
 const eventsPath = process.env.FRELY_FULL_CHAIN_EVENTS ?? "";
 const payer = process.env.FRELY_FULL_CHAIN_PAYER ?? "0.0.1236";
@@ -27,7 +27,7 @@ const forbidden = [
   process.env.FRELY_FULL_CHAIN_SECRET ?? "",
 ].filter(Boolean);
 
-const counts: Counts = { resolve: 0, sign: 0, settle: 0, dispatch: 0 };
+const counts: Counts = { resolve: 0, sign: 0, settle: 0, dispatch: 0, mirror: 0 };
 const seenSignatures = new Set<string>();
 const pendingMirrorIds = new Set<string>();
 
@@ -49,9 +49,9 @@ function quote() {
   };
 }
 
-function assertNoSecrets(request: Request, body: string) {
+function assertNoSecrets(request: Request, body: string, extra: string[] = []) {
   const haystack = `${request.url}\n${[...request.headers.entries()].map(([key, value]) => `${key}:${value}`).join("\n")}\n${body}`;
-  for (const secret of forbidden) {
+  for (const secret of [...forbidden, ...extra].filter(Boolean)) {
     if (secret && haystack.includes(secret)) throw new Error("SECRET_LEAK");
   }
 }
@@ -174,10 +174,14 @@ async function route(request: Request): Promise<Response> {
   const hostname = new URL(url).hostname;
   if (hostname === "network.example") {
     const body = await request.clone().text();
-    assertNoSecrets(request, body);
+    assertNoSecrets(request, body, [process.env.FRELY_RELAY_API_KEY ?? ""]);
     return networkFetch(request);
   }
-  if (hostname === "relay.example") return relayFetch(request);
+  if (hostname === "relay.example") {
+    const body = await request.clone().text();
+    assertNoSecrets(request, body, [process.env.FRELY_API_KEY ?? ""]);
+    return relayFetch(request);
+  }
   if (hostname.includes("facilitator")) {
     return Response.json({
       kinds: [{ x402Version: 2, scheme: "exact", network: "hedera:testnet", extra: { feePayer } }],
@@ -188,6 +192,8 @@ async function route(request: Request): Promise<Response> {
   if (account) return Response.json(mirrorAccount(decodeURIComponent(account[1]!)));
   const tx = /\/api\/v1\/transactions\/([^/]+)$/.exec(path);
   if (tx) {
+    counts.mirror += 1;
+    persist();
     const id = decodeURIComponent(tx[1]!);
     if (pendingMirrorIds.has(id)) return Response.json({ transactions: [] });
     return Response.json(mirrorTransaction(id));

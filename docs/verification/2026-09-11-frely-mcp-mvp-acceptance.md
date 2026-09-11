@@ -51,7 +51,7 @@ Happy path 计数：`resolve=3`、`sign=1`、`settle=1`、`dispatch=1`。同 req
 
 pending 场景：`paymentStatus=unknown`、`retryAction=query_original`；第二次调用只恢复查询，sign/settle 仍为 1，dispatch=0。
 
-测试通过 `--preload` 把 `https://network.example` 接到真实 `createCapabilityServiceFetch`，把 `https://relay.example/v1/responses` 接到 synthetic Resource fixture。配置仍是公网 HTTPS origin。Network 只看到 capability 请求；私钥、wallet path 和另一端 API Key 不得出现在对端请求中。
+测试通过 `--preload` 把 `https://network.example` 接到真实 `createCapabilityServiceFetch`，把 `https://relay.example/v1/responses` 接到 synthetic Resource fixture（官方 x402 HTTP 编解码 + Hedera inspect；verify/settle 顺序的进程内 Resource Server 仍以 Relay 仓 `52e286d` 的单测为准）。配置仍是公网 HTTPS origin。Network 只看到 capability 请求；私钥、wallet path 和另一端 API Key 不得出现在对端请求中。pending 第二次 `use_capability` 会查询原 Mirror 交易，不重新签名或 settle。
 
 ## 全仓
 

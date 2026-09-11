@@ -113,13 +113,34 @@ export function createPaymentSession(config: Policy, ports: Ports) {
               decision: "blocked",
               reason: "REQUEST_ID_CONFLICT",
             };
-          return ports.journal.isRunActive()
-            ? {
-                ...recordOutcome(existing),
-                decision: "paused",
-                reason: "REQUEST_IN_PROGRESS",
+          if (ports.journal.isRunActive())
+            return {
+              ...recordOutcome(existing),
+              decision: "paused",
+              reason: "REQUEST_IN_PROGRESS",
+            };
+          const outcome = recordOutcome(existing);
+          if (outcome.paymentStatus === "unknown" && existing.evidence) {
+            try {
+              const result = await ports.verify(
+                structuredClone(existing.evidence),
+                existing.responseTransaction ?? undefined,
+              );
+              if (result.verified && result.evidence) {
+                return {
+                  ...outcome,
+                  decision: "completed",
+                  paymentStatus: "settled",
+                  reason: "PAYMENT_COMPLETED",
+                  retryAction: "none",
+                  evidence: result.evidence,
+                };
               }
-            : recordOutcome(existing);
+            } catch {
+              /* Keep the unknown outcome; the query itself is the recovery. */
+            }
+          }
+          return outcome;
         }
         const admission = preflight({
           policy,

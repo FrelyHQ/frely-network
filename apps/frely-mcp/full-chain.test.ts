@@ -130,6 +130,7 @@ async function createFullChainHarness() {
       sign: number;
       settle: number;
       dispatch: number;
+      mirror: number;
     },
     errors: () => errors.join(""),
     close: async () => {
@@ -156,7 +157,7 @@ test("packaged MCP pays once through synthetic Network and Relay", async () => {
 
     const repeated = await h.client.callTool({ name: "use_capability", arguments: visionArguments("mvp-e2e-1") });
     expect(repeated.structuredContent).toEqual(first.structuredContent);
-    expect(await h.counts()).toEqual({ resolve: 3, sign: 1, settle: 1, dispatch: 1 });
+    expect(await h.counts()).toMatchObject({ resolve: 3, sign: 1, settle: 1, dispatch: 1 });
   } finally {
     await h.close();
   }
@@ -178,12 +179,14 @@ test("pending settlement only queries the original transaction", async () => {
     const repeatedContent = repeated.structuredContent as { paymentOutcome?: { paymentStatus?: string; retryAction?: string } };
     expect(repeatedContent.paymentOutcome?.paymentStatus).toBe("unknown");
     expect(repeatedContent.paymentOutcome?.retryAction).toBe("query_original");
-    expect(await h.counts()).toEqual({
+    const afterRepeat = await h.counts();
+    expect(afterRepeat).toMatchObject({
       resolve: afterFirst.resolve + 1,
       sign: 1,
       settle: 1,
       dispatch: 0,
     });
+    expect(afterRepeat.mirror).toBeGreaterThan(afterFirst.mirror);
   } finally {
     await h.close();
   }
