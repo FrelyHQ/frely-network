@@ -73,6 +73,8 @@ test("maps resolver failures to public error codes without leaking details", asy
     ["NO_PROVIDER", 404, "NO_PROVIDER"],
     ["GRAPH_QUERY_FAILED", 502, "NETWORK_DISCOVERY_FAILED"],
     ["IDENTITY_VERIFICATION_FAILED", 502, "IDENTITY_VERIFICATION_FAILED"],
+    ["ENS_ENDPOINT_MISSING", 502, "IDENTITY_VERIFICATION_FAILED"],
+    ["INVALID_RESPONSE", 502, "IDENTITY_VERIFICATION_FAILED"],
     ["CAPABILITY_NOT_SUPPORTED", 422, "CAPABILITY_NOT_SUPPORTED"],
     ["https://graph.example?apiKey=network-secret", 500, "INTERNAL_ERROR"],
   ] as const) {

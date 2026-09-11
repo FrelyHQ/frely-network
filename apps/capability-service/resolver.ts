@@ -27,6 +27,15 @@ type CapabilityResolverDependencies = {
   allowedRelayOrigin: string;
 };
 
+const identitySkipCodes = new Set([
+  "IDENTITY_VERIFICATION_FAILED",
+  "ENDPOINT_NOT_HTTPS",
+  "PROTOCOL_NOT_SUPPORTED",
+  "ENS_ENDPOINT_MISSING",
+  "INVALID_RESPONSE",
+  "CAPABILITY_NOT_SUPPORTED",
+]);
+
 function compareCandidate(left: ProviderCandidate, right: ProviderCandidate): number {
   return `${left.ensName?.toLowerCase() ?? ""}\0${left.id}`.localeCompare(
     `${right.ensName?.toLowerCase() ?? ""}\0${right.id}`,
@@ -43,6 +52,7 @@ export function createCapabilityResolver(deps: CapabilityResolverDependencies): 
         candidate.supportsX402 && request.capabilities.every((capability) => candidate.capabilities.includes(capability)),
       );
       if (!matching.length) throw new Error("NO_PROVIDER");
+      const skipped = new Set<string>();
       for (const candidate of matching.sort(compareCandidate)) {
         try {
           const provider = await deps.resolveProvider(candidate);
@@ -62,12 +72,14 @@ export function createCapabilityResolver(deps: CapabilityResolverDependencies): 
             payment: { supportsX402: true, network: "hedera:testnet" },
           });
         } catch (error) {
-          if (!(error instanceof Error) || ![
-            "IDENTITY_VERIFICATION_FAILED",
-            "ENDPOINT_NOT_HTTPS",
-            "PROTOCOL_NOT_SUPPORTED",
-          ].includes(error.message)) throw error;
+          if (!(error instanceof Error) || !identitySkipCodes.has(error.message)) {
+            throw error;
+          }
+          skipped.add(error.message);
         }
+      }
+      if (skipped.size === 1 && skipped.has("CAPABILITY_NOT_SUPPORTED")) {
+        throw new Error("CAPABILITY_NOT_SUPPORTED");
       }
       throw new Error("IDENTITY_VERIFICATION_FAILED");
     },

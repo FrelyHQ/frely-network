@@ -35,7 +35,7 @@ function errorResponse(error: unknown): Response {
   if (["GRAPH_QUERY_FAILED", "GRAPH_SCHEMA_INVALID"].includes(message)) {
     return response({ code: "NETWORK_DISCOVERY_FAILED" }, 502);
   }
-  if (message === "IDENTITY_VERIFICATION_FAILED") {
+  if (["IDENTITY_VERIFICATION_FAILED", "ENS_ENDPOINT_MISSING", "INVALID_RESPONSE"].includes(message)) {
     return response({ code: "IDENTITY_VERIFICATION_FAILED" }, 502);
   }
   if (message === "CAPABILITY_NOT_SUPPORTED") {

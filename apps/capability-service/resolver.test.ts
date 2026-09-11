@@ -90,3 +90,94 @@ test("propagates non-identity discovery failures instead of selecting a fallback
   await expect(resolver.resolve({ schemaVersion: 1, capabilities: ["vision"], paymentNetwork: "hedera:testnet" })).rejects.toThrow("GRAPH_QUERY_FAILED");
   expect(seen).toEqual(["first"]);
 });
+
+test("retries after ENS_ENDPOINT_MISSING and returns the next verified Relay", async () => {
+  const seen: string[] = [];
+  const resolver = createCapabilityResolver({
+    findProviders: async () => [
+      { id: "missing-ens", ensName: "a.example.eth", capabilities: ["vision"], supportsX402: true },
+      { id: "relay", ensName: "b.example.eth", capabilities: ["vision"], supportsX402: true },
+    ],
+    resolveProvider: async candidate => {
+      seen.push(candidate.id);
+      if (candidate.id === "missing-ens") throw new Error("ENS_ENDPOINT_MISSING");
+      return { id: candidate.id, ensName: candidate.ensName, endpoint: "https://relay.example/v1/responses", protocol: "responses", verified: true };
+    },
+    chainId: 11155111,
+    registry: "0x1111111111111111111111111111111111111111",
+    allowedRelayOrigin: "https://relay.example",
+  });
+
+  const result = await resolver.resolve({ schemaVersion: 1, capabilities: ["vision"], paymentNetwork: "hedera:testnet" });
+  expect(seen).toEqual(["missing-ens", "relay"]);
+  expect(result.provider.id).toBe("relay");
+});
+
+test("skips origin-matching endpoints that fail parseResolvedCapability", async () => {
+  const seen: string[] = [];
+  const resolver = createCapabilityResolver({
+    findProviders: async () => [
+      { id: "unsafe", ensName: "a.example.eth", capabilities: ["vision"], supportsX402: true },
+      { id: "relay", ensName: "b.example.eth", capabilities: ["vision"], supportsX402: true },
+    ],
+    resolveProvider: async candidate => {
+      seen.push(candidate.id);
+      return {
+        id: candidate.id,
+        ensName: candidate.ensName,
+        endpoint: candidate.id === "unsafe" ? "https://relay.example/v1/responses?x=1" : "https://relay.example/v1/responses",
+        protocol: "responses",
+        verified: true,
+      };
+    },
+    chainId: 11155111,
+    registry: "0x1111111111111111111111111111111111111111",
+    allowedRelayOrigin: "https://relay.example",
+  });
+
+  const result = await resolver.resolve({ schemaVersion: 1, capabilities: ["vision"], paymentNetwork: "hedera:testnet" });
+  expect(seen).toEqual(["unsafe", "relay"]);
+  expect(result.provider.id).toBe("relay");
+});
+
+test("retries after CAPABILITY_NOT_SUPPORTED and returns the next verified Relay", async () => {
+  const seen: string[] = [];
+  const resolver = createCapabilityResolver({
+    findProviders: async () => [
+      { id: "mismatch", ensName: "a.example.eth", capabilities: ["vision"], supportsX402: true },
+      { id: "relay", ensName: "b.example.eth", capabilities: ["vision"], supportsX402: true },
+    ],
+    resolveProvider: async candidate => {
+      seen.push(candidate.id);
+      if (candidate.id === "mismatch") throw new Error("CAPABILITY_NOT_SUPPORTED");
+      return { id: candidate.id, ensName: candidate.ensName, endpoint: "https://relay.example/v1/responses", protocol: "responses", verified: true };
+    },
+    chainId: 11155111,
+    registry: "0x1111111111111111111111111111111111111111",
+    allowedRelayOrigin: "https://relay.example",
+  });
+
+  const result = await resolver.resolve({ schemaVersion: 1, capabilities: ["vision"], paymentNetwork: "hedera:testnet" });
+  expect(seen).toEqual(["mismatch", "relay"]);
+  expect(result.provider.id).toBe("relay");
+});
+
+test("throws CAPABILITY_NOT_SUPPORTED when every matching candidate fails capability metadata", async () => {
+  const seen: string[] = [];
+  const resolver = createCapabilityResolver({
+    findProviders: async () => [
+      { id: "first", ensName: "a.example.eth", capabilities: ["vision"], supportsX402: true },
+      { id: "second", ensName: "b.example.eth", capabilities: ["vision"], supportsX402: true },
+    ],
+    resolveProvider: async candidate => {
+      seen.push(candidate.id);
+      throw new Error("CAPABILITY_NOT_SUPPORTED");
+    },
+    chainId: 11155111,
+    registry: "0x1111111111111111111111111111111111111111",
+    allowedRelayOrigin: "https://relay.example",
+  });
+
+  await expect(resolver.resolve({ schemaVersion: 1, capabilities: ["vision"], paymentNetwork: "hedera:testnet" })).rejects.toThrow("CAPABILITY_NOT_SUPPORTED");
+  expect(seen).toEqual(["first", "second"]);
+});
