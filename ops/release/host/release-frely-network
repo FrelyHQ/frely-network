@@ -1,0 +1,8 @@
+#!/bin/sh
+set -eu
+
+host_id=$(cat /etc/deploy/host-id)
+[ "$host_id" = "ctb-eu" ] || { echo "release_host_invalid" >&2; exit 1; }
+exec /usr/bin/env -i \
+  HOME=/root LANG=C LC_ALL=C LOGNAME=root PATH=/usr/local/bin:/usr/bin:/bin USER=root \
+  /usr/local/bin/bun /opt/frely-network/ops/release/release-cli.mjs "$@"

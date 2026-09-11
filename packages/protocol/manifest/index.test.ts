@@ -22,6 +22,11 @@ describe("P0 manifest validation", () => {
     expect(isValidManifest(manifest)).toBe(true);
   });
 
+  test("accepts an A2A service interface for the P0 profile", () => {
+    const manifest: P0CapabilityProviderManifest = { ...validManifest, interfaces: [{ protocol: "a2a", endpoint: "https://provider.example/a2a" }] };
+    expect(validateManifest(manifest)).toBe(manifest);
+  });
+
   test("rejects missing ENS, capabilities, and interfaces", () => {
     const manifest = { ...validManifest, capabilities: [], identity: {}, interfaces: [] };
     expect(() => validateManifest(manifest)).toThrow(ManifestValidationError);

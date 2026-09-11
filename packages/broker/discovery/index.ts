@@ -44,7 +44,7 @@ export async function discoverVerified(
     if (!isProviderCandidate(candidate) || !candidate.supportsX402 || !capabilities.every((capability) => candidate.capabilities.includes(capability))) continue;
     try {
       const provider = await identity.resolveProvider(candidate);
-      if (provider.verified && provider.protocol === "responses") candidates.push({ candidate, provider });
+      if (provider.verified && (provider.protocol === "responses" || provider.protocol === "a2a")) candidates.push({ candidate, provider });
     } catch {
       // A failed identity check is an ineligible candidate, never a payment or invocation path.
     }

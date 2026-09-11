@@ -163,7 +163,8 @@ export class TheGraphDiscovery {
       if (!wanted.every((capability) => rowCaps.includes(capability))) continue;
       const idValue = row.agentId ?? row.id;
       if (idValue === undefined || idValue === null || String(idValue).length === 0) continue;
-      result.push({ id: String(idValue), ensName, capabilities: rowCaps, supportsX402: true, ...(typeof row.reputation === "number" ? { reputation: row.reputation } : {}) });
+      const supportsA2A = manifest.interfaces.some((entry) => entry.protocol === "a2a");
+      result.push({ id: String(idValue), ensName, ...(supportsA2A ? { protocol: "a2a" as const } : {}), capabilities: rowCaps, supportsX402: true, ...(typeof row.reputation === "number" ? { reputation: row.reputation } : {}) });
     }
     if (!result.length) throw new Error("NO_PROVIDER");
     return result;

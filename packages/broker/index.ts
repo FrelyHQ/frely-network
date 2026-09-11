@@ -97,9 +97,12 @@ export class Broker {
 }
 
 export type {
+  A2APaymentSettlementPort,
+  A2AServiceInvocationConfig,
   CapabilityInvocationPort,
   InvocationResult,
+  ProtocolInvocationConfig,
   ResponsesInvocationConfig,
 } from "./execution/index.ts";
-export { ResponsesInvocation } from "./execution/index.ts";
+export { A2AServiceInvocation, ProtocolInvocation, ResponsesInvocation } from "./execution/index.ts";
 export type { BrokerPaymentPort } from "./payment/index.ts";

@@ -62,7 +62,7 @@ function tools(): unknown[] {
     },
     {
       name: "use_capability",
-      description: "Pay for and invoke a verified Responses-compatible capability.",
+      description: "Pay for and invoke a verified Responses or Frely A2A capability.",
       inputSchema: {
         type: "object",
         properties: {
