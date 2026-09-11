@@ -48,7 +48,7 @@ Source: FMCP-003、FMCP-005、FMCP-009
 
 执行顺序：Task 1 是契约门；完成后 Task 2、Task 3 与本地 MCP 计划可以并行；Task 4 等待服务端两部分完成。
 
-## FSRV-002 — Task 1：冻结 resolve v1 共享契约
+## Task 1 — FSRV-002：冻结 resolve v1 共享契约
 
 Status: Draft
 Review level: L3
@@ -227,7 +227,7 @@ git commit -m "feat(protocol): freeze capability resolution v1"
 
 该提交哈希是两条路径的共同起点。用 `superpowers:using-git-worktrees` 从它创建 `feat/frely-service-mvp` 与 `feat/frely-local-mcp-mvp`；不要从 `origin/main` 重新起分支。
 
-## FSRV-003 — Task 2：实现 Frely Network capability 服务
+## Task 2 — FSRV-003：实现 Frely Network capability 服务
 
 Status: Draft
 Review level: L3
@@ -389,7 +389,7 @@ git add apps/capability-service bun.lock
 git commit -m "feat(network): add verified capability resolve service"
 ```
 
-## FSRV-004 — Task 3：在 Relay 增加官方 x402 Resource Server
+## Task 3 — FSRV-004：在 Relay 增加官方 x402 Resource Server
 
 Status: Draft
 Review level: L3
@@ -525,7 +525,7 @@ git add apps/gateway/src/x402-resource.ts apps/gateway/src/x402-resource.test.ts
 git commit -m "feat(gateway): gate vision responses with Hedera x402"
 ```
 
-## FSRV-005 — Task 4：服务端三仓无成本验收
+## Task 4 — FSRV-005：服务端三仓无成本验收
 
 Status: Draft
 Review level: L3

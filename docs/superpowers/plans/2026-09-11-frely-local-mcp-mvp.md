@@ -52,7 +52,7 @@ Source: FMCP-006 至 FMCP-009
 
 实现时将现有 `apps/broker-mcp` 用 `git mv` 改名为 `apps/frely-mcp`，保留可复用的 stdio 测试骨架；删除它对本地 Graph、ENS 与 ERC-8004 的运行依赖。`apps/agent-cli` 暂时保留，`frely-mcp` 复用其 `main()` 实现 wallet 子命令，避免复制钱包初始化逻辑。
 
-## FMCPPLAN-002 — Task 1：配置与 Frely Network client
+## Task 1 — FMCPPLAN-002：配置与 Frely Network client
 
 Status: Draft
 Review level: L3
@@ -221,7 +221,7 @@ git add apps/frely-mcp bun.lock
 git commit -m "feat(mcp): add local config and Network client"
 ```
 
-## FMCPPLAN-003 — Task 2：实现两个 MCP tools 与付款门禁
+## Task 2 — FMCPPLAN-003：实现两个 MCP tools 与付款门禁
 
 Status: Draft
 Review level: L3
@@ -455,7 +455,7 @@ git add apps/frely-mcp packages/broker/execution/request.ts
 git commit -m "feat(mcp): resolve remotely and invoke one approved Relay"
 ```
 
-## FMCPPLAN-004 — Task 3：统一 CLI、只读 check 与钱包交接
+## Task 3 — FMCPPLAN-004：统一 CLI、只读 check 与钱包交接
 
 Status: Draft
 Review level: L3
@@ -588,7 +588,7 @@ git add apps/frely-mcp packages/wallet/agent-wallet packages/payment/hedera-x402
 git commit -m "feat(mcp): add wallet check and stdio CLI"
 ```
 
-## FMCPPLAN-005 — Task 4：构建并验证 npm tarball
+## Task 4 — FMCPPLAN-005：构建并验证 npm tarball
 
 Status: Draft
 Review level: L3
@@ -730,7 +730,7 @@ git add apps/frely-mcp/package.json apps/frely-mcp/build-package.ts apps/frely-m
 git commit -m "build(mcp): produce installable Bun package"
 ```
 
-## FMCPPLAN-006 — Task 5：双路径 synthetic 联合验收
+## Task 5 — FMCPPLAN-006：双路径 synthetic 联合验收
 
 Status: Draft
 Review level: L3
