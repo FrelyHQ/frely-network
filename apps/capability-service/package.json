@@ -1,0 +1,12 @@
+{
+  "name": "@frely-network/capability-service",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "dependencies": {
+    "@frely-network/capability-resolution": "workspace:*",
+    "@frely-network/the-graph": "workspace:*",
+    "@frely-network/ens": "workspace:*",
+    "@frely-network/erc8004": "workspace:*"
+  }
+}

@@ -33,6 +33,16 @@
         "zod": "4.5.4",
       },
     },
+    "apps/capability-service": {
+      "name": "@frely-network/capability-service",
+      "version": "0.0.0",
+      "dependencies": {
+        "@frely-network/capability-resolution": "workspace:*",
+        "@frely-network/ens": "workspace:*",
+        "@frely-network/erc8004": "workspace:*",
+        "@frely-network/the-graph": "workspace:*",
+      },
+    },
     "apps/explorer": {
       "name": "@frely-network/explorer",
       "version": "0.0.0",
@@ -179,6 +189,8 @@
     "@frely-network/broker-mcp": ["@frely-network/broker-mcp@workspace:apps/broker-mcp"],
 
     "@frely-network/capability-resolution": ["@frely-network/capability-resolution@workspace:packages/protocol/capability-resolution"],
+
+    "@frely-network/capability-service": ["@frely-network/capability-service@workspace:apps/capability-service"],
 
     "@frely-network/ens": ["@frely-network/ens@workspace:packages/identity/ens"],
 
