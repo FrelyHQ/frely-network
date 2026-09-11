@@ -6,6 +6,7 @@ import {
 import { resolveSecret, type FrelyMcpConfig } from "./config.ts";
 
 const MAX_RESPONSE_BYTES = 1024 * 1024;
+export type NetworkFetcher = (request: Request) => Promise<Response>;
 const knownServerCodes = new Set([
   "INVALID_REQUEST",
   "UNAUTHORIZED",
@@ -47,7 +48,7 @@ function sameCapabilities(left: string[], right: string[]): boolean {
 export class FrelyNetworkClient {
   constructor(
     private readonly config: FrelyMcpConfig["network"],
-    private readonly fetcher: typeof fetch = fetch,
+    private readonly fetcher: NetworkFetcher = fetch,
   ) {}
 
   async resolve(capabilities: string[]): Promise<ResolvedCapability> {

@@ -1,6 +1,6 @@
 import { expect, test } from "bun:test";
 import successFixture from "../../packages/protocol/capability-resolution/fixtures/success.json";
-import { FrelyNetworkClient } from "./network-client.ts";
+import { FrelyNetworkClient, type NetworkFetcher } from "./network-client.ts";
 
 const networkConfig = {
   baseUrl: "https://network.example",
@@ -11,10 +11,11 @@ const networkConfig = {
 
 test("posts only capabilities and validates the frozen response", async () => {
   let captured: Request | undefined;
-  const client = new FrelyNetworkClient(networkConfig, (async (input) => {
-    captured = input instanceof Request ? input : new Request(input);
+  const fetcher: NetworkFetcher = async (request) => {
+    captured = request;
     return Response.json(successFixture);
-  }) as typeof fetch);
+  };
+  const client = new FrelyNetworkClient(networkConfig, fetcher);
   const result = await client.resolve(["vision"]);
   expect(await captured!.json()).toEqual({
     schemaVersion: 1,
@@ -30,6 +31,7 @@ test("rejects identity configuration drift", async () => {
     ...successFixture,
     identity: { ...successFixture.identity, registry: "0x2222222222222222222222222222222222222222" },
   };
-  const client = new FrelyNetworkClient(networkConfig, (async () => Response.json(drifted)) as typeof fetch);
+  const fetcher: NetworkFetcher = async () => Response.json(drifted);
+  const client = new FrelyNetworkClient(networkConfig, fetcher);
   await expect(client.resolve(["vision"])).rejects.toThrow("IDENTITY_VERIFICATION_FAILED");
 });
