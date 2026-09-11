@@ -1,7 +1,7 @@
 #!/usr/bin/env bun
 import { execFileSync } from "node:child_process";
 import { createHash } from "node:crypto";
-import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
+import { closeSync, existsSync, mkdirSync, openSync, readFileSync, writeFileSync } from "node:fs";
 import { dirname, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 
@@ -72,9 +72,23 @@ function build(options) {
     ? resolve(options.manifest)
     : resolve(CONFIG.host.release_state_root, `${plan.release_id}.json`);
   mkdirSync(dirname(output), { recursive: true, mode: 0o755 });
-  writeFileSync(output, `${JSON.stringify(manifest, null, 2)}\n`, { mode: 0o644 });
+  writeManifestOnce(output, manifest);
   process.stdout.write(`${JSON.stringify({ schema: "frely-network.release-build-result.v1", status: "completed", manifest: output, manifest_digest: manifestDigest(manifest), release_id: plan.release_id })}\n`);
   return { manifest: output, digest: manifestDigest(manifest) };
+}
+
+export function writeManifestOnce(path, value) {
+  mkdirSync(dirname(path), { recursive: true, mode: 0o755 });
+  const content = `${JSON.stringify(value, null, 2)}\n`;
+  try {
+    const fd = openSync(path, "wx", 0o644);
+    try { writeFileSync(fd, content); } finally { closeSync(fd); }
+  } catch (error) {
+    if (error?.code !== "EEXIST") throw error;
+    let existing;
+    try { existing = JSON.parse(readFileSync(path, "utf8")); } catch { fail("release_manifest_collision"); }
+    if (manifestDigest(existing) !== manifestDigest(value)) fail("release_manifest_collision");
+  }
 }
 
 function deploy(options) {
