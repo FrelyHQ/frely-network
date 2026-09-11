@@ -53,7 +53,7 @@ describe("Broker stdio MCP", () => {
       expect(result.content).toEqual([{ type: "text", text: "DISCOVERY_FAILED" }]);
     });
   });
-  test("production entry rejects absent or invalid config without stdout or fake fallback", async () => {
+  test("Task 1 entry is not ready without stdout or fake fallback", async () => {
     for (const config of [{}, { GRAPH_ENDPOINT: "invalid-secret-url", PAYMENT_NETWORK: "hedera:testnet" }]) {
       const child = Bun.spawn([process.execPath, import.meta.dir + "/index.ts"], {
         env: { PATH: process.env.PATH ?? "", GRAPH_ENDPOINT: "", PAYMENT_NETWORK: "", ...config }, stdout: "pipe", stderr: "pipe", stdin: "ignore",
@@ -61,7 +61,7 @@ describe("Broker stdio MCP", () => {
       const [stdout, stderr, status] = await Promise.all([new Response(child.stdout).text(), new Response(child.stderr).text(), child.exited]);
       expect(status).toBe(1);
       expect(stdout).toBe("");
-      expect(stderr.trim()).toBe("GRAPH_CONFIG_INVALID");
+      expect(stderr.trim()).toBe("FRELY_MCP_NOT_READY");
     }
   });
 });
