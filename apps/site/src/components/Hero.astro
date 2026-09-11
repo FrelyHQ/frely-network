@@ -55,12 +55,19 @@ const FALLBACK_POSTER =
     <div class="stage-spline-veil"></div>
   </div>
 
-  <!-- Splash chrome -->
+  <!-- Splash chrome: one visual Click Me (inside Spline). Page owns the hit target. -->
   <div class="stage-splash" data-testid="splash">
     <p class="stage-brand" data-testid="splash-brand">Frely Network</p>
-    <button type="button" class="click-me" data-testid="click-me" aria-label="Enter Frely Network">
-      <span>Click Me</span>
-      <span class="click-me-arrow" aria-hidden="true">↓</span>
+    <button
+      type="button"
+      class="click-me"
+      data-testid="click-me"
+      aria-label="Enter Frely Network"
+    >
+      <span class="click-me-label">
+        <span>Click Me</span>
+        <span class="click-me-arrow" aria-hidden="true">↓</span>
+      </span>
     </button>
   </div>
 
@@ -176,6 +183,8 @@ const FALLBACK_POSTER =
     background: transparent;
     opacity: 0;
     transition: opacity 0.6s ease;
+    /* Clicks must hit our page control — scene CTA is visual only */
+    pointer-events: none;
   }
 
   .stage.is-spline-ready .stage-spline-frame {
@@ -201,8 +210,6 @@ const FALLBACK_POSTER =
     position: relative;
     z-index: 2;
     min-height: 100svh;
-    display: grid;
-    place-items: center;
     pointer-events: none;
     transition:
       opacity 0.45s ease,
@@ -213,6 +220,7 @@ const FALLBACK_POSTER =
     position: absolute;
     top: 1.35rem;
     left: 1.5rem;
+    z-index: 2;
     margin: 0;
     font-size: 0.8rem;
     font-weight: 700;
@@ -222,45 +230,69 @@ const FALLBACK_POSTER =
     pointer-events: none;
   }
 
+  /*
+    Before Spline paints: show our pill (poster may lack CTA).
+    After ready: hide the pill — scene already has one Click Me; we keep an invisible hit layer.
+  */
   .click-me {
     pointer-events: auto;
+    position: absolute;
+    inset: 0;
+    display: grid;
+    place-items: center;
+    width: 100%;
+    height: 100%;
+    margin: 0;
+    padding: 0;
+    border: 0;
+    border-radius: 0;
+    background: transparent;
+    color: #f4f7fb;
+    cursor: pointer;
+    appearance: none;
+    font: inherit;
+  }
+
+  .click-me-label {
     display: inline-flex;
     align-items: center;
     gap: 0.45rem;
-    /* Sit near the floating subject / scene CTA */
     margin-top: min(8vh, 72px);
     padding: 0.7rem 1.15rem;
     border-radius: 999px;
     border: 1px solid rgba(148, 163, 184, 0.28);
     background: rgba(12, 16, 24, 0.72);
-    color: #f4f7fb;
-    font: inherit;
     font-size: 0.92rem;
     font-weight: 600;
     letter-spacing: 0.02em;
-    cursor: pointer;
     backdrop-filter: blur(12px);
     box-shadow: 0 10px 40px rgba(0, 0, 0, 0.35);
-    transition:
-      transform 0.2s ease,
-      border-color 0.2s ease,
-      background 0.2s ease;
-  }
-
-  .click-me:hover {
-    transform: translateY(-2px);
-    border-color: rgba(96, 165, 250, 0.55);
-    background: rgba(20, 28, 44, 0.85);
-  }
-
-  .click-me:focus-visible {
-    outline: 2px solid var(--ring);
-    outline-offset: 3px;
+    color: #f4f7fb;
   }
 
   .click-me-arrow {
     opacity: 0.8;
     animation: pulse-glow 1.8s ease-in-out infinite;
+  }
+
+  .stage.is-spline-ready .click-me-label {
+    /* Scene CTA is visible — avoid duplicate chrome */
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    padding: 0;
+    margin: -1px;
+    overflow: hidden;
+    clip: rect(0, 0, 0, 0);
+    white-space: nowrap;
+    border: 0;
+    box-shadow: none;
+    background: transparent;
+  }
+
+  .click-me:focus-visible {
+    outline: 2px solid var(--ring);
+    outline-offset: -6px;
   }
 
   .stage[data-state="revealed"] .stage-splash {
@@ -347,7 +379,7 @@ const FALLBACK_POSTER =
     color: var(--muted-foreground);
   }
 
-  /* Mobile: prefer poster — Spline iframe is heavy */
+  /* Mobile: prefer poster — Spline iframe is heavy; keep visible page Click Me */
   @media (max-width: 640px) {
     .stage-spline-frame {
       display: none;
@@ -358,8 +390,22 @@ const FALLBACK_POSTER =
       filter: saturate(1.05) brightness(0.92);
     }
 
-    .click-me {
-      margin-top: min(22vh, 160px);
+    .stage.is-spline-ready .click-me-label {
+      position: static;
+      width: auto;
+      height: auto;
+      margin-top: min(10vh, 88px);
+      padding: 0.7rem 1.15rem;
+      overflow: visible;
+      clip: auto;
+      white-space: normal;
+      border: 1px solid rgba(148, 163, 184, 0.28);
+      background: rgba(12, 16, 24, 0.72);
+      box-shadow: 0 10px 40px rgba(0, 0, 0, 0.35);
+    }
+
+    .click-me:focus-visible {
+      outline-offset: 3px;
     }
   }
 </style>
