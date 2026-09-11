@@ -51,6 +51,8 @@
         "@frely-network/hedera-x402": "workspace:*",
         "@frely-network/shared-types": "workspace:*",
         "@modelcontextprotocol/sdk": "1.30.0",
+        "@x402/core": "2.25.0",
+        "@x402/hedera": "2.25.0",
         "zod": "4.5.4",
       },
     },
