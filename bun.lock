@@ -94,6 +94,13 @@
         "@types/json-bigint": "1.0.4",
       },
     },
+    "packages/protocol/capability-resolution": {
+      "name": "@frely-network/capability-resolution",
+      "version": "0.0.0",
+      "dependencies": {
+        "zod": "4.5.4",
+      },
+    },
     "packages/protocol/manifest": {
       "name": "@frely-network/protocol-manifest",
       "version": "0.0.0",
@@ -170,6 +177,8 @@
     "@frely-network/broker": ["@frely-network/broker@workspace:packages/broker"],
 
     "@frely-network/broker-mcp": ["@frely-network/broker-mcp@workspace:apps/broker-mcp"],
+
+    "@frely-network/capability-resolution": ["@frely-network/capability-resolution@workspace:packages/protocol/capability-resolution"],
 
     "@frely-network/ens": ["@frely-network/ens@workspace:packages/identity/ens"],
 

@@ -1,0 +1,19 @@
+{
+  "schemaVersion": 1,
+  "requestedCapabilities": ["vision"],
+  "provider": {
+    "id": "vision-provider",
+    "ensName": "vision-provider.example.eth",
+    "endpoint": "https://vision-provider.example/v1/responses",
+    "protocol": "responses"
+  },
+  "identity": {
+    "verified": true,
+    "chainId": 11155111,
+    "registry": "0x1111111111111111111111111111111111111111"
+  },
+  "payment": {
+    "supportsX402": true,
+    "network": "hedera:testnet"
+  }
+}
