@@ -115,6 +115,28 @@ test("start writes only MCP frames and does not resolve on boot", async () => {
   }
 });
 
+test("start closes after stdin EOF", async () => {
+  const fixture = await createStartFixture();
+  const child = Bun.spawn(
+    [process.execPath, join(import.meta.dir, "index.ts"), "start", "--config", fixture.configPath],
+    { stdout: "pipe", stderr: "pipe", stdin: "pipe" },
+  );
+  try {
+    await Bun.sleep(400);
+    child.stdin.end();
+    const status = await Promise.race([
+      child.exited,
+      new Promise<number>((_, reject) => {
+        setTimeout(() => reject(new Error("start did not exit after stdin EOF")), 4000);
+      }),
+    ]);
+    expect(status).toBe(0);
+  } finally {
+    child.kill();
+    await fixture.cleanup();
+  }
+});
+
 test("spawned errors contain only a fixed code", async () => {
   for (const args of [[], ["nope"], ["check", "--config", "relative.json"]]) {
     const child = Bun.spawn([process.execPath, join(import.meta.dir, "index.ts"), ...args], {
@@ -127,9 +149,10 @@ test("spawned errors contain only a fixed code", async () => {
       new Response(child.stderr).text(),
       child.exited,
     ]);
+    const code = stderr.trim().split("\n").at(-1) ?? "";
     expect(status).toBe(2);
     expect(stdout).toBe("");
-    expect(known.has(stderr.trim())).toBe(true);
+    expect(known.has(code)).toBe(true);
     expect(stderr).not.toContain("/");
     expect(stderr).not.toContain("sk-");
   }

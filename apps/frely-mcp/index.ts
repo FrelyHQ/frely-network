@@ -9,6 +9,7 @@ import {
   loadApprovedPaymentConfig,
   openJournal,
   type Journal,
+  type PaymentOutcome,
   type Policy,
   type Ports,
 } from "@frely-network/hedera-x402";
@@ -57,7 +58,7 @@ function parseConfigFlag(args: string[]): string {
 }
 
 // 发生在 402/预算通过之后、私钥读取之前。
-function wrapPaymentPorts(config: FrelyMcpConfig, policy: Policy, live: Ports): Ports {
+export function wrapPaymentPorts(config: FrelyMcpConfig, policy: Policy, live: Ports): Ports {
   return {
     ...live,
     async checkNetwork(selection) {
@@ -70,19 +71,26 @@ function wrapPaymentPorts(config: FrelyMcpConfig, policy: Policy, live: Ports): 
   };
 }
 
+export function outcomeOrWalletError(outcome: PaymentOutcome): PaymentOutcome {
+  if (outcome.reason === "WALLET_NOT_READY") throw new Error("WALLET_NOT_READY");
+  return outcome;
+}
+
 function createStartExecutor(config: FrelyMcpConfig, policy: Policy, journal: Journal | undefined) {
   if (!policy.enabled || !journal) throw new Error("PAYMENT_DISABLED");
   const live = createLivePorts(policy, journal, parseFrelyResponse);
+  const execute = createPaidExecutor({
+    policy,
+    ports: wrapPaymentPorts(config, policy, live),
+    executionConfig: {
+      mode: "integration",
+      origin: new URL(policy.resourceUrl).origin,
+      callerKey: resolveSecret(config.relay.apiKeyRef),
+    },
+  });
   return {
-    execute: createPaidExecutor({
-      policy,
-      ports: wrapPaymentPorts(config, policy, live),
-      executionConfig: {
-        mode: "integration",
-        origin: new URL(policy.resourceUrl).origin,
-        callerKey: resolveSecret(config.relay.apiKeyRef),
-      },
-    }),
+    execute: async (provider: Parameters<typeof execute>[0], request: Parameters<typeof execute>[1]) =>
+      outcomeOrWalletError(await execute(provider, request)),
     close() {},
   };
 }
@@ -110,14 +118,19 @@ async function runStart(args: string[]): Promise<number> {
     runtime.close();
     journal?.close();
   };
-  process.once("SIGINT", close);
-  process.once("SIGTERM", close);
+  const onSignal = () => {
+    close();
+    process.exit(0);
+  };
+  process.once("SIGINT", onSignal);
+  process.once("SIGTERM", onSignal);
   try {
     await createFrelyMcpServer(runtime).connect(new StdioServerTransport());
     return 0;
-  } catch (error) {
+  } finally {
+    process.removeListener("SIGINT", onSignal);
+    process.removeListener("SIGTERM", onSignal);
     close();
-    throw error;
   }
 }
 
