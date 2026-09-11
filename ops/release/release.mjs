@@ -68,7 +68,9 @@ function build(options) {
   const imageId = run("docker", ["image", "inspect", "--format", "{{.Id}}", tag]).trim();
   if (!DIGEST.test(imageId)) fail("release_image_identity_invalid");
   const manifest = { ...plan, image: { tag, digest: imageId, platform: plan.platform }, created_at: new Date().toISOString() };
-  const output = resolve(options.manifest ?? CONFIG.host.release_state_root, `${plan.release_id}.json`);
+  const output = options.manifest
+    ? resolve(options.manifest)
+    : resolve(CONFIG.host.release_state_root, `${plan.release_id}.json`);
   mkdirSync(dirname(output), { recursive: true, mode: 0o755 });
   writeFileSync(output, `${JSON.stringify(manifest, null, 2)}\n`, { mode: 0o644 });
   process.stdout.write(`${JSON.stringify({ schema: "frely-network.release-build-result.v1", status: "completed", manifest: output, manifest_digest: manifestDigest(manifest), release_id: plan.release_id })}\n`);
@@ -79,8 +81,8 @@ function deploy(options) {
   const manifest = readManifest(options);
   assertHost();
   const compose = resolve(ROOT, CONFIG.target.compose_file);
-  run("docker", ["compose", "--project-name", CONFIG.target.compose_project, "-f", compose, "--env-file", CONFIG.host.environment_file, "up", "-d", "--no-build", "--wait"], {
-    env: { FRELY_NETWORK_IMAGE: manifest.image.tag },
+  run("docker", ["compose", "-p", CONFIG.target.compose_project, "-f", compose, "--env-file", CONFIG.host.environment_file, "up", "-d", "--no-build", "--no-deps", "--pull", "never", "--wait", "--wait-timeout", "120", "broker-mcp"], {
+    env: { FRELY_NETWORK_IMAGE: manifest.image.digest },
   });
   process.stdout.write(`${JSON.stringify({ schema: "frely-network.release-deploy-result.v1", status: "completed", release_id: manifest.release_id, target: manifest.target, host: manifest.host })}\n`);
 }
