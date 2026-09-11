@@ -1,7 +1,7 @@
 #!/usr/bin/env bun
 import { execFileSync } from "node:child_process";
 import { createHash } from "node:crypto";
-import { closeSync, existsSync, mkdirSync, openSync, readFileSync, writeFileSync } from "node:fs";
+import { closeSync, existsSync, mkdirSync, openSync, readFileSync, renameSync, writeFileSync } from "node:fs";
 import { dirname, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 
@@ -98,7 +98,23 @@ function deploy(options) {
   run("docker", ["compose", "-p", CONFIG.target.compose_project, "-f", compose, "--env-file", CONFIG.host.environment_file, "up", "-d", "--no-build", "--no-deps", "--pull", "never", "--wait", "--wait-timeout", "120", "broker-mcp"], {
     env: { FRELY_NETWORK_IMAGE: manifest.image.digest },
   });
+  updateReleasePointers(manifest);
   process.stdout.write(`${JSON.stringify({ schema: "frely-network.release-deploy-result.v1", status: "completed", release_id: manifest.release_id, target: manifest.target, host: manifest.host })}\n`);
+}
+
+export function updateReleasePointers(manifest, root = CONFIG.host.release_state_root) {
+  const stateRoot = resolve(root);
+  mkdirSync(stateRoot, { recursive: true, mode: 0o755 });
+  const current = resolve(stateRoot, "current.json");
+  const previous = resolve(stateRoot, "previous.json");
+  if (existsSync(current)) {
+    const old = readFileSync(current);
+    writeFileSync(`${previous}.tmp-${process.pid}`, old, { mode: 0o644 });
+    renameSync(`${previous}.tmp-${process.pid}`, previous);
+  }
+  const temp = `${current}.tmp-${process.pid}`;
+  writeFileSync(temp, `${JSON.stringify(manifest, null, 2)}\n`, { mode: 0o644 });
+  renameSync(temp, current);
 }
 
 function verify(options) {
