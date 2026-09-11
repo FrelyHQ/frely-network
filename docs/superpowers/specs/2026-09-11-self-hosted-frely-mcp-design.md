@@ -1,149 +1,103 @@
 ---
-title: Self-hosted Frely MCP and service boundary design
+title: Frely 自托管 MCP MVP 设计
 mdq:
   profile: project-governance/governed-document-v1
 ---
-# Self-hosted Frely MCP and service boundary design
+# Frely 自托管 MCP MVP 设计
 
-## FMCP-001 — Status and objective
+## FMCP-001 — 目标
 
 Status: Draft
 Review level: L3
-Source: User-confirmed MVP decisions on 2026-09-11
+Source: 2026-09-11 用户确认的 MVP 决策
 
-This design splits Frely capability use into two products that can be developed
-in parallel:
+发布一个可安装、自托管的本地 MCP 包 `frely-mcp`。它向 Host Agent 暴露
+`find_capability` 和 `use_capability`，使用本地 Agent Wallet 完成 Hedera
+x402 付款，并直接调用服务端选出的 Relay 能力入口。
 
-1. a Frely service path that discovers, verifies, and selects a capability
-   endpoint; and
-2. a self-hosted local MCP package that owns the user's Agent Wallet,
-   authorization policy, x402 signature, payment journal, recovery, and direct
-   capability invocation.
+本设计只覆盖比赛 MVP，不覆盖生产托管、多租户或通用能力市场。
 
-The first release is a hackathon MVP. It publishes one Bun-based `frely-mcp`
-package for local stdio use. It does not add remote MCP hosting, multi-tenant
-wallets, a server-side wallet, or production operations.
-
-## FMCP-002 — Confirmed decisions
+## FMCP-002 — 当前基线
 
 Status: Baseline
 Review level: L3
-Source: User confirmations during design review
+Source: 本地 `B1wl7ch@5ec26e3`、`origin/main@30971ae` 与付款功能分支
 
-The following decisions govern both development paths:
+设计分支以本地 `B1wl7ch@5ec26e3` 为基线。该分支已包含：
 
-- Users install and self-host the MCP package.
-- The MCP transport is local stdio. The MVP has no MCP HTTP endpoint.
-- The published package contains one bundled CLI and no `workspace:*` runtime
-  dependencies.
-- The package requires Bun 1.4 or later and targets macOS and Linux.
-- Frely's service queries The Graph, filters candidates, verifies ENS/ERC-8004
-  identity, and selects the capability endpoint.
-- The local MCP calls the selected public HTTPS Relay or capability endpoint
-  directly. Frely Network does not proxy the business body or payment
-  signature.
-- The local Agent Wallet remains the payer. Frely's service never receives or
-  loads the Agent Wallet private key.
-- Discovery does not grant payment authority. The MVP permits payment to one
-  locally approved Provider/Relay profile.
-- Blocky remains the Hedera x402 Facilitator.
-- The Relay/capability endpoint is the x402 Resource Server. It settles before
-  dispatching business work.
-- The MCP payer journal and the Resource Server's execution idempotency are
-  separate responsibilities.
+- 本地 stdio Broker MCP；
+- Agent Wallet；
+- file-backed signer；
+- 钱包初始化与付款身份交接。
 
-## FMCP-003 — Current-state gap
+远端 `main` 与本地分支已经分叉。远端增加了 HTTP `/mcp` 和 A2A payment
+admission；本地分支保留更完整的钱包与本地签名实现。远端不是本地开发线的
+上位版本。
+
+`feat/hedera-auto-payment@4ff5a5e` 包含官方 x402 Resource Server spike、付款
+journal、请求指纹、恢复和报价绑定修复。实现时只移植已审查的相关代码，不把
+旧分支整体覆盖到新基线。
+
+## FMCP-003 — 两端边界
 
 Status: Baseline
 Review level: L3
-Source: Local `B1wl7ch` at `5ec26e3`, `origin/main` at `30971ae`, and inspected feature branches
+Source: 用户确认的服务端与 MCP 端职责
 
-The design branch starts from local `B1wl7ch` at `5ec26e3`, not from
-`origin/main`. This local baseline contains the standalone Agent Wallet,
-file-backed signer, and stdio Broker MCP. It is the authoritative MCP-side
-reference for this design.
+| 能力 | 服务端 | 本地 MCP |
+| --- | --- | --- |
+| 查询 The Graph | 是 | 否 |
+| 筛选 Provider | 是 | 否 |
+| 验证 ENS / ERC-8004 | 是 | 否 |
+| 返回已验证的 Relay 能力入口 | 是 | 校验响应 |
+| 管理 Agent Wallet | 否 | 是 |
+| 检查本地付款授权与预算 | 否 | 是 |
+| 签署 x402 payment payload | 否 | 是 |
+| 保存 payer journal 和恢复状态 | 否 | 是 |
+| 返回 402、调用 Blocky verify/settle | Relay 服务端 | 处理报价和结果 |
+| settled 后执行业务 | Relay / Swarm | 否 |
 
-The branches have diverged. Compared with their merge base, local `B1wl7ch`
-contains 12 commits absent from `origin/main`; `origin/main` contains 9 commits
-absent from `B1wl7ch`. The remote line adds the HTTP `/mcp` service and A2A
-payment-admission work. Its runtime performs discovery and identity resolution
-and loads `X402_PRIVATE_KEY`. Those service changes are inputs to Path A, but
-they are not a newer superset of the local wallet and MCP work.
+Frely Network 只接收 capability 查询，不接收 `task`、`input`、钱包引用或
+付款签名。本地 MCP 获得已验证入口后，直接调用 Relay。它不通过 Frely Network
+代理业务请求。
 
-The official x402 Resource Server spike and hardened payer journal work remain
-on `feat/hedera-auto-payment` at `4ff5a5e`. Implementation must form an explicit
-integration base from the approved local MCP/wallet work, the required remote
-service/admission changes, and the reviewed x402 changes. It must resolve their
-contracts deliberately and must not replace the local baseline with
-`origin/main` or infer integration from prior branch tests.
+MCP 协议中的 “MCP Server” 是用户电脑上的本地进程；在 Frely 业务链路中，它
+是 Network 和 Relay 的客户端。
 
-The existing `scripts/payment-spike/mock-gateway.ts` is an acceptance harness.
-It will not ship as the production Relay Resource Server or as part of the npm
-package.
-
-## FMCP-004 — Runtime ownership
-
-Status: Baseline
-Review level: L3
-Source: Confirmed service and MCP boundary
-
-| Component | Owner | Responsibility | Excluded responsibility |
-| --- | --- | --- | --- |
-| Host Agent adapter | Local `frely-mcp` | Expose `find_capability` and `use_capability` over stdio | Graph, ENS, and ERC-8004 access |
-| Frely Network capability service | `frely-network` service path | Discover, verify, filter, and select a capability endpoint | Wallet keys, payment signing, task body, and Provider proxying |
-| Agent Wallet | Local `frely-mcp` | Generate or reuse the payer identity and sign after authorization | Discovery, pricing, and automatic policy changes |
-| Payer policy and journal | Local `frely-mcp` | Approve one target, enforce budget, deduplicate payment, and recover the original transaction | Resource Server settlement and Provider execution |
-| x402 Resource Server | Frely Relay/capability service | Issue a standard 402, verify, settle, and admit work | Payer policy and wallet custody |
-| Blocky | External Facilitator | Report supported Hedera schemes and perform verify/settle for the Resource Server | MCP configuration and Agent Wallet custody |
-| Relay | `FrelyHQ/relay` | Authenticate the caller, apply access and pricing rules, and dispatch settled work | Agent Wallet signing and Graph identity resolution |
-| Swarm | `FrelyHQ/swarm` | Execute the selected Agent workflow and call the base model through Frely | Public payment, discovery, pricing, and payer identity |
-
-The term MCP Server refers to the local process from the Host Agent's point of
-view. In the Frely business flow, that process is a client of Frely Network and
-the selected Relay endpoint.
-
-## FMCP-005 — End-to-end sequence
+## FMCP-004 — 最小调用时序
 
 Status: Planned
 Review level: L3
-Source: Confirmed direct-invocation boundary
+Source: 已确认的直连调用边界
 
 ```text
 Host Agent
-  -> local frely-mcp: use_capability(capabilities, task, input, payment)
-  -> Frely Network: resolve requested capabilities
-     -> The Graph: query registrations and service declarations
-     -> ENS / ERC-8004: verify identity and endpoint binding
-     <- one verified Relay/capability endpoint
-  <- local frely-mcp: validate the resolution against the request and local profile
-  -> selected Relay: POST the business request with caller credential and request ID
-  <- selected Relay: HTTP 402 + PAYMENT-REQUIRED
-  -> local frely-mcp: validate quote and budget, persist intent, load Agent Wallet, sign
-  -> selected Relay: retry the unchanged body and request ID + PAYMENT-SIGNATURE
-     -> Blocky: verify then settle
-     -> Relay -> Swarm -> Frely base-model entry -> Provider
-     <- business result and usage
-  <- local frely-mcp: business result + PAYMENT-RESPONSE
-  -> Mirror: independently verify the original transaction when required
-  <- Host Agent: provider summary, payment outcome, and business output
+  -> 本地 frely-mcp: use_capability
+  -> Frely Network: resolve(capabilities)
+     -> The Graph: 查询候选
+     -> ENS / ERC-8004: 验证身份与入口
+  <- 已验证的 Relay endpoint
+  -> Relay: 相同 requestId 的业务请求
+  <- HTTP 402 + PAYMENT-REQUIRED
+  -> 本地 MCP: 校验报价、预算与付款 profile
+  -> Agent Wallet: 本地签名
+  -> Relay: 原请求 + PAYMENT-SIGNATURE
+     -> Blocky: verify -> settle
+     -> Relay -> Swarm -> Frely base model -> Provider
+  <- 业务结果 + PAYMENT-RESPONSE
+  -> Mirror: 必要时核验原交易
+  <- Host Agent: 业务结果 + 付款证据
 ```
 
-The Network service receives capabilities and authentication metadata. It does
-not receive `task`, `input`, a raw payment signature, or a wallet reference.
-The selected Relay receives the business body and signed payment payload. It
-does not receive the private key or local policy.
+Relay 必须在 settled 后才调度业务。业务失败不能把 settled 改回未付款。
 
-## FMCP-006 — Frozen capability-resolution contract
+## FMCP-005 — 冻结接口
 
 Status: Planned
 Review level: L3
-Source: Parallel-development seam approved in design review
+Source: 两条并行开发路径的共享契约
 
-Both development paths depend on one versioned contract. A small contract
-commit must land before the two paths branch. This gate is not a third product
-path.
-
-The service exposes:
+并行开发前先冻结一个普通 HTTPS 接口。它不是远程 MCP 接口。
 
 ```http
 POST /v1/capabilities/resolve
@@ -151,7 +105,7 @@ Authorization: Bearer <FRELY_API_KEY>
 Content-Type: application/json
 ```
 
-Request:
+请求：
 
 ```json
 {
@@ -161,7 +115,7 @@ Request:
 }
 ```
 
-Successful response:
+成功响应：
 
 ```json
 {
@@ -185,38 +139,23 @@ Successful response:
 }
 ```
 
-The canonical TypeScript schema and success/error fixtures live in the shared
-protocol package. The service path produces the response. The MCP path consumes
-it without importing service implementation modules.
+服务端只返回一个已验证 Provider。MCP 必须校验 capabilities、chain、registry、
+protocol 和 endpoint。endpoint 必须是无内嵌凭据的公网 HTTPS 地址；禁止重定向、
+localhost、link-local 和私网目标。Host Agent 不能传入或覆盖 endpoint。
 
-The service must return one selected Provider. It must reject an empty result,
-an identity mismatch, an unsupported protocol, or an unsupported payment
-network. It must not return an unverified candidate as executable.
+响应中的 payment 字段只是能力提示。真正的 asset、amount、payTo、fee payer、
+timeout 和 resource 以 Relay 返回的标准 402 为准。
 
-The MCP must require an exact `requestedCapabilities` match, `verified: true`,
-the configured chain and registry, protocol `responses`, and a safe public
-HTTPS endpoint without embedded credentials. It must reject redirects,
-localhost, link-local addresses, and private-network destinations. The Host
-Agent cannot supply or override the endpoint.
-
-The payment metadata is advisory. Only the later standard 402 quote defines the
-amount, asset, payee, fee payer, timeout, and resource binding.
-
-## FMCP-007 — MCP tool contract
+## FMCP-006 — MCP 工具
 
 Status: Planned
 Review level: L3
-Source: Existing two-tool surface and confirmed local boundary
-
-The package exposes exactly two tools.
+Source: 现有两工具接口与用户确认
 
 ### `find_capability`
 
-Input is a non-empty array of non-blank capability strings. The local MCP calls
-the resolution endpoint and returns the selected verified service metadata.
-It does not call the Provider or load the Agent Wallet.
-
-Annotations:
+输入非空 capabilities。MCP 调用 resolve 接口并返回服务端已验证的能力入口，不
+调用 Relay，不读取钱包。
 
 - `readOnlyHint: true`
 - `destructiveHint: false`
@@ -225,7 +164,7 @@ Annotations:
 
 ### `use_capability`
 
-The MVP accepts the current Vision request shape:
+MVP 只支持当前 Vision 输入：
 
 ```json
 {
@@ -243,242 +182,143 @@ The MVP accepts the current Vision request shape:
 }
 ```
 
-The tool resolves a fresh Provider for each new request. It does not trust a
-previous `find_capability` result or accept a result object as input. The stable
-request ID belongs to the payer journal and is required for paid execution.
-
-Annotations:
+每个新请求都重新 resolve，不复用 `find_capability` 的结果。相同 requestId 只有
+在请求指纹和付款策略完全相同时才能复用。返回值包含 Provider 摘要、
+`identityVerificationSource: "frely-network"`、付款结果和业务输出，不包含私钥、
+原始签名、API Key 或本地路径。
 
 - `readOnlyHint: false`
 - `destructiveHint: true`
-- `idempotentHint: true` only for the same request ID, request fingerprint, and
-  policy
+- `idempotentHint: true`，仅指完全相同的调用
 - `openWorldHint: true`
 
-The result contains the selected Provider summary, the statement
-`identityVerificationSource: "frely-network"`, the normalized payment outcome,
-and the business output. It excludes the private key, raw signature, caller
-credential, full policy, and private filesystem paths.
-
-## FMCP-008 — Local Agent Wallet and authorization
+## FMCP-007 — Agent Wallet 与付款授权
 
 Status: Baseline
 Review level: L3
-Source: Confirmed one-profile MVP and existing Agent Wallet design
+Source: 已确认的单 Provider MVP
 
-The Agent Wallet remains independent from the Broker and payment policy.
-`frely-mcp wallet init` may generate or recover a local Hedera Testnet wallet,
-wait for funding, verify the account and key, and output a payment identity. It
-must not enable a profile, edit the Network service configuration, or initiate
-a business payment.
+Agent Wallet 独立于 Network 配置和付款 profile。
+`frely-mcp wallet init` 只初始化或恢复钱包，确认账户和 key 后输出付款身份；它
+不自动启用付款或修改业务配置。
 
-The first release supports one approved payment profile. The profile pins:
+MVP 只允许一个本地批准的付款 profile，固定：
 
-- Provider ID;
-- exact Relay resource URL;
-- `hedera:testnet`;
-- HBAR asset `0.0.0`;
-- expected `payTo`;
-- allowed Blocky fee payer set;
-- per-request maximum amount;
-- configured Facilitator and Mirror endpoints;
-- wallet reference; and
-- journal path.
+- Provider ID；
+- Relay resource URL；
+- `hedera:testnet` 与 HBAR `0.0.0`；
+- `payTo`；
+- Blocky fee payer 集合；
+- 单次最大金额；
+- Facilitator、Mirror、wallet 和 journal 引用。
 
-The profile starts disabled. The operator enables it after reviewing the
-public fields. Network discovery cannot add a payee, modify the profile, or
-grant spending authority.
+profile 初始为 `enabled: false`。用户检查后显式开启。Network 的发现结果不能
+修改 profile 或获得钱包消费权。
 
-Before reading the private key, `use_capability` must verify the selected
-Provider and resource URL, the complete 402 quote, the tool-call budget, the
-profile budget, the request fingerprint, the wallet's Ready state, and the
-configured Blocky support. A mismatch stops the call before signing. There is
-no automatic fallback to a different Provider.
+签名前，MCP 必须依次确认：Provider 与 resource、402 全部字段、工具预算、profile
+预算、requestId 指纹、钱包 Ready 状态和 Blocky 支持。任一项不匹配就停止，不读取
+私钥，不切换其他 Provider。
 
-## FMCP-009 — Package and CLI
+## FMCP-008 — 发布包
 
 Status: Planned
 Review level: L3
-Source: Confirmed distribution choice
+Source: 已确认的发布方式
 
-The public package name is `frely-mcp`. The package is published to the npm
-registry and requires Bun 1.4 or later. Registry lookup on 2026-09-11 did not
-show a public package with that name; release authorization and ownership still
-require explicit verification before publication.
+首版发布一个 npm 包 `frely-mcp`：
 
-The package contains compiled distribution files, README, license, and package
-metadata. It contains no `workspace:*` runtime dependency, source checkout
-path, wallet, private key, payment journal, real configuration, or acceptance
-evidence.
+- Bun 1.4 或更高版本；
+- macOS 和 Linux；
+- 本地 stdio MCP；
+- 打包产物不含 `workspace:*` 运行依赖；
+- 不包含钱包、密钥、journal、真实配置或验收记录。
 
-The CLI provides:
+CLI 只有三个入口：
 
 ```text
 frely-mcp wallet init
-frely-mcp check --config <absolute path>
-frely-mcp start --config <absolute path>
+frely-mcp check --config <绝对路径>
+frely-mcp start --config <绝对路径>
 ```
 
-`wallet init` initializes or resumes a wallet. `check` performs a read-only
-configuration, endpoint, wallet, policy, and journal check. It must not sign,
-pay, or invoke a Provider. `start` runs the stdio MCP server. Stdout carries MCP
-messages only; diagnostics go to stderr.
+`check` 只读检查 Network API、API Key 引用、钱包 Ready 状态、付款 profile 和
+journal 路径；它不签名、不付款、不调用 Relay。
 
-The MVP excludes Node.js compatibility, Windows acceptance, automatic Bun
-installation, Docker, remote MCP HTTP, automatic funding, multiple wallets,
-multiple authorized Providers, and a management UI.
+`start` 通过官方 MCP TypeScript SDK 运行 stdio。stdout 只输出 MCP 消息，诊断
+写入 stderr。
 
-## FMCP-010 — Failure and recovery semantics
-
-Status: Baseline
-Review level: L3
-Source: Existing payment safety decisions and confirmed service split
-
-The service path owns `NO_PROVIDER`, `NETWORK_DISCOVERY_FAILED`,
-`IDENTITY_VERIFICATION_FAILED`, and `CAPABILITY_NOT_SUPPORTED`.
-
-The MCP path owns `CONFIG_INVALID`, `NETWORK_UNAVAILABLE`, `WALLET_NOT_READY`,
-`PAYMENT_DISABLED`, `PROVIDER_NOT_AUTHORIZED`, `QUOTE_MISMATCH`,
-`BUDGET_EXCEEDED`, `PAYMENT_UNKNOWN`, and `PROVIDER_EXECUTION_FAILED`.
-
-Both paths return stable public error codes and correlation IDs. They do not
-return credentials, keys, raw signatures, configuration bodies, internal
-stacks, or private paths.
-
-The MVP follows these retry rules:
-
-1. A discovery or identity error stops before Provider invocation.
-2. A resolution mismatch stops before key access.
-3. A quote or budget mismatch stops before signing.
-4. A pre-sign network error returns without an automatic retry.
-5. An uncertain signed or submitted payment becomes `unknown`; recovery queries
-   the original transaction and never creates a new payment.
-6. A settled payment remains settled when business execution fails.
-7. A repeated request ID with a changed fingerprint returns a conflict.
-8. The client never switches to another Provider after signing or settlement.
-
-The payer journal prevents duplicate signing and payment. The Relay Resource
-Server must independently prevent duplicate business dispatch for the same
-request and accepted payment proof. The MVP may implement that guarantee with
-the Relay's existing durable request execution boundary; it must not reuse or
-read the payer's local journal.
-
-## FMCP-011 — Two parallel development paths
+## FMCP-009 — 两条并行开发路径
 
 Status: Planned
 Review level: L3
-Source: User instruction to divide and advance service and MCP work in parallel
+Source: 用户要求服务端与 MCP 端同时推进
 
-### Contract gate
+### 契约门
 
-Before parallel work starts, one small integration-base change reconciles the
-local `B1wl7ch` baseline with the required service/admission changes from
-`origin/main`, then freezes the version-1 resolution request, success response,
-error envelope, and fixtures. It does not merge unrelated remote changes by
-default. Both paths test against the frozen contract. Any contract change
-requires both path owners to approve it before merge.
+先完成一个小型集成基线：以本地 `B1wl7ch` 为起点，只引入远端必要的服务端
+admission 变化和已审查的 x402 变化，然后提交 resolve v1 类型、错误结构和 fixture。
+该步骤不把远端 `main` 整体覆盖到本地。
 
-### Path A — Frely service
+### 路径 A — 服务端
 
-Path A owns service-side work across `FrelyHQ/frely-network` and the Relay
-Resource Server boundary:
+服务端路径负责：
 
-1. expose `POST /v1/capabilities/resolve` behind the Frely API key;
-2. query The Graph, filter by all requested capabilities and payment network,
-   verify ENS/ERC-8004, and select one Provider;
-3. return only the frozen resolution schema and safe error envelope;
-4. ensure the selected endpoint is the Frely Relay/capability entry, never the
-   Swarm runtime or a final model Provider;
-5. remove the payer private key and payer x402 client from the service runtime;
-6. remove the public remote `/mcp` path from this MVP boundary;
-7. implement the production Relay 402 boundary with the official x402 Resource
-   Server and Blocky verify/settle;
-8. settle before Relay dispatch and preserve Relay-side execution idempotency;
-9. prove the path with contract fixtures and synthetic payment admission before
-   any authorized live test.
+1. 实现 `POST /v1/capabilities/resolve` 与 Frely API Key 验证；
+2. 执行 Graph 查询、完整 capability 过滤、ENS/ERC-8004 验证和确定性选择；
+3. 只返回冻结的 resolve v1 响应或安全错误码；
+4. 确保 endpoint 指向 Relay，不指向 Swarm 或最终模型 Provider；
+5. 移除服务端 payer 私钥和付款 client；
+6. 不把远程 HTTP `/mcp` 作为本 MVP 的公开入口；
+7. 在 Relay 使用官方 x402 Resource Server 和 Blocky verify/settle；
+8. settled 后调度业务，并阻止相同请求重复执行业务。
 
-Path A does not import Agent Wallet code, read MCP config, or receive the
-business task during capability resolution.
+路径 A 不读取 Agent Wallet，不接收 capability resolve 之外的业务正文。
 
-### Path B — Self-hosted MCP
+### 路径 B — 本地 MCP
 
-Path B owns the local package:
+MCP 路径负责：
 
-1. replace local Graph/ENS/ERC-8004 adapters with `FrelyNetworkClient`;
-2. expose the two tools through the official MCP TypeScript SDK and stdio;
-3. port the reviewed Agent Wallet and local-key signer onto the current base;
-4. port the payer policy, journal, recovery, Mirror verification, and hardened
-   x402 client without the mock Gateway;
-5. enforce the one-profile authorization gate before key access;
-6. call the selected Relay endpoint directly and reject redirects;
-7. implement `wallet init`, `check`, and `start`;
-8. bundle the CLI as `frely-mcp` without workspace runtime dependencies; and
-9. verify an installed package tarball through a real MCP subprocess.
+1. 用 `FrelyNetworkClient` 替换本地 Graph、ENS、ERC-8004 调用；
+2. 通过官方 MCP SDK 暴露两个 stdio 工具；
+3. 集成 Agent Wallet、file signer、本地付款 profile；
+4. 集成 payer journal、请求指纹、Mirror 恢复与 x402 client；
+5. 直连已验证 Relay，并禁止重定向；
+6. 实现 `wallet init`、`check`、`start`；
+7. 打包并测试最终 npm tarball。
 
-Path B develops against a fake Network server that serves the frozen contract
-fixtures. It does not wait for Path A's internal implementation.
+路径 B 使用冻结 fixture 和 fake Network Server 开发，不等待路径 A 的内部实现。
 
-### Parallel isolation and join
+两条路径使用独立 branch/worktree，只共享 resolve v1 契约和 fixture。各自测试通过后，
+再用真实 Network resolve 接口和配置后的 Relay/Swarm 做联合验收。
 
-The two paths use separate branches and worktrees. Path A does not edit local
-MCP, wallet, payer journal, or package files. Path B does not edit Graph, ENS,
-ERC-8004, Network service, Relay, or Swarm implementation files. The frozen
-contract and fixtures are the only shared code seam.
-
-The paths join only after each passes its own tests. The integration gate runs
-the packaged local MCP against the real Network resolution endpoint and a
-configured Relay/Swarm path. A successful fixture or mock call cannot satisfy
-that gate.
-
-## FMCP-012 — Verification and release gates
+## FMCP-010 — 失败与验收
 
 Status: Planned
 Review level: L3
-Source: Confirmed evidence requirements
+Source: 已确认的付款安全边界
 
-Path A must verify:
+服务端负责 `NO_PROVIDER`、`NETWORK_DISCOVERY_FAILED`、
+`IDENTITY_VERIFICATION_FAILED` 和 `CAPABILITY_NOT_SUPPORTED`。
 
-- authenticated capability resolution;
-- all-capability filtering and deterministic selection;
-- ENS/ERC-8004 rejection before returning an endpoint;
-- no Swarm or final Provider endpoint leakage;
-- stable safe errors and correlation IDs;
-- official x402 402, verify, settle, and settle-before-dispatch behavior; and
-- duplicate-request business-dispatch prevention.
+MCP 负责 `CONFIG_INVALID`、`NETWORK_UNAVAILABLE`、`WALLET_NOT_READY`、
+`PAYMENT_DISABLED`、`PROVIDER_NOT_AUTHORIZED`、`QUOTE_MISMATCH`、
+`BUDGET_EXCEEDED`、`PAYMENT_UNKNOWN` 和 `PROVIDER_EXECUTION_FAILED`。
 
-Path B must verify:
+付款提交后状态不明时，只查询原交易，不重新签名或付款。settled 后业务失败时保留
+settled，不切换 Provider。相同 requestId 但请求指纹变化时返回冲突。
 
-- MCP initialize, `tools/list`, and both `tools/call` operations over stdio;
-- strict Network response validation and safe public HTTPS enforcement;
-- wallet-not-ready, unauthorized Provider, quote mismatch, and over-budget
-  rejection before key access;
-- unchanged-body retry, payment journal, request conflict, unknown recovery,
-  and same-ID cache behavior;
-- stdout protocol purity and secret-safe errors; and
-- installation and startup from the final npm tarball.
+MVP 完成需要：
 
-The combined no-cost gate runs the packaged MCP against the real resolution
-service and a synthetic or fixture-backed Resource Server. It records the last
-successful boundary instead of claiming a full business chain from component
-tests.
+- 路径 A 的 resolve、身份拒绝、x402 settle-before-dispatch 和服务端幂等测试通过；
+- 路径 B 的 MCP 握手、两工具、授权门禁、journal、恢复和 tarball 安装测试通过；
+- 打包后的 MCP 能连接真实 resolve 接口和 synthetic Resource Server；
+- 所有输出不泄露凭据、私钥、签名、配置正文或本地路径。
 
-A live 0.01 HBAR acceptance requires fresh user authorization after the new
-package and service paths pass their no-cost gates. Prior transactions prove
-their original path only. The release process, test suite, `check`, and package
-installation must never trigger a live payment.
+新的 0.01 HBAR 实付必须在无成本验收通过后重新获得用户明确授权。历史交易不能证明
+新包已跑通；安装、`check`、测试和发布流程不得自动触发付款。
 
-## FMCP-013 — Documentation lifecycle
+MVP 不包含 Node.js 兼容、Windows、Docker、远程 MCP、多租户、多钱包、多 Provider
+授权、自动充值、数据库、管理后台或主网。
 
-Status: Planned
-Review level: L3
-Source: Repository documentation governance
-
-This Draft records the approved design conversation but does not change the
-current Architecture Baseline by itself. After written review, the
-implementation plan must identify the exact baseline sections that change.
-The implementation merge must update `docs/architecture.md` and
-`docs/cross-project-integration.md` so they no longer describe discovery,
-identity, payer signing, and MCP transport as one runtime.
-
-No implementation, npm publication, branch merge, or live payment is authorized
-by this document alone.
+本 Draft 不授权实现、合并、npm 发布或真实付款。用户确认书面规格后，下一步才编写
+双路径实施计划。
