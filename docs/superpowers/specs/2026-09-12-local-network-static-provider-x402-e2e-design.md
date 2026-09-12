@@ -7,7 +7,7 @@ mdq:
 
 ## FXE2E-001 — 目标与完成口径
 
-Status: Draft
+Status: Verified
 Review level: L3
 Source: 2026-09-12 用户确认的比赛 MVP 决策
 
@@ -207,7 +207,7 @@ reference 校验；规格不提供可能被误用的示例秘密路径。
 
 ## FXE2E-007 — MCP 工具行为
 
-Status: Planned
+Status: Implemented
 Review level: L3
 Source: 现有 stdio MCP 两工具与付款 journal 设计
 
@@ -241,7 +241,7 @@ requestId 但任一受保护字段变化时返回冲突，不付款、不调度�
 
 ## FXE2E-008 — Network Resource Server、Relay 与 Swarm 行为
 
-Status: Planned
+Status: Implemented
 Review level: L3
 Source: 用户确认 x402 全部位于 Network；现有 `packages/gateway/x402` 边界
 
@@ -280,7 +280,7 @@ Network 不持有 Swarm endpoint、service token、Agent key 或 Provider creden
 
 ## FXE2E-009 — 完整调用时序
 
-Status: Planned
+Status: Verified
 Review level: L3
 Source: FXE2E-003 至 FXE2E-008
 
@@ -354,7 +354,7 @@ Source: 现有 payer journal、Network admission 与真实付款安全边界
 
 ## FXE2E-011 — 现有 Relay 入口与本地回滚
 
-Status: Planned
+Status: Verified
 Review level: L3
 Source: 用户选择复用 `api.frely.cloud` 与 MVP 不过度设计原则
 
@@ -375,7 +375,7 @@ Source: 用户选择复用 `api.frely.cloud` 与 MVP 不过度设计原则
 
 ## FXE2E-012 — 分层验收规则
 
-Status: Planned
+Status: Verified
 Review level: L3
 Source: 用户要求的真实全链路 spec 与证据边界
 
@@ -402,7 +402,7 @@ G0 至 G4、G8 的测试双部分、G9 的模拟部分、G10 和 G11 均为无 H
 
 ## FXE2E-013 — 固定验收输入与证据包
 
-Status: Planned
+Status: Verified
 Review level: L3
 Source: 用户确认的 OCR 用例与秘密处理规则
 
@@ -446,7 +446,7 @@ Source: 比赛 MVP 不过度设计原则
 
 ## FXE2E-015 — 最终 Definition of Done
 
-Status: Planned
+Status: Verified
 Review level: L3
 Source: FXE2E-012 与用户确认的单次真实付款目标
 
