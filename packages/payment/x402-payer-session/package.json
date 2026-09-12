@@ -1,0 +1,12 @@
+{
+  "name": "@frely-network/x402-payer-session",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "exports": "./index.ts",
+  "types": "./index.ts",
+  "dependencies": {
+    "@frely-network/hedera-x402": "workspace:*",
+    "@x402/hedera": "2.25.0"
+  }
+}

@@ -101,6 +101,14 @@
         "@x402/hedera": "2.25.0",
       },
     },
+    "packages/payment/x402-payer-session": {
+      "name": "@frely-network/x402-payer-session",
+      "version": "0.0.0",
+      "dependencies": {
+        "@frely-network/hedera-x402": "workspace:*",
+        "@x402/hedera": "2.25.0",
+      },
+    },
     "packages/protocol/capability-resolution": {
       "name": "@frely-network/capability-resolution",
       "version": "0.0.0",
@@ -205,6 +213,8 @@
     "@frely-network/vision-ocr": ["@frely-network/vision-ocr@workspace:examples/vision-ocr"],
 
     "@frely-network/x402-gateway": ["@frely-network/x402-gateway@workspace:packages/gateway/x402"],
+
+    "@frely-network/x402-payer-session": ["@frely-network/x402-payer-session@workspace:packages/payment/x402-payer-session"],
 
     "@grpc/grpc-js": ["@grpc/grpc-js@1.12.6", "", { "dependencies": { "@grpc/proto-loader": "^0.7.13", "@js-sdsl/ordered-map": "^4.4.2" } }, "sha512-JXUj6PI0oqqzTGvKtzOkxtpsyPRNsrmhh41TtIz/zEB6J+AUiZZ0dxWzcMwO9Ns5rmSPuMdghlTbUuqIM48d3Q=="],
 
