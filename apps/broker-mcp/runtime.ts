@@ -65,6 +65,7 @@ export function createBrokerRuntimeFromEnv(environment: RuntimeEnvironment = pro
     const broker = new Broker({
       discovery: new TheGraphDiscovery({
         endpoint: graphEndpoint,
+        registryAddress: registry,
         paymentNetwork: "hedera:testnet",
         metadataGateway: required(environment, "GRAPH_METADATA_GATEWAY"),
       }),

@@ -17,6 +17,9 @@ export interface ResolvedProvider {
   endpoint: string;
   protocol: ProviderProtocol;
   verified: boolean;
+  /** Optional identity metadata populated by ERC-8004/A2A resolution. */
+  agentCardUrl?: string;
+  a2aProtocolVersion?: "0.3.0" | "1.0";
 }
 
 /** A capability request accepted by the Broker MCP layer. */
