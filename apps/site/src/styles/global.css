@@ -55,17 +55,6 @@ body {
   overflow-x: hidden;
 }
 
-/* Splash locks vertical scroll so the first viewport stays one composition */
-body:not(.is-revealed) {
-  overflow: hidden;
-  height: 100svh;
-}
-
-body.is-revealed {
-  overflow: auto;
-  height: auto;
-}
-
 ::selection {
   background: color-mix(in srgb, var(--primary) 40%, transparent);
 }

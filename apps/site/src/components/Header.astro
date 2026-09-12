@@ -2,7 +2,7 @@
 const GITHUB = "https://github.com/FrelyHQ/frely-network";
 ---
 
-<header class="site-header" data-testid="site-header" hidden>
+<header class="site-header" data-testid="site-header">
   <div class="mx-auto flex h-16 max-w-6xl items-center justify-between px-6">
     <a href="/" class="flex items-center gap-2.5" aria-label="Frely Network home" data-testid="nav-home">
       <img
@@ -41,16 +41,3 @@ const GITHUB = "https://github.com/FrelyHQ/frely-network";
     backdrop-filter: blur(14px);
   }
 </style>
-
-<script>
-  const header = document.querySelector("[data-testid='site-header']");
-  const sync = () => {
-    if (!(header instanceof HTMLElement)) return;
-    header.hidden = !document.body.classList.contains("is-revealed");
-  };
-  sync();
-  new MutationObserver(sync).observe(document.body, {
-    attributes: true,
-    attributeFilter: ["class"],
-  });
-</script>

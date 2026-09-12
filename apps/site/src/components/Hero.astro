@@ -1,8 +1,7 @@
 ---
 /**
- * Full-viewport Spline stage.
- * Splash → Engaged (native Spline act-2 stays visible) → Details (wheel to #details).
- * Brand title lives in the published Spline scene; page only adds logo + scroll hint.
+ * Long-page hero: 100vh Spline stage, then #details in normal document flow.
+ * Spline iframe keeps in-scene Click Me / act-2. No scroll lock or wheel hijack.
  */
 const GITHUB = "https://github.com/FrelyHQ/frely-network";
 /** Same public file; bump `v` after each Spline Publish so the iframe is not stuck on CDN cache. */
@@ -72,14 +71,11 @@ const useViewer = Boolean(splineScene);
         </span>
       </button>
 
-      <!-- Captures wheel on first screen; iframe would otherwise swallow wheel events. -->
-      <div class="wheel-catch" data-testid="wheel-catch" aria-hidden="true"></div>
-
       <p class="scroll-hint" data-testid="scroll-hint">Scroll for project details</p>
     </div>
   </div>
 
-  <div id="details" class="stage-details-lead" data-testid="details-lead" hidden>
+  <div id="details" class="stage-details-lead" data-testid="details-lead">
     <div class="details-lead-panel animate-rise">
       <p class="details-eyebrow" data-testid="hero-brand">Frely Network</p>
       <h1 class="details-title" data-testid="reveal-title">Open agent capability network</h1>
@@ -106,41 +102,16 @@ const useViewer = Boolean(splineScene);
 <script>
   const stage = document.getElementById("top");
   const clickMe = document.querySelector("[data-testid='click-me']");
-  const detailsLead = document.querySelector("[data-testid='details-lead']");
-  const after = document.querySelector("[data-testid='after-reveal']");
   const iframe = document.querySelector("[data-testid='spline-iframe']");
-  const wheelCatch = document.querySelector("[data-testid='wheel-catch']");
 
   const goEngaged = () => {
-    if (!stage || stage.dataset.state === "engaged" || stage.dataset.state === "details") return;
+    if (!stage || stage.dataset.state === "engaged") return;
     stage.dataset.state = "engaged";
     document.documentElement.dataset.landing = "engaged";
     if (clickMe instanceof HTMLElement) {
       clickMe.hidden = true;
       clickMe.setAttribute("aria-hidden", "true");
     }
-  };
-
-  const goDetails = () => {
-    if (!stage || stage.dataset.state === "details") return;
-    stage.dataset.state = "details";
-    document.documentElement.dataset.landing = "revealed";
-    document.body.classList.add("is-revealed");
-    if (detailsLead instanceof HTMLElement) detailsLead.hidden = false;
-    if (after instanceof HTMLElement) {
-      after.hidden = false;
-      after.setAttribute("aria-hidden", "false");
-    }
-    // Two frames so #details is laid out, then one quick smooth jump to screen 2.
-    window.requestAnimationFrame(() => {
-      window.requestAnimationFrame(() => {
-        const details = document.getElementById("details");
-        const top = details
-          ? details.getBoundingClientRect().top + window.scrollY
-          : Math.max(window.innerHeight, 1);
-        window.scrollTo({ top, behavior: "smooth" });
-      });
-    });
   };
 
   clickMe?.addEventListener("click", (e) => {
@@ -154,6 +125,7 @@ const useViewer = Boolean(splineScene);
     }
   });
 
+  // Focusing the Spline iframe (in-scene Click Me) marks engaged / hides mobile CTA.
   window.addEventListener("blur", () => {
     window.requestAnimationFrame(() => {
       if (iframe instanceof HTMLIFrameElement && document.activeElement === iframe) {
@@ -161,22 +133,6 @@ const useViewer = Boolean(splineScene);
       }
     });
   });
-
-  let wheelLocked = false;
-  const onFirstScreenWheel = (e) => {
-    if (!(e instanceof WheelEvent)) return;
-    if (document.body.classList.contains("is-revealed")) return;
-    if (e.deltaY <= 0) return;
-    if (e.deltaY < 24) return;
-    e.preventDefault();
-    if (wheelLocked) return;
-    wheelLocked = true;
-    goDetails();
-  };
-
-  // Window listener covers chrome/logo areas; catch strip covers lower viewport over the iframe.
-  window.addEventListener("wheel", onFirstScreenWheel, { passive: false });
-  wheelCatch?.addEventListener("wheel", onFirstScreenWheel, { passive: false });
 
   if (iframe instanceof HTMLIFrameElement) {
     const markReady = () => stage?.classList.add("is-spline-ready");
@@ -204,14 +160,16 @@ const useViewer = Boolean(splineScene);
     pointer-events: none;
   }
 
+  /*
+   * Phase 1: keep fixed so the first viewport stays a full-bleed scene.
+   * #details / after-reveal sit above it (higher z-index + opaque backgrounds).
+   */
   .stage-spline {
     position: fixed;
     inset: 0;
     z-index: 0;
     background: #05070d;
-    transition:
-      opacity 0.75s cubic-bezier(0.22, 1, 0.36, 1),
-      visibility 0.75s;
+    transition: opacity 0.75s cubic-bezier(0.22, 1, 0.36, 1);
   }
 
   .stage-ambient {
@@ -220,6 +178,7 @@ const useViewer = Boolean(splineScene);
     display: grid;
     place-items: center;
     transition: opacity 0.7s ease;
+    pointer-events: none;
   }
 
   .ambient-glow {
@@ -300,11 +259,6 @@ const useViewer = Boolean(splineScene);
     opacity: 0;
   }
 
-  .stage[data-state="details"] .stage-spline {
-    opacity: 0.22;
-    pointer-events: none;
-  }
-
   .stage-chrome {
     position: absolute;
     inset: 0;
@@ -370,8 +324,7 @@ const useViewer = Boolean(splineScene);
     animation: pulse-glow 1.8s ease-in-out infinite;
   }
 
-  .stage[data-state="engaged"] .click-me,
-  .stage[data-state="details"] .click-me {
+  .stage[data-state="engaged"] .click-me {
     display: none !important;
   }
 
@@ -391,22 +344,7 @@ const useViewer = Boolean(splineScene);
     letter-spacing: 0.04em;
     color: rgba(148, 163, 184, 0.92);
     text-shadow: 0 2px 12px rgba(0, 0, 0, 0.65);
-  }
-
-  /* Lower band receives wheel so iframe does not swallow the colleague scroll-to-details gesture */
-  .wheel-catch {
-    pointer-events: auto;
-    position: absolute;
-    left: 0;
-    right: 0;
-    bottom: 0;
-    z-index: 5;
-    height: min(28vh, 220px);
-  }
-
-  .stage[data-state="details"] .stage-chrome {
-    opacity: 0;
-    visibility: hidden;
+    pointer-events: none;
   }
 
   .stage-details-lead {
@@ -417,11 +355,6 @@ const useViewer = Boolean(splineScene);
     place-items: center;
     padding: 5.5rem 1.5rem 3rem;
     background: var(--background);
-  }
-
-  .stage[data-state="splash"] .stage-details-lead,
-  .stage[data-state="engaged"] .stage-details-lead {
-    display: none;
   }
 
   .details-lead-panel {
