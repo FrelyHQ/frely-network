@@ -1,4 +1,4 @@
-import type { ResolvedCapability } from "@frely-network/capability-resolution";
+import type { StaticResolvedCapability } from "@frely-network/capability-resolution";
 import type { Policy } from "@frely-network/hedera-x402";
 import type {
   CapabilityRequest,
@@ -6,13 +6,14 @@ import type {
   PaymentOutcome,
   ResolvedProvider,
 } from "@frely-network/shared-types";
-import type { FrelyMcpConfig } from "./config.ts";
+import { isPublicHttpsUrl, type FrelyMcpConfig } from "./config.ts";
 import type { FrelyNetworkClient } from "./network-client.ts";
 
 export type FrelyMcpRuntime = {
-  findCapability(capabilities: string[]): Promise<ResolvedCapability>;
+  findCapability(capabilities: string[]): Promise<StaticResolvedCapability>;
   useCapability(request: CapabilityRequest): Promise<CapabilityResult & {
-    identityVerificationSource: "frely-network";
+    resolutionSource: "static_allowlist";
+    identityVerified: false;
   }>;
   close(): void;
 };
@@ -37,43 +38,39 @@ function assertVisionRequest(request: CapabilityRequest): void {
     throw new Error("CAPABILITY_NOT_SUPPORTED");
   }
   const input = request.input as { image_url?: unknown } | undefined;
-  let image: URL;
-  try {
-    image = new URL(typeof input?.image_url === "string" ? input.image_url : "");
-  } catch {
-    throw new Error("CAPABILITY_NOT_SUPPORTED");
-  }
-  if (!["https:", "http:"].includes(image.protocol) || image.username || image.password) {
+  if (typeof input?.image_url !== "string" || !isPublicHttpsUrl(input.image_url)) {
     throw new Error("CAPABILITY_NOT_SUPPORTED");
   }
   if (!request.payment) throw new Error("PAYMENT_DISABLED");
 }
 
-function authorizeProvider(
-  resolved: ResolvedCapability,
+export function authorizeProvider(
+  resolved: StaticResolvedCapability,
   config: FrelyMcpConfig,
   policy: Policy,
 ): void {
   if (
-    resolved.provider.id !== config.approvedProviderId ||
-    resolved.provider.endpoint !== policy.resourceUrl ||
-    resolved.provider.protocol !== "responses" ||
-    resolved.identity.chainId !== config.network.chainId ||
-    resolved.identity.registry.toLowerCase() !== config.network.registry.toLowerCase() ||
-    resolved.payment.network !== "hedera:testnet" ||
-    policy.network !== "hedera:testnet"
-  ) {
-    throw new Error("PROVIDER_NOT_AUTHORIZED");
-  }
+    resolved.provider.id !== config.approvedProvider.id
+    || resolved.provider.endpoint !== config.approvedProvider.endpoint
+    || resolved.execution.endpoint !== config.approvedExecution.endpoint
+    || resolved.execution.endpoint !== policy.resourceUrl
+    || resolved.payment.resource !== policy.resourceUrl
+    || resolved.provider.protocol !== "responses"
+    || resolved.execution.managedBy !== "network"
+    || resolved.resolution.source !== "static_allowlist"
+    || resolved.resolution.identityVerified !== false
+    || resolved.payment.network !== "hedera:testnet"
+    || policy.network !== "hedera:testnet"
+  ) throw new Error("PROVIDER_NOT_AUTHORIZED");
 }
 
-function toResolvedProvider(resolved: ResolvedCapability): ResolvedProvider {
+function toResolvedProvider(resolved: StaticResolvedCapability): ResolvedProvider {
   return {
     id: resolved.provider.id,
-    ensName: resolved.provider.ensName,
-    endpoint: resolved.provider.endpoint,
-    protocol: resolved.provider.protocol,
-    verified: resolved.identity.verified,
+    endpoint: resolved.execution.endpoint,
+    protocol: "responses",
+    verified: false,
+    authorizationSource: "static_allowlist",
   };
 }
 
@@ -90,8 +87,9 @@ export function createFrelyMcpRuntime(options: FrelyMcpRuntimeOptions): FrelyMcp
       executor ??= options.createPaymentExecutor();
       const paymentOutcome = await executor.execute(toResolvedProvider(resolved), request);
       return {
-        provider: { id: resolved.provider.id, ensName: resolved.provider.ensName },
-        identityVerificationSource: "frely-network",
+        provider: { id: resolved.provider.id },
+        resolutionSource: "static_allowlist",
+        identityVerified: false,
         paymentOutcome,
         ...(paymentOutcome.evidence?.network ? {
           payment: {

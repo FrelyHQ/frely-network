@@ -13,8 +13,11 @@ test("use_capability carries a budgeted payment through stdio with structured ev
     } });
     expect(result.isError).not.toBe(true);
     const structured = result.structuredContent as Record<string, any>;
-    expect(structured.identityVerificationSource).toBe("frely-network");
-    expect(structured.provider).toEqual({ id: "provider-1", ensName: "vision.example.eth" });
+    expect(structured.resolutionSource).toBe("static_allowlist");
+    expect(structured.identityVerified).toBe(false);
+    expect(structured.provider).toEqual({ id: "frely-vision-basic" });
+    expect(JSON.stringify(structured)).not.toContain("identityVerificationSource");
+    expect(JSON.stringify(structured)).not.toContain("ensName");
     expect(structured.paymentOutcome.paymentStatus).toBe("settled");
     expect(structured.paymentOutcome.serviceStatus).toBe("succeeded");
     expect(structured.payment.transactionId).toBe("synthetic-tx");

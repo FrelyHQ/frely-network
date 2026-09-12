@@ -1,7 +1,7 @@
 // Test-only discovery: never imported by the production entry.
 import { StdioServerTransport } from "@modelcontextprotocol/sdk/server/stdio.js";
-import { parseResolvedCapability } from "@frely-network/capability-resolution";
-import successFixture from "../../../packages/protocol/capability-resolution/fixtures/success.json";
+import { parseStaticResolvedCapability } from "@frely-network/capability-resolution";
+import staticSuccess from "../../../packages/protocol/capability-resolution/fixtures/static-success-v2.json";
 import type { FrelyMcpRuntime } from "../runtime.ts";
 import { createFrelyMcpServer } from "../server.ts";
 
@@ -29,7 +29,7 @@ const runtime: FrelyMcpRuntime = {
     const first = capabilities[0]!;
     if (first === "unexpected") throw new Error("https://secret.example/?key=DO_NOT_EXPOSE");
     if (known.includes(first)) throw new Error(first);
-    return parseResolvedCapability(successFixture);
+    return parseStaticResolvedCapability(staticSuccess);
   },
   async useCapability() {
     throw new Error("FAKE_CALLED_INVALID");

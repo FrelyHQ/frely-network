@@ -100,9 +100,9 @@ function createStartExecutor(config: FrelyMcpConfig, policy: Policy, journal: Jo
     policy,
     ports: wrapPaymentPorts(config, policy, live),
     executionConfig: {
-      mode: "integration",
-      origin: new URL(policy.resourceUrl).origin,
-      callerKey: resolveSecret(config.relay.apiKeyRef),
+      mode: "static-local",
+      origin: "http://127.0.0.1:13600",
+      networkKey: resolveSecret(config.network.apiKeyRef),
     },
   });
   return {
@@ -128,7 +128,7 @@ export async function runStart(
   const runtime = createFrelyMcpRuntime({
     config,
     paymentPolicy: policy,
-    networkClient: new FrelyNetworkClient(config.network),
+    networkClient: new FrelyNetworkClient(config),
     createPaymentExecutor: () => createStartExecutor(config, policy, journal),
   });
   let closed = false;

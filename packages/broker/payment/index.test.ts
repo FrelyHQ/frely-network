@@ -7,7 +7,7 @@ test("paid executor maps the validated capability request into one payment sessi
   const execute = createPaidExecutor({
     policy: harness.policy,
     ports: harness.ports,
-    executionConfig: { mode: "integration", origin: new URL(harness.policy.resourceUrl).origin, callerKey: "caller-test" },
+    executionConfig: { mode: "static-local", origin: "http://127.0.0.1:13600", networkKey: "caller-test" },
   });
   const outcome = await execute(
     { id: "provider-1", verified: true, protocol: "responses", endpoint: harness.policy.resourceUrl },

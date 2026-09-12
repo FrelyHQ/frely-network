@@ -17,9 +17,14 @@ const known = new Set([
   "BUDGET_EXCEEDED",
   "PAYMENT_UNKNOWN",
   "PROVIDER_EXECUTION_FAILED",
+  "REQUEST_ID_CONFLICT",
+  "STATIC_PROVIDER_NOT_CONFIGURED",
 ]);
 
-type ToolResult = CapabilityResult & { identityVerificationSource: "frely-network" };
+type ToolResult = CapabilityResult & {
+  resolutionSource?: "static_allowlist";
+  identityVerified?: false;
+};
 
 function toolError(error: unknown) {
   const code = error instanceof Error && known.has(error.message) ? error.message : "EXECUTION_FAILED";
@@ -52,7 +57,8 @@ function asToolResponse(structuredContent: object, isError = false) {
 export function createFrelyMcpServer(runtime: FrelyMcpRuntime): McpServer {
   const server = new McpServer({ name: "frely-mcp", version: "0.1.0" });
   server.registerTool("find_capability", {
-    description: "Resolve a verified provider for the requested capabilities from Frely Network. Does not invoke Relay or read the wallet.",
+    title: "Find capability",
+    description: "Resolve a static allowlist provider for the requested capabilities from the local Frely Network. Does not invoke Relay or read the wallet.",
     inputSchema: { capabilities: z.array(z.string().trim().min(1)).min(1) },
     annotations: { readOnlyHint: true, destructiveHint: false, idempotentHint: true, openWorldHint: true },
   }, async ({ capabilities }) => {
@@ -63,7 +69,8 @@ export function createFrelyMcpServer(runtime: FrelyMcpRuntime): McpServer {
     }
   });
   server.registerTool("use_capability", {
-    description: "Re-resolve, authorize the local Provider profile, then pay and invoke the approved Relay.",
+    title: "Use capability",
+    description: "Re-resolve, authorize the local static allowlist Provider profile, then pay and invoke the approved local Network execution endpoint.",
     inputSchema: {
       capabilities: z.array(z.string().trim().min(1)).min(1),
       task: z.string().trim().min(1),

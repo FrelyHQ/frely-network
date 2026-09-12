@@ -8,9 +8,8 @@ import {
 } from "@x402/core/http";
 import { PaymentPayloadSchema } from "@x402/core/schemas";
 import { inspectHederaTransaction } from "@x402/hedera";
-import { parseResolvedCapability } from "@frely-network/capability-resolution";
-import { createCapabilityServiceFetch } from "../../capability-service/service.ts";
-import successFixture from "../../../packages/protocol/capability-resolution/fixtures/success.json";
+import { parseStaticResolvedCapability } from "@frely-network/capability-resolution";
+import staticSuccess from "../../../packages/protocol/capability-resolution/fixtures/static-success-v2.json";
 
 type Counts = { resolve: number; sign: number; settle: number; dispatch: number; mirror: number };
 
@@ -20,8 +19,8 @@ const payTo = process.env.FRELY_FULL_CHAIN_PAY_TO ?? "0.0.1234";
 const feePayer = process.env.FRELY_FULL_CHAIN_FEE_PAYER ?? "0.0.1235";
 const amount = process.env.FRELY_FULL_CHAIN_AMOUNT ?? "1000000";
 const payerPub = process.env.FRELY_FULL_CHAIN_PAYER_PUB ?? "";
-const networkKey = process.env.FRELY_API_KEY ?? "";
-const resourceUrl = "https://relay.example/v1/responses";
+const networkKey = process.env.FRELY_NETWORK_API_KEY ?? process.env.FRELY_API_KEY ?? "";
+const resourceUrl = "http://127.0.0.1:13600/v1/responses";
 const forbidden = [
   process.env.FRELY_FULL_CHAIN_WALLET ?? "",
   process.env.FRELY_FULL_CHAIN_SECRET ?? "",
@@ -56,19 +55,16 @@ function assertNoSecrets(request: Request, body: string, extra: string[] = []) {
   }
 }
 
-const networkFetch = createCapabilityServiceFetch({
-  apiKey: networkKey,
-  resolver: {
-    async resolve() {
-      counts.resolve += 1;
-      persist();
-      return parseResolvedCapability({
-        ...successFixture,
-        provider: { ...successFixture.provider, endpoint: resourceUrl },
-      });
-    },
-  },
-});
+async function networkFetch(request: Request): Promise<Response> {
+  const body = await request.text();
+  assertNoSecrets(request, body, [process.env.FRELY_RELAY_API_KEY ?? ""]);
+  if (request.method !== "POST" || new URL(request.url).pathname !== "/v1/capabilities/resolve") {
+    return new Response("not found", { status: 404 });
+  }
+  counts.resolve += 1;
+  persist();
+  return Response.json(parseStaticResolvedCapability(staticSuccess));
+}
 
 function mirrorAccount(id: string) {
   return {
@@ -171,16 +167,15 @@ async function relayFetch(request: Request): Promise<Response> {
 
 async function route(request: Request): Promise<Response> {
   const url = request.url;
-  const hostname = new URL(url).hostname;
-  if (hostname === "network.example") {
-    const body = await request.clone().text();
-    assertNoSecrets(request, body, [process.env.FRELY_RELAY_API_KEY ?? ""]);
-    return networkFetch(request);
-  }
-  if (hostname === "relay.example") {
-    const body = await request.clone().text();
-    assertNoSecrets(request, body, [process.env.FRELY_API_KEY ?? ""]);
-    return relayFetch(request);
+  const parsed = new URL(url);
+  const hostname = parsed.hostname;
+  if (hostname === "127.0.0.1" && parsed.port === "13600") {
+    if (parsed.pathname === "/v1/capabilities/resolve") return networkFetch(request);
+    if (parsed.pathname === "/v1/responses") {
+      const body = await request.clone().text();
+      assertNoSecrets(request, body, [process.env.FRELY_RELAY_API_KEY ?? ""]);
+      return relayFetch(request);
+    }
   }
   if (hostname.includes("facilitator")) {
     return Response.json({

@@ -1,4 +1,4 @@
-import response from "../../../packages/protocol/capability-resolution/fixtures/success.json";
+import response from "../../../packages/protocol/capability-resolution/fixtures/static-success-v2.json";
 
 const port = Number(process.env.FRELY_NETWORK_FIXTURE_PORT ?? "3011");
 

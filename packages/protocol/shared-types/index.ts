@@ -63,6 +63,8 @@ export interface CapabilityResult {
     id: string;
     ensName?: string;
   };
+  resolutionSource?: "static_allowlist";
+  identityVerified?: false;
   payment?: {
     network: string;
     transactionId?: string;

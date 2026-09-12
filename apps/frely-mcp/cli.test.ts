@@ -5,7 +5,6 @@ import { mkdtemp, realpath, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import rawPolicy from "../../scripts/payment-spike/fixtures/synthetic/policy.json";
-import successFixture from "../../packages/protocol/capability-resolution/fixtures/success.json";
 import { PassThrough } from "node:stream";
 import { runCli, runStart, waitUntilStdioCloses } from "./index.ts";
 
@@ -17,16 +16,13 @@ async function createStartFixture(options: { enabled?: boolean } = {}) {
   const paymentRegistryPath = join(directory, "registry.json");
   const configPath = join(directory, "config.json");
   const journalPath = join(directory, "journal.sqlite");
-  const suffix = directory.replace(/[^A-Za-z0-9]/g, "").slice(-12).toUpperCase();
-  const networkKey = `FRELY_API_KEY_${suffix}`;
-  const relayKey = `FRELY_RELAY_API_KEY_${suffix}`;
-  process.env[networkKey] = "test-network-key";
-  process.env[relayKey] = "test-relay-key";
+  const previousNetworkKey = process.env.FRELY_NETWORK_API_KEY;
+  process.env.FRELY_NETWORK_API_KEY = "test-network-key";
   const enabled = options.enabled === true;
   const policy = {
     ...structuredClone(rawPolicy),
     enabled,
-    resourceUrl: successFixture.provider.endpoint,
+    resourceUrl: "https://fixture.invalid/v1/responses",
     journalPath,
   };
   await writeFile(paymentConfigPath, JSON.stringify(policy));
@@ -37,24 +33,28 @@ async function createStartFixture(options: { enabled?: boolean } = {}) {
     captureSha256: [],
   }));
   await writeFile(configPath, JSON.stringify({
-    schemaVersion: 1,
+    schemaVersion: 2,
     network: {
-      baseUrl: "https://network.example",
-      apiKeyRef: `env:${networkKey}`,
-      chainId: 11155111,
-      registry: "0x1111111111111111111111111111111111111111",
+      mode: "static-local",
+      baseUrl: "http://127.0.0.1:13600",
+      apiKeyRef: "env:FRELY_NETWORK_API_KEY",
     },
-    relay: { apiKeyRef: `env:${relayKey}` },
+    approvedProvider: {
+      id: "frely-vision-basic",
+      endpoint: "https://api.frely.cloud/v1/responses",
+    },
+    approvedExecution: {
+      endpoint: "http://127.0.0.1:13600/v1/responses",
+    },
     walletDir: join(directory, "wallet"),
-    approvedProviderId: "provider-1",
     paymentConfigPath,
     paymentRegistryPath,
   }));
   return {
     configPath,
     cleanup: async () => {
-      delete process.env[networkKey];
-      delete process.env[relayKey];
+      if (previousNetworkKey === undefined) delete process.env.FRELY_NETWORK_API_KEY;
+      else process.env.FRELY_NETWORK_API_KEY = previousNetworkKey;
       await rm(directory, { recursive: true, force: true });
     },
   };

@@ -2,13 +2,12 @@ import { expect, test } from "bun:test";
 import { mkdtemp, realpath, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { parseResolvedCapability } from "@frely-network/capability-resolution";
-import { createPaidExecutor } from "@frely-network/broker";
+import { parseStaticResolvedCapability } from "@frely-network/capability-resolution";
 import type { CapabilityRequest } from "@frely-network/shared-types";
 import { createHarness } from "../../packages/payment/hedera-x402/test-support.ts";
-import successFixture from "../../packages/protocol/capability-resolution/fixtures/success.json";
+import staticSuccess from "../../packages/protocol/capability-resolution/fixtures/static-success-v2.json";
 import type { FrelyMcpConfig } from "./config.ts";
-import { outcomeOrWalletError, wrapPaymentPorts } from "./index.ts";
+import { wrapPaymentPorts } from "./index.ts";
 import { createFrelyMcpRuntime } from "./runtime.ts";
 
 const visionRequest = (requestId: string): CapabilityRequest => ({
@@ -25,41 +24,59 @@ test("non-ready wallet is WALLET_NOT_READY and never signs", async () => {
   const parent = await realpath(await mkdtemp(join(tmpdir(), "frely-mcp-gate-")));
   const h = createHarness();
   const config: FrelyMcpConfig = {
-    schemaVersion: 1,
+    schemaVersion: 2,
     network: {
-      baseUrl: "https://network.example",
-      apiKeyRef: "env:FRELY_API_KEY",
-      chainId: 11155111,
-      registry: "0x1111111111111111111111111111111111111111",
+      mode: "static-local",
+      baseUrl: "http://127.0.0.1:13600",
+      apiKeyRef: "env:FRELY_NETWORK_API_KEY",
     },
-    relay: { apiKeyRef: "env:FRELY_RELAY_API_KEY" },
+    approvedProvider: {
+      id: "frely-vision-basic",
+      endpoint: "https://api.frely.cloud/v1/responses",
+    },
+    approvedExecution: {
+      endpoint: "http://127.0.0.1:13600/v1/responses",
+    },
     walletDir: join(parent, "wallet"),
-    approvedProviderId: "provider-1",
     paymentConfigPath: join(parent, "payment.json"),
     paymentRegistryPath: join(parent, "registry.json"),
   };
   const policy = {
     ...h.policy,
     enabled: true,
+    resourceUrl: staticSuccess.execution.endpoint,
   };
-  const resolved = structuredClone(successFixture);
-  resolved.provider.endpoint = policy.resourceUrl;
   const ports = wrapPaymentPorts(config, policy, h.ports);
-  const execute = createPaidExecutor({
-    policy,
-    ports,
-    executionConfig: {
-      mode: "integration",
-      origin: new URL(policy.resourceUrl).origin,
-      callerKey: "caller-test",
-    },
-  });
   const runtime = createFrelyMcpRuntime({
     config,
     paymentPolicy: policy,
-    networkClient: { resolve: async () => parseResolvedCapability(resolved) },
+    networkClient: { resolve: async () => parseStaticResolvedCapability(staticSuccess) },
     createPaymentExecutor: () => ({
-      execute: async (provider, request) => outcomeOrWalletError(await execute(provider, request)),
+      execute: async (_provider, request) => {
+        await ports.checkNetwork({
+          required: { x402Version: 2, resource: { url: policy.resourceUrl }, accepts: [] },
+          requirements: {
+            scheme: "exact",
+            network: "hedera:testnet",
+            asset: policy.asset,
+            amount: "1000",
+            payTo: policy.payTo,
+            maxTimeoutSeconds: 120,
+            extra: { feePayer: policy.feePayers[0] },
+          },
+          acceptIndex: 0,
+        });
+        return {
+          requestId: request.payment?.requestId ?? null,
+          decision: "completed",
+          paymentStatus: "settled",
+          serviceStatus: "succeeded",
+          reason: "PAYMENT_COMPLETED",
+          retryAction: "none",
+          evidence: null,
+          output: { output_text: "unreachable" },
+        };
+      },
       close: () => {},
     }),
   });

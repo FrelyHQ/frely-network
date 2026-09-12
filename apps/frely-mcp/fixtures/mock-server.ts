@@ -1,7 +1,7 @@
 // Explicit offline development entry. Never imported by index.ts.
 import { StdioServerTransport } from "@modelcontextprotocol/sdk/server/stdio.js";
-import { parseResolvedCapability } from "@frely-network/capability-resolution";
-import successFixture from "../../../packages/protocol/capability-resolution/fixtures/success.json";
+import { parseStaticResolvedCapability } from "@frely-network/capability-resolution";
+import staticSuccess from "../../../packages/protocol/capability-resolution/fixtures/static-success-v2.json";
 import type { FrelyMcpRuntime } from "../runtime.ts";
 import { createFrelyMcpServer } from "../server.ts";
 
@@ -18,7 +18,7 @@ const runtime: FrelyMcpRuntime = {
     if (scenario === "empty" || capabilities.some((capability) => capability !== "vision")) {
       throw new Error("NO_PROVIDER");
     }
-    return parseResolvedCapability(successFixture);
+    return parseStaticResolvedCapability(staticSuccess);
   },
   async useCapability() {
     throw new Error("PAYMENT_DISABLED");

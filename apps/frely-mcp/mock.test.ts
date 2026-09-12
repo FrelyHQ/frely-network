@@ -1,7 +1,7 @@
 import { expect, test } from "bun:test";
 import { Client } from "@modelcontextprotocol/sdk/client/index.js";
 import { StdioClientTransport } from "@modelcontextprotocol/sdk/client/stdio.js";
-import successFixture from "../../packages/protocol/capability-resolution/fixtures/success.json";
+import staticSuccess from "../../packages/protocol/capability-resolution/fixtures/static-success-v2.json";
 
 async function query(capabilities: string[], scenario = "success") {
   const transport = new StdioClientTransport({
@@ -24,10 +24,10 @@ async function query(capabilities: string[], scenario = "success") {
   }
 }
 
-test("fixed mock returns the verified capability with repeatable results", async () => {
+test("fixed mock returns the static allowlist capability with repeatable results", async () => {
   const vision = await query(["vision"]);
   expect(vision.isError).not.toBe(true);
-  expect(vision.structuredContent).toEqual(successFixture);
+  expect(vision.structuredContent).toEqual(staticSuccess);
   expect(await query(["vision"])).toEqual(vision);
 });
 

@@ -5,22 +5,30 @@ import { readBoundedJson } from "@frely-network/hedera-x402";
 type EnvRef = `env:${string}`;
 
 export type FrelyMcpConfig = {
-  schemaVersion: 1;
+  schemaVersion: 2;
   network: {
-    baseUrl: string;
-    apiKeyRef: EnvRef;
-    chainId: 11155111;
-    registry: `0x${string}`;
+    mode: "static-local";
+    baseUrl: "http://127.0.0.1:13600";
+    apiKeyRef: "env:FRELY_NETWORK_API_KEY";
   };
-  relay: { apiKeyRef: EnvRef };
+  approvedProvider: {
+    id: "frely-vision-basic";
+    endpoint: "https://api.frely.cloud/v1/responses";
+  };
+  approvedExecution: {
+    endpoint: "http://127.0.0.1:13600/v1/responses";
+  };
   walletDir: string;
-  approvedProviderId: string;
   paymentConfigPath: string;
   paymentRegistryPath: string;
 };
 
 const envRefPattern = /^env:[A-Z_][A-Z0-9_]*$/;
-const registryPattern = /^0x[0-9a-f]{40}$/i;
+const NETWORK_ORIGIN = "http://127.0.0.1:13600";
+const EXECUTION_ENDPOINT = "http://127.0.0.1:13600/v1/responses";
+const PROVIDER_ID = "frely-vision-basic";
+const PROVIDER_ENDPOINT = "https://api.frely.cloud/v1/responses";
+const NETWORK_KEY_REF = "env:FRELY_NETWORK_API_KEY";
 
 function isRecord(value: unknown): value is Record<string, unknown> {
   return Boolean(value) && typeof value === "object" && !Array.isArray(value);
@@ -34,7 +42,7 @@ function isCanonicalAbsolutePath(value: unknown): value is string {
   return typeof value === "string" && isAbsolute(value) && resolve(value) === value;
 }
 
-function isPublicHttpsOrigin(value: unknown): value is string {
+export function isPublicHttpsUrl(value: unknown): value is string {
   if (typeof value !== "string") return false;
   try {
     const url = new URL(value);
@@ -43,9 +51,6 @@ function isPublicHttpsOrigin(value: unknown): value is string {
       url.protocol === "https:" &&
       !url.username &&
       !url.password &&
-      !url.search &&
-      !url.hash &&
-      url.pathname === "/" &&
       host !== "localhost" &&
       !host.endsWith(".local") &&
       isIP(host.replace(/^\[|\]$/g, "")) === 0
@@ -56,21 +61,33 @@ function isPublicHttpsOrigin(value: unknown): value is string {
 }
 
 function parseConfig(value: unknown): FrelyMcpConfig {
-  if (!isRecord(value) || !hasOnlyFields(value, ["schemaVersion", "network", "relay", "walletDir", "approvedProviderId", "paymentConfigPath", "paymentRegistryPath"])) throw new Error();
-  const { network, relay } = value;
-  if (!isRecord(network) || !hasOnlyFields(network, ["baseUrl", "apiKeyRef", "chainId", "registry"])) throw new Error();
-  if (!isRecord(relay) || !hasOnlyFields(relay, ["apiKeyRef"])) throw new Error();
   if (
-    value.schemaVersion !== 1 ||
-    !isPublicHttpsOrigin(network.baseUrl) ||
-    typeof network.apiKeyRef !== "string" || !envRefPattern.test(network.apiKeyRef) ||
-    network.chainId !== 11155111 ||
-    typeof network.registry !== "string" || !registryPattern.test(network.registry) || /^0x0{40}$/i.test(network.registry) ||
-    typeof relay.apiKeyRef !== "string" || !envRefPattern.test(relay.apiKeyRef) ||
-    !isCanonicalAbsolutePath(value.walletDir) ||
-    typeof value.approvedProviderId !== "string" || !value.approvedProviderId.trim() ||
-    !isCanonicalAbsolutePath(value.paymentConfigPath) ||
-    !isCanonicalAbsolutePath(value.paymentRegistryPath)
+    !isRecord(value)
+    || !hasOnlyFields(value, [
+      "schemaVersion",
+      "network",
+      "approvedProvider",
+      "approvedExecution",
+      "walletDir",
+      "paymentConfigPath",
+      "paymentRegistryPath",
+    ])
+  ) throw new Error();
+  const { network, approvedProvider, approvedExecution } = value;
+  if (!isRecord(network) || !hasOnlyFields(network, ["mode", "baseUrl", "apiKeyRef"])) throw new Error();
+  if (!isRecord(approvedProvider) || !hasOnlyFields(approvedProvider, ["id", "endpoint"])) throw new Error();
+  if (!isRecord(approvedExecution) || !hasOnlyFields(approvedExecution, ["endpoint"])) throw new Error();
+  if (
+    value.schemaVersion !== 2
+    || network.mode !== "static-local"
+    || network.baseUrl !== NETWORK_ORIGIN
+    || network.apiKeyRef !== NETWORK_KEY_REF
+    || approvedProvider.id !== PROVIDER_ID
+    || approvedProvider.endpoint !== PROVIDER_ENDPOINT
+    || approvedExecution.endpoint !== EXECUTION_ENDPOINT
+    || !isCanonicalAbsolutePath(value.walletDir)
+    || !isCanonicalAbsolutePath(value.paymentConfigPath)
+    || !isCanonicalAbsolutePath(value.paymentRegistryPath)
   ) throw new Error();
   return value as FrelyMcpConfig;
 }

@@ -1,7 +1,7 @@
 import {
-  parseResolveCapabilitiesRequest,
-  parseResolvedCapability,
-  type ResolvedCapability,
+  parseStaticResolveCapabilitiesRequest,
+  parseStaticResolvedCapability,
+  type StaticResolvedCapability,
 } from "@frely-network/capability-resolution";
 import { resolveSecret, type FrelyMcpConfig } from "./config.ts";
 
@@ -14,6 +14,7 @@ const knownServerCodes = new Set([
   "NETWORK_DISCOVERY_FAILED",
   "IDENTITY_VERIFICATION_FAILED",
   "CAPABILITY_NOT_SUPPORTED",
+  "STATIC_PROVIDER_NOT_CONFIGURED",
 ]);
 
 async function readBoundedJson(response: Response): Promise<unknown> {
@@ -41,36 +42,56 @@ async function readBoundedJson(response: Response): Promise<unknown> {
   return JSON.parse(new TextDecoder("utf-8", { fatal: true }).decode(bytes));
 }
 
-function sameCapabilities(left: string[], right: string[]): boolean {
-  return left.length === right.length && left.every((value) => right.includes(value));
+function assertStaticAuthorization(
+  resolved: StaticResolvedCapability,
+  config: Pick<FrelyMcpConfig, "approvedProvider" | "approvedExecution">,
+): void {
+  if (
+    resolved.provider.id !== config.approvedProvider.id
+    || resolved.provider.endpoint !== config.approvedProvider.endpoint
+    || resolved.execution.endpoint !== config.approvedExecution.endpoint
+    || resolved.payment.resource !== config.approvedExecution.endpoint
+    || resolved.provider.protocol !== "responses"
+    || resolved.execution.managedBy !== "network"
+    || resolved.resolution.source !== "static_allowlist"
+    || resolved.resolution.identityVerified !== false
+    || resolved.payment.network !== "hedera:testnet"
+    || resolved.requestedCapabilities.length !== 1
+    || resolved.requestedCapabilities[0] !== "vision"
+  ) throw new Error("PROVIDER_NOT_AUTHORIZED");
 }
 
 export class FrelyNetworkClient {
   constructor(
-    private readonly config: FrelyMcpConfig["network"],
+    private readonly config: Pick<FrelyMcpConfig, "network" | "approvedProvider" | "approvedExecution">,
     private readonly fetcher: NetworkFetcher = fetch,
   ) {}
 
-  async resolve(capabilities: string[]): Promise<ResolvedCapability> {
-    const payload = parseResolveCapabilitiesRequest({
-      schemaVersion: 1,
+  async resolve(capabilities: string[]): Promise<StaticResolvedCapability> {
+    if (capabilities.length !== 1 || capabilities[0] !== "vision") {
+      throw new Error("CAPABILITY_NOT_SUPPORTED");
+    }
+    const payload = parseStaticResolveCapabilitiesRequest({
+      schemaVersion: 2,
       capabilities,
       paymentNetwork: "hedera:testnet",
     });
     let response: Response;
     try {
-      response = await this.fetcher(new Request(new URL("/v1/capabilities/resolve", this.config.baseUrl), {
+      response = await this.fetcher(new Request(new URL("/v1/capabilities/resolve", this.config.network.baseUrl), {
         method: "POST",
         redirect: "error",
         signal: AbortSignal.timeout(10_000),
         headers: {
-          authorization: `Bearer ${resolveSecret(this.config.apiKeyRef)}`,
+          authorization: `Bearer ${resolveSecret(this.config.network.apiKeyRef)}`,
           "content-type": "application/json",
         },
         body: JSON.stringify(payload),
       }));
     } catch (error) {
-      if (error instanceof Error && error.message === "CONFIG_INVALID") throw error;
+      if (error instanceof Error && (error.message === "CONFIG_INVALID" || error.message === "CAPABILITY_NOT_SUPPORTED")) {
+        throw error;
+      }
       throw new Error("NETWORK_UNAVAILABLE");
     }
 
@@ -86,18 +107,13 @@ export class FrelyNetworkClient {
       throw new Error("NETWORK_UNAVAILABLE");
     }
 
-    let result: ResolvedCapability;
+    let result: StaticResolvedCapability;
     try {
-      result = parseResolvedCapability(body);
+      result = parseStaticResolvedCapability(body);
     } catch {
       throw new Error("NETWORK_UNAVAILABLE");
     }
-    if (!sameCapabilities(result.requestedCapabilities, capabilities)) throw new Error("CAPABILITY_NOT_SUPPORTED");
-    if (
-      result.identity.chainId !== this.config.chainId ||
-      result.identity.registry.toLowerCase() !== this.config.registry.toLowerCase()
-    ) throw new Error("IDENTITY_VERIFICATION_FAILED");
-    if (result.payment.network !== "hedera:testnet") throw new Error("CAPABILITY_NOT_SUPPORTED");
+    assertStaticAuthorization(result, this.config);
     return result;
   }
 }

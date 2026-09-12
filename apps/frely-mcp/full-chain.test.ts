@@ -55,7 +55,7 @@ async function createFullChainHarness() {
   const installDir = join(root, "installed");
   await mkdir(unpackDir);
   await mkdir(installDir);
-  const networkKey = "FRELY_API_KEY";
+  const networkKey = "FRELY_NETWORK_API_KEY";
   const relayKey = "FRELY_RELAY_API_KEY";
   const policy = {
     ...structuredClone(rawPolicy),
@@ -63,7 +63,7 @@ async function createFullChainHarness() {
     payerAccountId: "0.0.1236",
     signerRef: "file:" + join(walletDir, "agent.key"),
     keyType: "ecdsa" as const,
-    resourceUrl: "https://relay.example/v1/responses",
+    resourceUrl: "http://127.0.0.1:13600/v1/responses",
     journalPath,
     facilitatorUrl: "https://facilitator.example",
     mirrorNodeUrl: "https://mirror.example",
@@ -76,16 +76,20 @@ async function createFullChainHarness() {
     captureSha256: [],
   }));
   await writeFile(configPath, JSON.stringify({
-    schemaVersion: 1,
+    schemaVersion: 2,
     network: {
-      baseUrl: "https://network.example",
+      mode: "static-local",
+      baseUrl: "http://127.0.0.1:13600",
       apiKeyRef: `env:${networkKey}`,
-      chainId: 11155111,
-      registry: "0x1111111111111111111111111111111111111111",
     },
-    relay: { apiKeyRef: `env:${relayKey}` },
+    approvedProvider: {
+      id: "frely-vision-basic",
+      endpoint: "https://api.frely.cloud/v1/responses",
+    },
+    approvedExecution: {
+      endpoint: "http://127.0.0.1:13600/v1/responses",
+    },
     walletDir,
-    approvedProviderId: "provider-1",
     paymentConfigPath,
     paymentRegistryPath,
   }));
@@ -150,7 +154,9 @@ test("packaged MCP pays once through synthetic Network and Relay", async () => {
 
     const first = await h.client.callTool({ name: "use_capability", arguments: visionArguments("mvp-e2e-1") });
     expect(first.structuredContent).toMatchObject({
-      identityVerificationSource: "frely-network",
+      provider: { id: "frely-vision-basic" },
+      resolutionSource: "static_allowlist",
+      identityVerified: false,
       paymentOutcome: { paymentStatus: "settled", serviceStatus: "succeeded" },
       output: { output_text: "synthetic vision result" },
     });

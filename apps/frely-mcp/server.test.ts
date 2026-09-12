@@ -1,7 +1,7 @@
 import { describe, expect, test } from "bun:test";
 import { Client } from "@modelcontextprotocol/sdk/client/index.js";
 import { StdioClientTransport } from "@modelcontextprotocol/sdk/client/stdio.js";
-import successFixture from "../../packages/protocol/capability-resolution/fixtures/success.json";
+import staticSuccess from "../../packages/protocol/capability-resolution/fixtures/static-success-v2.json";
 
 async function withClient(run: (client: Client) => Promise<void>, entry = "fake-server.ts") {
   const transport = new StdioClientTransport({
@@ -23,16 +23,19 @@ async function withClient(run: (client: Client) => Promise<void>, entry = "fake-
 }
 
 describe("Frely stdio MCP", () => {
-  test("handshakes, lists both tools and returns a verified capability", async () => {
+  test("handshakes, lists both tools and returns a static allowlist capability", async () => {
     await withClient(async (client) => {
       const tools = await client.listTools();
       expect(tools.tools.map((tool) => tool.name)).toEqual(["find_capability", "use_capability"]);
-      expect(tools.tools.find((tool) => tool.name === "find_capability")?.annotations).toMatchObject({
+      const findTool = tools.tools.find((tool) => tool.name === "find_capability");
+      expect(findTool?.annotations).toMatchObject({
         readOnlyHint: true,
         destructiveHint: false,
         idempotentHint: true,
         openWorldHint: true,
       });
+      expect(findTool?.description).toContain("static allowlist");
+      expect(findTool?.description?.toLowerCase()).not.toContain("verified provider");
       expect(tools.tools.find((tool) => tool.name === "use_capability")?.annotations).toMatchObject({
         readOnlyHint: false,
         destructiveHint: true,
@@ -41,7 +44,7 @@ describe("Frely stdio MCP", () => {
       });
       const result = await client.callTool({ name: "find_capability", arguments: { capabilities: ["vision"] } });
       expect(result.isError).not.toBe(true);
-      expect(result.structuredContent).toEqual(successFixture);
+      expect(result.structuredContent).toEqual(staticSuccess);
       expect(result.content).toEqual([{ type: "text", text: JSON.stringify(result.structuredContent) }]);
     });
   });
@@ -80,7 +83,7 @@ describe("Frely stdio MCP", () => {
   });
 });
 
-test("use_capability is callable over stdio and rejects unverified providers", async () => {
+test("use_capability is callable over stdio and returns static authorization", async () => {
   await withClient(async (client) => {
     expect((await client.listTools()).tools.map((tool) => tool.name)).toEqual(["find_capability", "use_capability"]);
     const args = {
@@ -92,10 +95,13 @@ test("use_capability is callable over stdio and rejects unverified providers", a
     const result = await client.callTool({ name: "use_capability", arguments: args });
     expect(result.isError).not.toBe(true);
     expect(result.structuredContent).toEqual({
-      provider: { id: "provider-1", ensName: "vision.example.eth" },
-      identityVerificationSource: "frely-network",
+      provider: { id: "frely-vision-basic" },
+      resolutionSource: "static_allowlist",
+      identityVerified: false,
       output: { output_text: "synthetic result" },
     });
+    expect(JSON.stringify(result.structuredContent)).not.toContain("ensName");
+    expect(JSON.stringify(result.structuredContent)).not.toContain("identityVerificationSource");
     expect(result.content).toEqual([{ type: "text", text: JSON.stringify(result.structuredContent) }]);
     const invalid = await client.callTool({ name: "use_capability", arguments: { ...args, capabilities: ["invalid"] } });
     expect(invalid.isError).toBe(true);

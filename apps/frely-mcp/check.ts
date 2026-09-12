@@ -1,8 +1,10 @@
 import { readReadyWalletIdentity, type Identity } from "@frely-network/agent-wallet";
-import { parseResolvedCapability, type ResolvedCapability } from "@frely-network/capability-resolution";
+import { parseStaticResolvedCapability, type StaticResolvedCapability } from "@frely-network/capability-resolution";
 import { loadApprovedPaymentConfig, type Policy } from "@frely-network/hedera-x402";
 import { loadFrelyMcpConfig, resolveSecret, type FrelyMcpConfig } from "./config.ts";
 import { FrelyNetworkClient } from "./network-client.ts";
+import { authorizeProvider } from "./runtime.ts";
+
 
 export type CheckResult = {
   status: "ready" | "blocked";
@@ -28,6 +30,7 @@ const known = new Set([
   "CAPABILITY_NOT_SUPPORTED",
   "UNAUTHORIZED",
   "INVALID_REQUEST",
+  "STATIC_PROVIDER_NOT_CONFIGURED",
 ]);
 
 function blocked(providerId: string, paymentEnabled: boolean, reason: string): CheckResult {
@@ -45,33 +48,27 @@ function assertWalletMatchesPolicy(identity: Identity, policy: Policy): void {
   }
 }
 
-function assertProviderMatches(config: FrelyMcpConfig, policy: Policy, resolved: ResolvedCapability): void {
-  if (resolved.provider.id !== config.approvedProviderId || resolved.provider.endpoint !== policy.resourceUrl) {
-    throw new Error("PROVIDER_NOT_AUTHORIZED");
-  }
+async function resolveOnce(config: FrelyMcpConfig, ports?: CheckPorts): Promise<StaticResolvedCapability> {
+  if (ports?.networkResolve) return parseStaticResolvedCapability(await ports.networkResolve(["vision"]));
+  return new FrelyNetworkClient(config).resolve(["vision"]);
 }
 
-async function resolveOnce(config: FrelyMcpConfig, ports?: CheckPorts): Promise<ResolvedCapability> {
-  if (ports?.networkResolve) return parseResolvedCapability(await ports.networkResolve(["vision"]));
-  return new FrelyNetworkClient(config.network).resolve(["vision"]);
-}
-
-// 只读：不打开 journal、不调用 Relay、不签名；disabled profile 不得改成 enabled。
+// 只读：读取 Network secret、Ready wallet、付款 policy 并本地 resolve。
+// 不打开 journal、不调用 execution endpoint 或 Relay、不签名。
 export async function checkFrelyMcp(configPath: string, ports?: CheckPorts): Promise<CheckResult> {
   const config = await loadFrelyMcpConfig(configPath);
   let paymentEnabled = false;
   try {
     resolveSecret(config.network.apiKeyRef);
-    resolveSecret(config.relay.apiKeyRef);
     const identity = await readReadyWalletIdentity(config.walletDir);
     const policy = await loadApprovedPaymentConfig(config.paymentConfigPath, config.paymentRegistryPath);
     paymentEnabled = policy.enabled;
     assertWalletMatchesPolicy(identity, policy);
     const resolved = await resolveOnce(config, ports);
-    assertProviderMatches(config, policy, resolved);
+    authorizeProvider(resolved, config, policy);
     return { status: "ready", paymentEnabled: policy.enabled, providerId: resolved.provider.id, reason: null };
   } catch (error) {
     const reason = error instanceof Error && known.has(error.message) ? error.message : "EXECUTION_FAILED";
-    return blocked(config.approvedProviderId, paymentEnabled, reason);
+    return blocked(config.approvedProvider.id, paymentEnabled, reason);
   }
 }

@@ -14,16 +14,20 @@ async function writeConfigFixture(
 ): Promise<ConfigFixture> {
   const directory = await mkdtemp(join(tmpdir(), "frely-mcp-config-"));
   const base = {
-    schemaVersion: 1,
+    schemaVersion: 2,
     network: {
-      baseUrl: "https://network.example",
-      apiKeyRef: "env:FRELY_API_KEY",
-      chainId: 11155111,
-      registry: "0x1111111111111111111111111111111111111111",
+      mode: "static-local",
+      baseUrl: "http://127.0.0.1:13600",
+      apiKeyRef: "env:FRELY_NETWORK_API_KEY",
     },
-    relay: { apiKeyRef: "env:FRELY_RELAY_API_KEY" },
+    approvedProvider: {
+      id: "frely-vision-basic",
+      endpoint: "https://api.frely.cloud/v1/responses",
+    },
+    approvedExecution: {
+      endpoint: "http://127.0.0.1:13600/v1/responses",
+    },
     walletDir: resolve(directory, "wallet"),
-    approvedProviderId: "provider-1",
     paymentConfigPath: resolve(directory, "payment-config.json"),
     paymentRegistryPath: resolve(directory, "payment-registry.json"),
   };
@@ -35,18 +39,40 @@ async function writeConfigFixture(
 test("loads one absolute local authorization without secrets", async () => {
   const fixture = await writeConfigFixture();
   const config = await loadFrelyMcpConfig(fixture.configPath);
-  expect(config.approvedProviderId).toBe("provider-1");
-  expect(config.network.apiKeyRef).toBe("env:FRELY_API_KEY");
+  expect(config.schemaVersion).toBe(2);
+  expect(config.network).toEqual({
+    mode: "static-local",
+    baseUrl: "http://127.0.0.1:13600",
+    apiKeyRef: "env:FRELY_NETWORK_API_KEY",
+  });
+  expect(config.approvedProvider).toEqual({
+    id: "frely-vision-basic",
+    endpoint: "https://api.frely.cloud/v1/responses",
+  });
+  expect(config.approvedExecution).toEqual({
+    endpoint: "http://127.0.0.1:13600/v1/responses",
+  });
   expect(JSON.stringify(config)).not.toContain("network-secret");
   await fixture.cleanup();
 });
 
-test("rejects embedded secrets, relative paths and extra fields", async () => {
-  for (const mutate of [
-    (base: Record<string, unknown>) => ({ ...base, network: { ...(base.network as object), apiKeyRef: "network-secret" } }),
-    (base: Record<string, unknown>) => ({ ...base, walletDir: "relative/wallet" }),
-    (base: Record<string, unknown>) => ({ ...base, unexpected: true }),
-  ]) {
+test("rejects localhost, other ports, https Network, extra fields, old fields, secrets, paths and drift", async () => {
+  const mutators: Array<(base: Record<string, unknown>) => Record<string, unknown>> = [
+    (base) => ({ ...base, network: { ...(base.network as object), baseUrl: "http://localhost:13600" } }),
+    (base) => ({ ...base, network: { ...(base.network as object), baseUrl: "http://127.0.0.1:13601" } }),
+    (base) => ({ ...base, network: { ...(base.network as object), baseUrl: "https://127.0.0.1:13600" } }),
+    (base) => ({ ...base, unexpected: true }),
+    (base) => ({ ...base, network: { ...(base.network as object), chainId: 11155111 } }),
+    (base) => ({ ...base, network: { ...(base.network as object), registry: "0x1111111111111111111111111111111111111111" } }),
+    (base) => ({ ...base, relay: { apiKeyRef: "env:FRELY_RELAY_API_KEY" } }),
+    (base) => ({ ...base, network: { ...(base.network as object), apiKeyRef: "network-secret" } }),
+    (base) => ({ ...base, network: { ...(base.network as object), apiKeyRef: "env:frely_key" } }),
+    (base) => ({ ...base, walletDir: "relative/wallet" }),
+    (base) => ({ ...base, approvedProvider: { id: "other", endpoint: "https://api.frely.cloud/v1/responses" } }),
+    (base) => ({ ...base, approvedProvider: { id: "frely-vision-basic", endpoint: "https://other.example/v1/responses" } }),
+    (base) => ({ ...base, approvedExecution: { endpoint: "http://127.0.0.1:13601/v1/responses" } }),
+  ];
+  for (const mutate of mutators) {
     const fixture = await writeConfigFixture(mutate);
     await expect(loadFrelyMcpConfig(fixture.configPath)).rejects.toThrow("CONFIG_INVALID");
     await fixture.cleanup();

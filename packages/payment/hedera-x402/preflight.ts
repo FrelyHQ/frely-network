@@ -80,7 +80,7 @@ export function validPolicy(value: unknown): value is Policy {
       (item) => typeof item === "string" && ENTITY_ID.test(item),
     ) ||
     !secureUrl(value.facilitatorUrl) ||
-    !secureUrl(value.resourceUrl) ||
+    !(value.resourceUrl === "http://127.0.0.1:13600/v1/responses" || secureUrl(value.resourceUrl)) ||
     !secureUrl(value.mirrorNodeUrl) ||
     typeof value.journalPath !== "string" ||
     value.journalPath.length === 0 ||
