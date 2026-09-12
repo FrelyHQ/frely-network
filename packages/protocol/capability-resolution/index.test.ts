@@ -1,8 +1,11 @@
 import { expect, test } from "bun:test";
 import success from "./fixtures/success.json";
+import staticSuccess from "./fixtures/static-success-v2.json";
 import {
   parseResolveCapabilitiesRequest,
   parseResolvedCapability,
+  parseStaticResolveCapabilitiesRequest,
+  parseStaticResolvedCapability,
 } from "./index.ts";
 
 test("accepts the frozen resolve v1 pair", () => {
@@ -99,5 +102,30 @@ test("rejects local endpoints with FQDN trailing dots", () => {
         provider: { ...success.provider, endpoint },
       }),
     ).toThrow("INVALID_RESPONSE");
+  }
+});
+
+test("accepts the static resolve v2 pair without an identity claim", () => {
+  expect(parseStaticResolveCapabilitiesRequest({
+    schemaVersion: 2,
+    capabilities: ["vision"],
+    paymentNetwork: "hedera:testnet",
+  }).capabilities).toEqual(["vision"]);
+  expect(parseStaticResolvedCapability(staticSuccess).resolution).toEqual({
+    source: "static_allowlist",
+    identityVerified: false,
+  });
+});
+
+test("rejects identity claims and endpoint drift in static v2", () => {
+  for (const change of [
+    { resolution: { source: "static_allowlist", identityVerified: true } },
+    { provider: { ...staticSuccess.provider, id: "other" } },
+    { provider: { ...staticSuccess.provider, endpoint: "https://other.example/v1/responses" } },
+    { execution: { ...staticSuccess.execution, endpoint: "http://127.0.0.1:13601/v1/responses" } },
+    { payment: { ...staticSuccess.payment, network: "hedera:mainnet" } },
+  ]) {
+    expect(() => parseStaticResolvedCapability({ ...staticSuccess, ...change }))
+      .toThrow("INVALID_RESPONSE");
   }
 });

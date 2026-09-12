@@ -27,13 +27,43 @@ export type ResolvedCapability = {
   };
 };
 
+export type StaticResolveCapabilitiesRequest = {
+  schemaVersion: 2;
+  capabilities: ["vision"];
+  paymentNetwork: "hedera:testnet";
+};
+
+export type StaticResolvedCapability = {
+  schemaVersion: 2;
+  requestedCapabilities: ["vision"];
+  provider: {
+    id: "frely-vision-basic";
+    endpoint: "https://api.frely.cloud/v1/responses";
+    protocol: "responses";
+  };
+  execution: {
+    endpoint: "http://127.0.0.1:13600/v1/responses";
+    managedBy: "network";
+  };
+  resolution: {
+    source: "static_allowlist";
+    identityVerified: false;
+  };
+  payment: {
+    supportsX402: true;
+    network: "hedera:testnet";
+    resource: "http://127.0.0.1:13600/v1/responses";
+  };
+};
+
 export type CapabilityResolutionErrorCode =
   | "INVALID_REQUEST"
   | "UNAUTHORIZED"
   | "NO_PROVIDER"
   | "NETWORK_DISCOVERY_FAILED"
   | "IDENTITY_VERIFICATION_FAILED"
-  | "CAPABILITY_NOT_SUPPORTED";
+  | "CAPABILITY_NOT_SUPPORTED"
+  | "STATIC_PROVIDER_NOT_CONFIGURED";
 
 const capabilities = z
   .array(z.string().trim().min(1))
@@ -114,4 +144,61 @@ export function parseResolvedCapability(value: unknown): ResolvedCapability {
   const parsed = responseSchema.safeParse(value);
   if (!parsed.success) throw new Error("INVALID_RESPONSE");
   return parsed.data as ResolvedCapability;
+}
+
+const staticRequestSchema = z
+  .object({
+    schemaVersion: z.literal(2),
+    capabilities: z.tuple([z.literal("vision")]),
+    paymentNetwork: z.literal("hedera:testnet"),
+  })
+  .strict();
+
+const staticResponseSchema = z
+  .object({
+    schemaVersion: z.literal(2),
+    requestedCapabilities: z.tuple([z.literal("vision")]),
+    provider: z
+      .object({
+        id: z.literal("frely-vision-basic"),
+        endpoint: z.literal("https://api.frely.cloud/v1/responses"),
+        protocol: z.literal("responses"),
+      })
+      .strict(),
+    execution: z
+      .object({
+        endpoint: z.literal("http://127.0.0.1:13600/v1/responses"),
+        managedBy: z.literal("network"),
+      })
+      .strict(),
+    resolution: z
+      .object({
+        source: z.literal("static_allowlist"),
+        identityVerified: z.literal(false),
+      })
+      .strict(),
+    payment: z
+      .object({
+        supportsX402: z.literal(true),
+        network: z.literal("hedera:testnet"),
+        resource: z.literal("http://127.0.0.1:13600/v1/responses"),
+      })
+      .strict(),
+  })
+  .strict();
+
+export function parseStaticResolveCapabilitiesRequest(
+  value: unknown,
+): StaticResolveCapabilitiesRequest {
+  const parsed = staticRequestSchema.safeParse(value);
+  if (!parsed.success) throw new Error("INVALID_REQUEST");
+  return parsed.data;
+}
+
+export function parseStaticResolvedCapability(
+  value: unknown,
+): StaticResolvedCapability {
+  const parsed = staticResponseSchema.safeParse(value);
+  if (!parsed.success) throw new Error("INVALID_RESPONSE");
+  return parsed.data;
 }

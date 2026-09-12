@@ -14,6 +14,7 @@ export interface ResolvedProvider {
   endpoint: string;
   protocol: "responses" | "mcp" | "http";
   verified: boolean;
+  authorizationSource?: "identity_verified" | "static_allowlist";
 }
 
 /** A capability request accepted by the Broker MCP layer. */

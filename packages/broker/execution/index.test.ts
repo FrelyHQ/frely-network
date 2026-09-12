@@ -35,3 +35,15 @@ test("an unenforceable maxAmount stops instead of silently bypassing budget", as
   await expect(execute(provider, { ...request, maxAmount: "1" })).rejects.toThrow("BUDGET_CHECK_UNAVAILABLE");
   expect(called).toBe(false);
 });
+
+test("accepts only an explicitly static-authorized provider when verified is false", async () => {
+  const execute = createFrelyExecutor(config, async () =>
+    Response.json({ output_text: "static-ok" }));
+  await expect(execute({
+    ...provider,
+    verified: false,
+    authorizationSource: "static_allowlist",
+  }, request)).resolves.toBeDefined();
+  await expect(execute({ ...provider, verified: false }, request))
+    .rejects.toThrow("IDENTITY_VERIFICATION_FAILED");
+});

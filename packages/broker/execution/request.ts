@@ -5,7 +5,12 @@ export type ExecutionConfig = { mode?: string; callerKey?: string; origin?: stri
 
 export function prepareFrelyRequest(config: ExecutionConfig, provider: ResolvedProvider, request: CapabilityRequest): PreparedRequest {
   if (config.mode !== "integration" || !config.callerKey || !config.origin) throw new Error("EXECUTION_CONFIG_INVALID");
-  if (provider.verified !== true) throw new Error("IDENTITY_VERIFICATION_FAILED");
+  const identityAuthorized = provider.verified === true;
+  const staticAuthorized = provider.verified === false
+    && provider.authorizationSource === "static_allowlist";
+  if (!identityAuthorized && !staticAuthorized) {
+    throw new Error("IDENTITY_VERIFICATION_FAILED");
+  }
   if (provider.protocol !== "responses") throw new Error("PROTOCOL_NOT_SUPPORTED");
   let endpoint: URL;
   try { endpoint = new URL(provider.endpoint); } catch { throw new Error("ENDPOINT_NOT_HTTPS"); }
