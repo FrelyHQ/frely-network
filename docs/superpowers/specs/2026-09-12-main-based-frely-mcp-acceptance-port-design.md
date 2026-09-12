@@ -14,7 +14,7 @@ Source: 用户要求从最新 main 新建整合分支，只移植 2026-09-12 下
 
 本规格定义一次“能力移植”，不是 Git 历史合并：以 `origin/main@259c79f1e854382d43e64e4e0e3d963d4d955de7` 为目标基线，参考 `origin/integration/frely-mcp-mvp-acceptance@a854f545afabaa5ea56c5b3925ca231d8d7c5018` 的最终树，将本地 `frely-mcp → Network → x402 → Relay` 验收能力按当前 main 的架构重新实现。
 
-本轮文档维护只新增本规格和对应实施计划，不改业务代码、不改既有文档生命周期、不提交或推送、不执行真实付款。维护顺序为：核验分支证据 → 固定方案与边界 → 建立需求/计划映射 → 检查 profile、链接、ID、状态与占位符。仓库未提供可调用的 `project-governance` 工具，因此按仓库既有 `governed-document-v1` 结构编写并执行可用的静态校验。
+本规格先定义 main-native 移植，后续以追加条款记录获准的验收阶段。2026-09-12 23:30 Asia/Shanghai，用户已允许在新分支上再执行一次真实付款，并要求同步更新计划与规格；本次授权的精确范围由 FMAP-015 固定。它不授权 merge、push、部署或第二次付款。仓库未提供可调用的 `project-governance` 工具，因此继续按仓库既有 `governed-document-v1` 结构维护并执行可用的静态校验。
 
 ## FMAP-002 — 已核验的源与目标基线
 
@@ -252,9 +252,9 @@ Source: 下午配置与钱包实现的安全审阅
 - Relay endpoint 必须是无 credentials/query/hash 的公网 HTTPS，path 精确为 `/v1/responses`。
 - secret 配置只允许 `env:NAME` 或本地受限文件引用；解析后的值不写入日志、响应、journal 或打包产物。
 - 钱包初始化只创建/读取本地 key material；它不证明 Hedera 账户已创建、激活、关联资产或有余额。
-- real payment 默认关闭。金额没有默认值；每次 live 验收必须由用户针对目标 SHA、金额和一次逻辑请求重新明确授权。
+- real payment 默认关闭。金额没有默认值；每次 live 验收必须由用户针对目标分支的一次逻辑请求和最高金额明确授权，并在付款前把授权绑定到实际执行 SHA 与稳定 request ID。
 
-来源分支曾使用的 1 HBAR 授权和交易证据只属于 `a854f54` 的历史验收，不能用于新分支。实现、离线 E2E、Relay canary 或钱包余额均不能替代新授权。
+来源分支曾使用的 1 HBAR 授权和交易证据只属于 `a854f54` 的历史验收，不能用于新分支。实现、离线 E2E、Relay canary 或钱包余额均不能替代新授权。本轮新授权见 FMAP-015；旧交易只能作为对照，不能作为本轮 G6 证据。
 
 ## FMAP-011 — 对外结果与错误映射
 
@@ -309,7 +309,7 @@ Source: 用户要求降低合并风险；项目证据边界
 | G5 安全与回归 | secret scan、loopback 限制、故障测试、main 全量 check 通过 | 生产就绪 |
 | G6 live 付款 | 新授权后，目标 SHA 上结算、业务结果、重复与恢复分别有证据 | 未授权时不得运行 |
 
-G1–G5 是实施计划的完成边界。G6 是独立验收动作，不属于默认执行；没有 G6 时只能报告“实现与无费用验收通过”，不能报告“真实 x402 支付已验证”。G3 也不等于 G6。
+G1–G5 是移植实现的完成边界。G6 是独立验收动作，只有 FMAP-015 这类新授权才允许执行；没有 G6 时只能报告“实现与无费用验收通过”，不能报告“真实 x402 支付已验证”。G3 也不等于 G6。
 
 必须保留三份独立证据：链上 settlement、Relay 业务结果、同 request ID 重复/恢复行为。任何一份不能由另一份推断。
 
@@ -356,5 +356,30 @@ Source: FMAP-005 至 FMAP-013
 | FMAP-009、FMAP-011 | FPLAN-004、FPLAN-005、FPLAN-007 |
 | FMAP-010 | FPLAN-004、FPLAN-006、FPLAN-007 |
 | FMAP-012 至 FMAP-014 | FPLAN-008、FPLAN-009 |
+| FMAP-015 | FPLAN-011 |
 
-本规格由用户审阅后才可从 Draft 提升。写完规格或计划不表示实现完成；G0–G5 通过也不表示 G6 已授权或已通过。
+写完规格或计划不表示实现完成；用户对 FMAP-015 的一次性授权也不表示 G6 已通过。只有新分支目标实现、链上 settlement、Relay 业务结果和同 request ID 重放证据均被重新验证，才能报告本轮真实 x402 验收完成。
+
+## FMAP-015 — 新分支一次性真实付款验收追加条款
+
+Status: Draft
+Review level: L3
+Source: 用户于 2026-09-12 明确允许“新分支再执行一次”，并要求更新计划和规格
+
+本次授权只覆盖 `design/frely-mcp-acceptance-main-port` 的下一次 G6 逻辑请求，最高 `100000000` tinybar（1 HBAR，Hedera Testnet）。固定业务路径为本地 `frely-mcp → 127.0.0.1 static-network → https://api.frely.cloud/v1/responses`，Relay 模型为 `gpt-5.6-luna`；付款账户、收款账户和 fee payer 使用操作者本地受限运行配置，不写入跟踪文件。授权不覆盖旧 integration/B1 分支，不继承 `a854f54` 的交易，也不允许第二个 request ID、超额、mainnet、push、部署或合并。
+
+付款前必须：
+
+- 完成 live runner 的测试与实现并通过目标测试；把实际执行代码提交固定为 target SHA；
+- 在 `.local/` 生成单次授权记录，包含该 target SHA、`100000000`、一个稳定 request ID、授权时间和短期有效期；
+- 只读核验付款账户公钥与本地 signer 一致，并确认 Testnet HBAR 余额足以覆盖 1 HBAR 与手续费；
+- 使用已通过直接 canary 的 `gpt-5.6-luna` 请求形状；2026-09-12 的 canary 为 HTTP 200、`completed`，Relay request ID 为 `req_083ee16e60203bd8aa8d9e1e`，输出包含 `FRELY X402 OK`，且没有支付请求/响应头。该 canary 关闭 G3，但不证明 G6。
+
+本次只允许首次 `use_capability` 触发一个可结算请求。首次结果若明确 settled 且业务成功，runner 必须用完全相同的 request ID 和请求体重放一次；重放只能读取 payer journal 缓存，不得再次签名、结算或调用 Relay。最终 G6 必须分别记录：
+
+1. 新交易 ID 与 Mirror Node `SUCCESS`；
+2. payer/payTo 的精确 1 HBAR 净变化（手续费单独识别）；
+3. Relay 业务响应包含精确验收文本 `FRELY X402 OK`；
+4. 同 request ID 重放返回同一交易与同一业务结果，journal 仍只有一条逻辑记录，链上无第二笔授权金额转账。
+
+若首次有 proof 的请求超时、断线或缺少可信 settlement header，状态必须保持 `unknown`。此时停止业务重放，只按 journal 中的原交易 ID 查询 Mirror；不得重新签名、重发付款请求或生成新 request ID。无论成功、失败还是 unknown，本授权在首次有 proof 的 dispatch 后即消耗。
