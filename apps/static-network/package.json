@@ -1,0 +1,11 @@
+{
+  "name": "@frely-network/static-network",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "dependencies": {
+    "@frely-network/capability-resolution": "workspace:*",
+    "@frely-network/hedera-x402": "workspace:*",
+    "@frely-network/x402-gateway": "workspace:*"
+  }
+}

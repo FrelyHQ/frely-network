@@ -31,6 +31,15 @@
         "viem": "^2.21.0",
       },
     },
+    "apps/static-network": {
+      "name": "@frely-network/static-network",
+      "version": "0.0.0",
+      "dependencies": {
+        "@frely-network/capability-resolution": "workspace:*",
+        "@frely-network/hedera-x402": "workspace:*",
+        "@frely-network/x402-gateway": "workspace:*",
+      },
+    },
     "examples/vision-basic": {
       "name": "@frely-network/vision-basic",
       "version": "0.0.0",
@@ -205,6 +214,8 @@
     "@frely-network/register-provider": ["@frely-network/register-provider@workspace:scripts/register-provider"],
 
     "@frely-network/shared-types": ["@frely-network/shared-types@workspace:packages/protocol/shared-types"],
+
+    "@frely-network/static-network": ["@frely-network/static-network@workspace:apps/static-network"],
 
     "@frely-network/the-graph": ["@frely-network/the-graph@workspace:packages/discovery/the-graph"],
 
