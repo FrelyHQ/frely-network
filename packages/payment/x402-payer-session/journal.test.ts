@@ -1,5 +1,5 @@
 import { expect, test } from "bun:test";
-import { stat } from "node:fs/promises";
+import { mkdir, stat } from "node:fs/promises";
 import { join } from "node:path";
 import { PayerJournal } from "./journal.ts";
 import { examplePolicy, withTempDir } from "./test-support.ts";
@@ -95,4 +95,13 @@ test("does not persist private keys, payment headers, or API keys", async () => 
 
 test("fails closed when the journal path is invalid", () => {
   expect(() => new PayerJournal("bad\0path")).toThrow("JOURNAL_UNAVAILABLE");
+});
+
+test("refuses an existing broad parent directory without changing its permissions", async () => {
+  await withTempDir(async (directory) => {
+    const shared = join(directory, "shared");
+    await mkdir(shared, { mode: 0o755 });
+    expect(() => new PayerJournal(join(shared, "journal.sqlite"))).toThrow("JOURNAL_UNAVAILABLE");
+    expect((await stat(shared)).mode & 0o777).toBe(0o755);
+  });
 });

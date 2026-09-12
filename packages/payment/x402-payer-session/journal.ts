@@ -1,5 +1,5 @@
 import { Database } from "bun:sqlite";
-import { chmodSync, existsSync, mkdirSync } from "node:fs";
+import { chmodSync, existsSync, lstatSync, mkdirSync } from "node:fs";
 import { dirname } from "node:path";
 import type {
   JournalPhase,
@@ -64,12 +64,33 @@ function assertSafePath(path: string): void {
   if (!path || path.includes("\0")) throw failure("JOURNAL_UNAVAILABLE");
 }
 
-function applyPermissions(path: string): void {
+function currentUid(): number {
+  if (typeof process.getuid !== "function") throw failure("JOURNAL_UNAVAILABLE");
+  return process.getuid();
+}
+
+function prepareDirectory(path: string): void {
   if (path === ":memory:") return;
-  mkdirSync(dirname(path), { recursive: true, mode: 0o700 });
-  chmodSync(dirname(path), 0o700);
+  const directory = dirname(path);
+  mkdirSync(directory, { recursive: true, mode: 0o700 });
+  const info = lstatSync(directory);
+  if (
+    info.isSymbolicLink() ||
+    !info.isDirectory() ||
+    info.uid !== currentUid() ||
+    (info.mode & 0o7777) !== 0o700
+  ) throw failure("JOURNAL_UNAVAILABLE");
+}
+
+function applyFilePermissions(path: string): void {
+  if (path === ":memory:") return;
   for (const file of [path, `${path}-wal`, `${path}-shm`]) {
-    if (existsSync(file)) chmodSync(file, 0o600);
+    if (!existsSync(file)) continue;
+    const info = lstatSync(file);
+    if (info.isSymbolicLink() || !info.isFile() || info.uid !== currentUid()) {
+      throw failure("JOURNAL_UNAVAILABLE");
+    }
+    chmodSync(file, 0o600);
   }
 }
 
@@ -98,7 +119,7 @@ export class PayerJournal {
   ) {
     assertSafePath(path);
     try {
-      applyPermissions(path);
+      prepareDirectory(path);
       this.db = new Database(path, { create: true });
       this.db.exec("PRAGMA busy_timeout=1000; PRAGMA journal_mode=WAL; PRAGMA synchronous=FULL;");
       this.db.exec(`
@@ -117,7 +138,7 @@ export class PayerJournal {
           updated_at TEXT NOT NULL
         );
       `);
-      applyPermissions(path);
+      applyFilePermissions(path);
     } catch {
       throw failure("JOURNAL_UNAVAILABLE");
     }
@@ -145,7 +166,7 @@ export class PayerJournal {
             ) VALUES (?, ?, 'new', ?, 'not_paid', 'not_started', ?, ?)`,
           )
           .run(requestId, fingerprint, policyJson, stamp, stamp);
-        applyPermissions(this.path);
+        applyFilePermissions(this.path);
         return { fresh: true, record: this.get(requestId)! };
       }).immediate();
     } catch (error) {
@@ -218,7 +239,7 @@ export class PayerJournal {
             next.updatedAt,
             requestId,
           );
-        applyPermissions(this.path);
+        applyFilePermissions(this.path);
         return this.get(requestId)!;
       }).immediate();
     } catch (error) {

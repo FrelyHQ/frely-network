@@ -102,3 +102,39 @@ test("success without a trusted settlement stays unknown", async () => {
     expect(result.retryAction).toBe("query_original");
   });
 });
+
+test("rejects a concurrent duplicate before a second challenge, signature, or paid dispatch", async () => {
+  await withTempDir(async (directory) => {
+    const base = recordingPorts();
+    let releaseFirst!: () => void;
+    let markFirstStarted!: () => void;
+    const firstStarted = new Promise<void>((resolve) => { markFirstStarted = resolve; });
+    const release = new Promise<void>((resolve) => { releaseFirst = resolve; });
+    let unpaidCalls = 0;
+    const ports = {
+      ...base,
+      async fetch(request: Request) {
+        if (!request.headers.has("PAYMENT-SIGNATURE") && ++unpaidCalls === 1) {
+          markFirstStarted();
+          await release;
+        }
+        return base.fetch(request);
+      },
+    };
+    const session = new PayerSession(
+      examplePolicy({ journalPath: join(directory, "journal.sqlite") }),
+      ports,
+    );
+    const first = session.execute(executeInput());
+    await firstStarted;
+    try {
+      await expect(session.execute(executeInput())).rejects.toThrow("REQUEST_IN_PROGRESS");
+    } finally {
+      releaseFirst();
+      await first;
+    }
+    expect(unpaidCalls).toBe(1);
+    expect(base.calls.sign).toBe(1);
+    expect(base.calls.paidFetch).toBe(1);
+  });
+});

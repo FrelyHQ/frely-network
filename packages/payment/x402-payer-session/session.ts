@@ -143,13 +143,18 @@ export class PayerSession {
           return cachedResult(input.requestId, admitted.record);
         }
         if (
+          admitted.record.phase === "new" ||
+          admitted.record.phase === "challenged" ||
+          admitted.record.phase === "signed"
+        ) {
+          throw new Error("REQUEST_IN_PROGRESS");
+        }
+        if (
           admitted.record.phase === "paid_dispatch_started" ||
           admitted.record.phase === "unknown" ||
           admitted.record.phase === "settled" ||
-          admitted.record.phase === "service_failed" ||
-          admitted.record.phase === "signed"
+          admitted.record.phase === "service_failed"
         ) {
-          if (admitted.record.phase === "signed") throw new Error("REQUEST_IN_PROGRESS");
           return cachedResult(input.requestId, {
             ...admitted.record,
             paymentStatus: admitted.record.paymentStatus === "settled" ? "settled" : "unknown",
