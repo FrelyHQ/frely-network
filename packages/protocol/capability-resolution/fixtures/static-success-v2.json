@@ -1,0 +1,22 @@
+{
+  "schemaVersion": 2,
+  "requestedCapabilities": ["vision"],
+  "provider": {
+    "id": "example-vision",
+    "endpoint": "https://relay.example.com/v1/responses",
+    "protocol": "responses"
+  },
+  "execution": {
+    "endpoint": "http://127.0.0.1:18765/v1/responses",
+    "managedBy": "network"
+  },
+  "resolution": {
+    "source": "static_allowlist",
+    "identityVerified": false
+  },
+  "payment": {
+    "supportsX402": true,
+    "network": "hedera:testnet",
+    "resource": "http://127.0.0.1:18765/v1/responses"
+  }
+}

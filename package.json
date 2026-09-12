@@ -12,6 +12,7 @@
     "packages/discovery/*",
     "packages/identity/*",
     "packages/payment/*",
+    "packages/wallet/*",
     "packages/broker",
     "packages/gateway/*",
     "apps/broker-mcp",

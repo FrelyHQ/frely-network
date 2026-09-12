@@ -1,0 +1,11 @@
+{
+  "name": "@frely-network/capability-resolution",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "exports": "./index.ts",
+  "types": "./index.ts",
+  "dependencies": {
+    "zod": "4.5.4"
+  }
+}
