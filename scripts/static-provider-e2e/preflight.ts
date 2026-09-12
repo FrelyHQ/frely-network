@@ -7,6 +7,7 @@ import { StdioClientTransport } from "@modelcontextprotocol/sdk/client/stdio.js"
 import { initAgentWallet } from "@frely-network/agent-wallet";
 import { recoverPayerRequest, type PayerPolicy } from "@frely-network/x402-payer-session";
 import { buildFrelyMcpPackage } from "../../apps/frely-mcp/build-package.ts";
+import { SYNTHETIC } from "./fixtures/synthetic.ts";
 
 type Child = ReturnType<typeof Bun.spawn>;
 type Counters = { challenges: number; proofs: number; verifies: number; settlements: number; externalPayment: number; relay: number };
@@ -48,15 +49,15 @@ export async function runSyntheticPreflight(): Promise<SyntheticPreflightResult>
     const attemptStorePath = join(directory, "network-attempts");
     const staticConfig = {
       listen: { hostname: "127.0.0.1", port: networkPort },
-      provider: { id: "synthetic-vision", relayUrl: "https://relay.example.com/v1/responses" },
+      provider: { id: SYNTHETIC.providerId, relayUrl: "https://relay.example.com/v1/responses" },
       auth: { apiKeyRef: "env:FRELY_NETWORK_API_KEY", relayKeyRef: "env:FRELY_RELAY_API_KEY" },
       payment: {
         network: "hedera:testnet",
         resourceUrl: `${networkUrl}/v1/responses`,
-        asset: "0.0.0",
-        amountAtomic: "1",
-        payTo: "0.0.222",
-        feePayer: "0.0.333",
+        asset: SYNTHETIC.asset,
+        amountAtomic: SYNTHETIC.amountAtomic,
+        payTo: SYNTHETIC.payTo,
+        feePayer: SYNTHETIC.feePayer,
         facilitatorUrl: "https://facilitator.example.com/",
         attemptStorePath,
       },
@@ -65,8 +66,8 @@ export async function runSyntheticPreflight(): Promise<SyntheticPreflightResult>
       FIXTURE_CONFIG_JSON: JSON.stringify(staticConfig),
       FIXTURE_RELAY_URL: relayUrl,
       FIXTURE_EVENT_PATH: eventPath,
-      FRELY_NETWORK_API_KEY: "network-key",
-      FRELY_RELAY_API_KEY: "relay-key",
+      FRELY_NETWORK_API_KEY: SYNTHETIC.networkKey,
+      FRELY_RELAY_API_KEY: SYNTHETIC.relayKey,
     });
     await waitForHttp(`${networkUrl}/healthz`);
 
@@ -77,12 +78,12 @@ export async function runSyntheticPreflight(): Promise<SyntheticPreflightResult>
     const payment = {
       livePaymentEnabled: true,
       network: "hedera:testnet" as const,
-      asset: "0.0.0",
-      amountAtomic: "1",
-      payTo: "0.0.222",
-      feePayer: "0.0.333",
+      asset: SYNTHETIC.asset,
+      amountAtomic: SYNTHETIC.amountAtomic,
+      payTo: SYNTHETIC.payTo,
+      feePayer: SYNTHETIC.feePayer,
       facilitatorUrl: "https://facilitator.example.com/",
-      payerAccountId: "0.0.111",
+      payerAccountId: SYNTHETIC.payerAccountId,
       maxTimeoutSeconds: 60,
       walletDirectory,
       journalPath,
@@ -90,7 +91,7 @@ export async function runSyntheticPreflight(): Promise<SyntheticPreflightResult>
     await writeFile(configPath, JSON.stringify({
       schemaVersion: 2,
       network: { baseUrl: networkUrl, apiKeyRef: "env:FRELY_NETWORK_API_KEY" },
-      approvedProvider: { id: "synthetic-vision", relayUrl: "https://relay.example.com/v1/responses" },
+      approvedProvider: { id: SYNTHETIC.providerId, relayUrl: "https://relay.example.com/v1/responses" },
       approvedExecution: { resourceUrl: `${networkUrl}/v1/responses` },
       payment,
     }), { mode: 0o600 });
@@ -99,7 +100,7 @@ export async function runSyntheticPreflight(): Promise<SyntheticPreflightResult>
       command: process.execPath,
       args: [entry, "start", "--config", configPath],
       cwd: directory,
-      env: { PATH: process.env.PATH ?? "", FRELY_NETWORK_API_KEY: "network-key" },
+      env: { PATH: process.env.PATH ?? "", FRELY_NETWORK_API_KEY: SYNTHETIC.networkKey },
       stderr: "pipe",
     });
     client = new Client({ name: "static-preflight", version: "0.0.0" });
@@ -146,7 +147,7 @@ export async function runSyntheticPreflight(): Promise<SyntheticPreflightResult>
     });
     const afterRecovery = await counters(networkUrl, relayPort);
     const relayState = await json<{ paymentHeaders: string[]; authorizationValues: string[] }>(`http://127.0.0.1:${relayPort}/__state`);
-    if (relayState.authorizationValues.some((value) => value !== "Bearer relay-key")) throw new Error("RELAY_AUTH_LEAK");
+    if (relayState.authorizationValues.some((value) => value !== `Bearer ${SYNTHETIC.relayKey}`)) throw new Error("RELAY_AUTH_LEAK");
     const final = await counters(networkUrl, relayPort);
     return {
       mode: "synthetic",
@@ -260,7 +261,7 @@ function useArguments(requestId: string, task: string) {
     capabilities: ["vision"],
     task,
     input: { image_url: "https://images.example.com/fixture.png" },
-    maxAmountAtomic: "1",
+    maxAmountAtomic: SYNTHETIC.amountAtomic,
   };
 }
 
