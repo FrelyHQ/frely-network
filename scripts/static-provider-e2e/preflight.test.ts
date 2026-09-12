@@ -5,6 +5,11 @@ test("real-process synthetic preflight proves ordering, isolation and idempotenc
   const result = await runSyntheticPreflight();
   expect(result.mode).toBe("synthetic");
   expect(result.targetSha).toMatch(/^[0-9a-f]{40}$/);
+  expect(result.components).toEqual({
+    bun: "1.4.0",
+    frelyMcp: "0.1.0",
+    staticNetwork: "0.0.0",
+  });
   expect(result.order).toEqual(["challenge", "sign", "settle", "relay"]);
   expect(result.identity).toEqual({ source: "static_allowlist", verified: false });
   expect(result.first).toMatchObject({ payment: "settled", service: "succeeded", output: "synthetic vision result" });

@@ -15,6 +15,7 @@ type Counters = { challenges: number; proofs: number; verifies: number; settleme
 export type SyntheticPreflightResult = {
   mode: "synthetic";
   targetSha: string;
+  components: { bun: string; frelyMcp: string; staticNetwork: string };
   order: string[];
   identity: { source: "static_allowlist"; verified: false };
   first: { payment: string; service: string; output: string };
@@ -152,6 +153,11 @@ export async function runSyntheticPreflight(): Promise<SyntheticPreflightResult>
     return {
       mode: "synthetic",
       targetSha: headSha(),
+      components: {
+        bun: Bun.version,
+        frelyMcp: await packageVersion(join(import.meta.dir, "../../apps/frely-mcp/package.json")),
+        staticNetwork: await packageVersion(join(import.meta.dir, "../../apps/static-network/package.json")),
+      },
       order: firstEvents.filter((event) => ["challenge", "sign", "settle", "relay"].includes(event)).slice(0, 4),
       identity: { source: String((found.resolution as Record<string, unknown>).source) as "static_allowlist", verified: (found.resolution as Record<string, unknown>).identityVerified as false },
       first: {
@@ -270,6 +276,12 @@ function headSha(): string {
   const value = result.stdout.toString().trim();
   if (result.exitCode !== 0 || !/^[0-9a-f]{40}$/u.test(value)) throw new Error("TARGET_SHA_UNAVAILABLE");
   return value;
+}
+
+async function packageVersion(path: string): Promise<string> {
+  const value = await Bun.file(path).json() as Record<string, unknown>;
+  if (typeof value.version !== "string" || !value.version) throw new Error("COMPONENT_VERSION_UNAVAILABLE");
+  return value.version;
 }
 
 function stop(child: Child | undefined): void {
