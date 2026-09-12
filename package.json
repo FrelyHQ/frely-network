@@ -16,6 +16,7 @@
     "packages/broker",
     "packages/gateway/*",
     "apps/broker-mcp",
+    "apps/frely-mcp",
     "apps/static-network",
     "apps/explorer",
     "examples/*",
