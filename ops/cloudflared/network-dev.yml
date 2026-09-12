@@ -1,0 +1,9 @@
+# Local-only development tunnel for frely-network.
+# Create the tunnel first, then replace <TUNNEL_UUID> and <USER>.
+tunnel: <TUNNEL_UUID>
+credentials-file: /Users/<USER>/.cloudflared/<TUNNEL_UUID>.json
+
+ingress:
+  - hostname: network-dev.frely.cloud
+    service: http://127.0.0.1:13600
+  - service: http_status:404
