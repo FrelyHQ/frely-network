@@ -22,7 +22,7 @@ async function createStartFixture(options: { enabled?: boolean } = {}) {
   const policy = {
     ...structuredClone(rawPolicy),
     enabled,
-    resourceUrl: "https://fixture.invalid/v1/responses",
+    resourceUrl: "http://127.0.0.1:13600/v1/responses",
     journalPath,
   };
   await writeFile(paymentConfigPath, JSON.stringify(policy));

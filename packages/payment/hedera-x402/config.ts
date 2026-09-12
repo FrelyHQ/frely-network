@@ -1,6 +1,6 @@
 import { validPolicy } from './preflight.ts';
 import type { Policy } from './types.ts';
-const keys = new Set(['enabled','network','asset','assetDecimals','payerAccountId','payTo','feePayers','facilitatorUrl','resourceUrl','journalPath','mirrorNodeUrl','signerRef','keyType','credentialRef']);
+const keys = new Set(['enabled','network','asset','assetDecimals','amountAtomic','payerAccountId','payTo','feePayers','facilitatorUrl','resourceUrl','journalPath','mirrorNodeUrl','signerRef','keyType','credentialRef']);
 export function loadPaymentConfig(value: unknown): Policy {
   if (!value || typeof value !== 'object' || Array.isArray(value) || !Object.keys(value).every(k => keys.has(k))) throw Error('CONFIG_INCOMPLETE');
   const candidate = { ...value, enabled: (value as {enabled?: unknown}).enabled ?? false };

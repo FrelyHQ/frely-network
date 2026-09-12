@@ -11,13 +11,20 @@ import { inspectHederaTransaction } from "@x402/hedera";
 import { parseStaticResolvedCapability } from "@frely-network/capability-resolution";
 import staticSuccess from "../../../packages/protocol/capability-resolution/fixtures/static-success-v2.json";
 
-type Counts = { resolve: number; sign: number; settle: number; dispatch: number; mirror: number };
+type Counts = {
+  resolve: number;
+  networkQuote: number;
+  sign: number;
+  networkSettle: number;
+  relayDispatch: number;
+  mirror: number;
+};
 
 const eventsPath = process.env.FRELY_FULL_CHAIN_EVENTS ?? "";
 const payer = process.env.FRELY_FULL_CHAIN_PAYER ?? "0.0.1236";
 const payTo = process.env.FRELY_FULL_CHAIN_PAY_TO ?? "0.0.1234";
 const feePayer = process.env.FRELY_FULL_CHAIN_FEE_PAYER ?? "0.0.1235";
-const amount = process.env.FRELY_FULL_CHAIN_AMOUNT ?? "1000000";
+const amount = process.env.FRELY_FULL_CHAIN_AMOUNT ?? "100000000";
 const payerPub = process.env.FRELY_FULL_CHAIN_PAYER_PUB ?? "";
 const networkKey = process.env.FRELY_NETWORK_API_KEY ?? process.env.FRELY_API_KEY ?? "";
 const resourceUrl = "http://127.0.0.1:13600/v1/responses";
@@ -26,7 +33,14 @@ const forbidden = [
   process.env.FRELY_FULL_CHAIN_SECRET ?? "",
 ].filter(Boolean);
 
-const counts: Counts = { resolve: 0, sign: 0, settle: 0, dispatch: 0, mirror: 0 };
+const counts: Counts = {
+  resolve: 0,
+  networkQuote: 0,
+  sign: 0,
+  networkSettle: 0,
+  relayDispatch: 0,
+  mirror: 0,
+};
 const seenSignatures = new Set<string>();
 const pendingMirrorIds = new Set<string>();
 
@@ -55,6 +69,14 @@ function assertNoSecrets(request: Request, body: string, extra: string[] = []) {
   }
 }
 
+function bodySha256Of(payload: unknown): string | null {
+  if (!payload || typeof payload !== "object") return null;
+  const extensions = (payload as { extensions?: unknown }).extensions;
+  if (!extensions || typeof extensions !== "object" || Array.isArray(extensions)) return null;
+  const value = (extensions as { bodySha256?: unknown }).bodySha256;
+  return typeof value === "string" ? value : null;
+}
+
 async function networkFetch(request: Request): Promise<Response> {
   const body = await request.text();
   assertNoSecrets(request, body, [process.env.FRELY_RELAY_API_KEY ?? ""]);
@@ -71,7 +93,7 @@ function mirrorAccount(id: string) {
     account: id,
     deleted: false,
     receiver_sig_required: false,
-    balance: { balance: Number(amount) + 1_000_000 },
+    balance: { balance: Number(amount) + 10_000_000 },
     key: id === payer && payerPub
       ? { _type: "ECDSA_SECP256K1", key: payerPub }
       : { _type: "ECDSA_SECP256K1", key: "02" + "ab".repeat(32) },
@@ -109,8 +131,21 @@ function mirrorTransaction(rawId: string) {
 async function relayFetch(request: Request): Promise<Response> {
   const body = await request.text();
   assertNoSecrets(request, body);
+  for (const name of ["PAYMENT-SIGNATURE", "PAYMENT-REQUIRED", "PAYMENT-RESPONSE"]) {
+    if (request.headers.has(name)) throw new Error("PAYMENT_HEADER_LEAK");
+  }
+  counts.relayDispatch += 1;
+  persist();
+  return Response.json({ output_text: "FRELY X402 OK" });
+}
+
+async function networkExecute(request: Request): Promise<Response> {
+  const body = await request.text();
+  assertNoSecrets(request, body, [process.env.FRELY_RELAY_API_KEY ?? ""]);
   const header = request.headers.get("PAYMENT-SIGNATURE");
   if (!header) {
+    counts.networkQuote += 1;
+    persist();
     return new Response(null, {
       status: 402,
       headers: {
@@ -124,11 +159,15 @@ async function relayFetch(request: Request): Promise<Response> {
     });
   }
   const payload = PaymentPayloadSchema.parse(decodePaymentSignatureHeader(header));
+  const expectedHash = createHash("sha256").update(body).digest("hex");
+  if (bodySha256Of(payload) !== expectedHash) {
+    return new Response(null, { status: 400 });
+  }
   const digest = createHash("sha256").update(header).digest("hex");
   if (!seenSignatures.has(digest)) {
     seenSignatures.add(digest);
     counts.sign += 1;
-    counts.settle += 1;
+    counts.networkSettle += 1;
     persist();
   }
   const rawTx = payload.payload && typeof payload.payload === "object" && "transaction" in payload.payload
@@ -152,17 +191,29 @@ async function relayFetch(request: Request): Promise<Response> {
       },
     });
   }
-  counts.dispatch += 1;
-  persist();
+  const upstream = await relayFetch(new Request("https://api.frely.cloud/v1/responses", {
+    method: "POST",
+    headers: {
+      authorization: `Bearer ${process.env.FRELY_RELAY_API_KEY ?? ""}`,
+      "content-type": "application/json",
+      accept: "application/json",
+      "x-frely-request-id": requestId,
+    },
+    body,
+  }));
   const receipt = {
     success: true,
     network: "hedera:testnet" as const,
     transaction: transactionId,
   };
-  return Response.json(
-    { output_text: "synthetic vision result" },
-    { headers: { "PAYMENT-RESPONSE": encodePaymentResponseHeader(receipt), "Cache-Control": "no-store" } },
-  );
+  return new Response(await upstream.arrayBuffer(), {
+    status: upstream.status,
+    headers: {
+      "content-type": upstream.headers.get("content-type") ?? "application/json",
+      "PAYMENT-RESPONSE": encodePaymentResponseHeader(receipt),
+      "Cache-Control": "no-store",
+    },
+  });
 }
 
 async function route(request: Request): Promise<Response> {
@@ -171,11 +222,10 @@ async function route(request: Request): Promise<Response> {
   const hostname = parsed.hostname;
   if (hostname === "127.0.0.1" && parsed.port === "13600") {
     if (parsed.pathname === "/v1/capabilities/resolve") return networkFetch(request);
-    if (parsed.pathname === "/v1/responses") {
-      const body = await request.clone().text();
-      assertNoSecrets(request, body, [process.env.FRELY_RELAY_API_KEY ?? ""]);
-      return relayFetch(request);
-    }
+    if (parsed.pathname === "/v1/responses") return networkExecute(request);
+  }
+  if (hostname === "api.frely.cloud" && parsed.pathname === "/v1/responses") {
+    return relayFetch(request);
   }
   if (hostname.includes("facilitator")) {
     return Response.json({

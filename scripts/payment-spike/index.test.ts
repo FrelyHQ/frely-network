@@ -50,7 +50,7 @@ describe("payment:check CLI", () => {
         source: "synthetic",
         network: "hedera:testnet",
         asset: "0.0.0",
-        amountAtomic: "1000",
+        amountAtomic: "100000000",
         payer: "0.0.1236",
         payTo: "0.0.1234",
       },

@@ -14,7 +14,7 @@ import type {
 const MAX_INPUT_BYTES = 1024 * 1024;
 const REQUEST_ID = /^[A-Za-z0-9._-]{1,128}$/;
 const POLICY_KEYS = new Set([
-  "enabled", "network", "asset", "assetDecimals", "payerAccountId", "payTo",
+  "enabled", "network", "asset", "assetDecimals", "amountAtomic", "payerAccountId", "payTo",
   "feePayers", "facilitatorUrl", "resourceUrl", "journalPath", "mirrorNodeUrl",
   "signerRef", "keyType", "credentialRef",
 ]);
@@ -73,7 +73,7 @@ function secureUrl(value: unknown): value is string {
 }
 
 function parseRequest(value: unknown): PreparedRequest | null {
-  if (!record(value) || value.method !== "POST" || !secureUrl(value.url)) return null;
+  if (!record(value) || value.method !== "POST" || value.url !== "http://127.0.0.1:13600/v1/responses") return null;
   if (
     typeof value.body !== "string" ||
     !record(value.headers) ||

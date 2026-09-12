@@ -1,4 +1,6 @@
 import { expect, test } from "bun:test";
+import { createHash } from "node:crypto";
+import { decodePaymentSignatureHeader } from "@x402/core/http";
 import { createHarness } from "./test-support.ts";
 test("one logical request pays once and returns cached synthetic output", async () => {
   const h = createHarness();
@@ -79,6 +81,26 @@ for (const fault of [
       }
     },
   );
+test("binds the request body hash into the payment payload before dispatch", async () => {
+  const h = createHarness();
+  const fetch = h.ports.fetcher;
+  h.ports.fetcher = async (request) => {
+    if (h.counts.http === 1) {
+      const header = request.headers.get("PAYMENT-SIGNATURE");
+      expect(header).toBeTruthy();
+      const payload = decodePaymentSignatureHeader(header!);
+      expect(payload.extensions).toMatchObject({
+        bodySha256: createHash("sha256").update(h.request.body).digest("hex"),
+      });
+    }
+    return fetch(request);
+  };
+  try {
+    expect((await h.session.execute(h.request)).paymentStatus).toBe("settled");
+  } finally {
+    h.close();
+  }
+});
 test("zero cap rejects before signing", async () => {
   const h = createHarness();
   try {

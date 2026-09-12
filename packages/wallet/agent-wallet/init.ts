@@ -19,6 +19,7 @@ function outcome(store: WalletStore, status: Outcome['status'], reason: string |
     verifiedAt: ready ? wallet.verifiedAt : null,
     paymentIdentity: ready ? {
       network: 'hedera:testnet', payerAccountId: wallet.accountId!, keyType: 'ecdsa', signerRef: wallet.signerRef,
+      reserveTinybar: store.snapshot.state.limits.reserveTinybar,
     } : null,
   };
 }

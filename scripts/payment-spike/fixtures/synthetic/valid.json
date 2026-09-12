@@ -2,7 +2,7 @@
   "configRef": "policy.json",
   "request": {
     "method": "POST",
-    "url": "https://fixture.invalid/v1/responses",
+    "url": "http://127.0.0.1:13600/v1/responses",
     "body": "{\"input\":\"test\"}",
     "headers": { "content-type": "application/json" },
     "providerId": "synthetic-provider-1",
@@ -11,7 +11,7 @@
       "budget": {
         "network": "hedera:testnet",
         "asset": "0.0.0",
-        "maxAmountAtomic": "1000"
+        "maxAmountAtomic": "100000000"
       }
     }
   },
@@ -19,9 +19,9 @@
     "source": "synthetic",
     "capturedAt": "2026-09-07T00:00:00.000Z",
     "method": "POST",
-    "url": "https://fixture.invalid/v1/responses",
+    "url": "http://127.0.0.1:13600/v1/responses",
     "bodySha256": "156403d8f795a18e92f5d4377c84f49bdb321700289f1ab01ee7c58e7c994317",
     "status": 402,
-    "paymentRequiredHeader": "eyJ4NDAyVmVyc2lvbiI6MiwicmVzb3VyY2UiOnsidXJsIjoiaHR0cHM6Ly9maXh0dXJlLmludmFsaWQvdjEvcmVzcG9uc2VzIn0sImFjY2VwdHMiOlt7InNjaGVtZSI6ImV4YWN0IiwibmV0d29yayI6ImhlZGVyYTp0ZXN0bmV0IiwiYXNzZXQiOiIwLjAuMCIsImFtb3VudCI6IjEwMDAiLCJwYXlUbyI6IjAuMC4xMjM0IiwibWF4VGltZW91dFNlY29uZHMiOjEyMCwiZXh0cmEiOnsiZmVlUGF5ZXIiOiIwLjAuMTIzNSJ9fV19"
+    "paymentRequiredHeader": "eyJ4NDAyVmVyc2lvbiI6MiwicmVzb3VyY2UiOnsidXJsIjoiaHR0cDovLzEyNy4wLjAuMToxMzYwMC92MS9yZXNwb25zZXMifSwiYWNjZXB0cyI6W3sic2NoZW1lIjoiZXhhY3QiLCJuZXR3b3JrIjoiaGVkZXJhOnRlc3RuZXQiLCJhc3NldCI6IjAuMC4wIiwiYW1vdW50IjoiMTAwMDAwMDAwIiwicGF5VG8iOiIwLjAuMTIzNCIsIm1heFRpbWVvdXRTZWNvbmRzIjoxMjAsImV4dHJhIjp7ImZlZVBheWVyIjoiMC4wLjEyMzUifX1dfQ=="
   }
 }

@@ -1,6 +1,6 @@
 import type {Policy,Ports} from './types.ts';
 import {credentials,endpoint,integer,object,readTwice,type ReadFetcher} from './read-only.ts';
-export function createNetworkCheck(policy:Policy,fetcher:ReadFetcher):Ports['checkNetwork']{
+export function createNetworkCheck(policy:Policy,fetcher:ReadFetcher,options?:{payerReserveAtomic:string}):Ports['checkNetwork']{
  return async selection=>{
   const q=selection.requirements;
   if(policy.network!=='hedera:testnet'||q.network!==policy.network||q.asset!==policy.asset||q.payTo!==policy.payTo||q.scheme!=='exact'||!policy.feePayers.includes(String(q.extra?.feePayer)))throw Error('CONFIG_INCOMPLETE');
@@ -22,7 +22,8 @@ export function createNetworkCheck(policy:Policy,fetcher:ReadFetcher):Ports['che
     if(token.token_id!==policy.asset||!['UNFROZEN','NOT_APPLICABLE'].includes(token.freeze_status)||!['GRANTED','NOT_APPLICABLE'].includes(token.kyc_status))throw Error('NETWORK_CHECK_FAILED');
     balance=integer(token.balance);
    }
-   if(balance<0n||(id===policy.payerAccountId&&balance<integer(q.amount)))throw Error('NETWORK_CHECK_FAILED');
+   const requiredPayerBalance=integer(q.amount)+(options?.payerReserveAtomic===undefined?0n:integer(options.payerReserveAtomic));
+   if(balance<0n||(id===policy.payerAccountId&&balance<requiredPayerBalance))throw Error('NETWORK_CHECK_FAILED');
   }
  };
 }

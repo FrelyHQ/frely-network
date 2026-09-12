@@ -7,6 +7,7 @@ import { createPaidExecutor, parseFrelyResponse } from "@frely-network/broker";
 import { readReadyWalletIdentity } from "@frely-network/agent-wallet";
 import {
   createLivePorts,
+  createNetworkCheck,
   loadApprovedPaymentConfig,
   openJournal,
   type Journal,
@@ -67,7 +68,9 @@ export function wrapPaymentPorts(config: FrelyMcpConfig, policy: Policy, live: P
       if (identity.payerAccountId !== policy.payerAccountId || identity.signerRef !== policy.signerRef) {
         throw new Error("WALLET_NOT_READY");
       }
-      await live.checkNetwork(selection);
+      await createNetworkCheck(policy, live.fetcher, {
+        payerReserveAtomic: identity.reserveTinybar,
+      })(selection);
     },
   };
 }

@@ -34,6 +34,7 @@ const runtime = createFrelyMcpRuntime({
     payerAccountId: "0.0.1236",
     payTo: "0.0.1234",
     feePayers: ["0.0.1235"],
+    amountAtomic: "100000000",
     facilitatorUrl: "https://facilitator.invalid",
     resourceUrl: staticSuccess.execution.endpoint,
     journalPath: ":memory:",

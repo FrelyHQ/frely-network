@@ -16,7 +16,7 @@ const visionRequest = (requestId: string): CapabilityRequest => ({
   input: { image_url: "https://images.example/a.png" },
   payment: {
     requestId,
-    budget: { network: "hedera:testnet", asset: "0.0.0", maxAmountAtomic: "1000000" },
+    budget: { network: "hedera:testnet", asset: "0.0.0", maxAmountAtomic: "100000000" },
   },
 });
 

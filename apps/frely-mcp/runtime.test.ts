@@ -12,7 +12,7 @@ const visionRequest = (requestId: string, overrides: Partial<CapabilityRequest> 
   input: { image_url: "https://images.example/a.png" },
   payment: {
     requestId,
-    budget: { network: "hedera:testnet", asset: "0.0.0", maxAmountAtomic: "1000000" },
+    budget: { network: "hedera:testnet", asset: "0.0.0", maxAmountAtomic: "100000000" },
   },
   ...overrides,
 });
@@ -43,6 +43,7 @@ const validPolicy: Policy = {
   payerAccountId: "0.0.1234",
   payTo: "0.0.4321",
   feePayers: ["0.0.9999"],
+  amountAtomic: "100000000",
   facilitatorUrl: "https://facilitator.example",
   resourceUrl: "http://127.0.0.1:13600/v1/responses",
   journalPath: ":memory:",

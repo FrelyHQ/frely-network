@@ -41,6 +41,7 @@ export type Identity = {
   payerAccountId: string;
   keyType: 'ecdsa';
   signerRef: string;
+  reserveTinybar: string;
 };
 
 export type Outcome = {

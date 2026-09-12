@@ -70,6 +70,9 @@ export function validPolicy(value: unknown): value is Policy {
     !Number.isSafeInteger(value.assetDecimals) ||
     (typeof value.assetDecimals === "number" && value.assetDecimals < 0) ||
     (value.asset === "0.0.0" && value.assetDecimals !== 8) ||
+    typeof value.amountAtomic !== "string" ||
+    value.amountAtomic.length > 128 ||
+    !/^[1-9][0-9]*$/.test(value.amountAtomic) ||
     typeof value.payerAccountId !== "string" ||
     !ENTITY_ID.test(value.payerAccountId) ||
     typeof value.payTo !== "string" ||
@@ -80,7 +83,7 @@ export function validPolicy(value: unknown): value is Policy {
       (item) => typeof item === "string" && ENTITY_ID.test(item),
     ) ||
     !secureUrl(value.facilitatorUrl) ||
-    !(value.resourceUrl === "http://127.0.0.1:13600/v1/responses" || secureUrl(value.resourceUrl)) ||
+    value.resourceUrl !== "http://127.0.0.1:13600/v1/responses" ||
     !secureUrl(value.mirrorNodeUrl) ||
     typeof value.journalPath !== "string" ||
     value.journalPath.length === 0 ||
@@ -155,6 +158,7 @@ function quoteReason(
   ) {
     return "POLICY_MISMATCH";
   }
+  if (quote.amount !== policy.amountAtomic) return "POLICY_MISMATCH";
   let amount: bigint;
   try {
     amount = atomic(quote.amount, "AMOUNT_INVALID");

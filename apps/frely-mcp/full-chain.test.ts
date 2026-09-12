@@ -13,7 +13,7 @@ const visionArguments = (requestId: string) => ({
   input: { image_url: "https://images.example/demo.png" },
   payment: {
     requestId,
-    budget: { network: "hedera:testnet", asset: "0.0.0", maxAmountAtomic: "1000000" },
+    budget: { network: "hedera:testnet", asset: "0.0.0", maxAmountAtomic: "100000000" },
   },
 });
 
@@ -117,7 +117,7 @@ async function createFullChainHarness() {
       FRELY_FULL_CHAIN_PAYER: "0.0.1236",
       FRELY_FULL_CHAIN_PAY_TO: "0.0.1234",
       FRELY_FULL_CHAIN_FEE_PAYER: "0.0.1235",
-      FRELY_FULL_CHAIN_AMOUNT: "1000000",
+      FRELY_FULL_CHAIN_AMOUNT: "100000000",
       FRELY_FULL_CHAIN_PAYER_PUB: key.publicKey.toStringRaw(),
       FRELY_FULL_CHAIN_WALLET: walletDir,
       FRELY_FULL_CHAIN_SECRET: key.toStringRaw(),
@@ -131,9 +131,10 @@ async function createFullChainHarness() {
     client,
     counts: async () => JSON.parse(await readFile(eventsPath, "utf8")) as {
       resolve: number;
+      networkQuote: number;
       sign: number;
-      settle: number;
-      dispatch: number;
+      networkSettle: number;
+      relayDispatch: number;
       mirror: number;
     },
     errors: () => errors.join(""),
@@ -154,16 +155,43 @@ test("packaged MCP pays once through synthetic Network and Relay", async () => {
 
     const first = await h.client.callTool({ name: "use_capability", arguments: visionArguments("mvp-e2e-1") });
     expect(first.structuredContent).toMatchObject({
-      provider: { id: "frely-vision-basic" },
       resolutionSource: "static_allowlist",
       identityVerified: false,
       paymentOutcome: { paymentStatus: "settled", serviceStatus: "succeeded" },
-      output: { output_text: "synthetic vision result" },
+      output: { output_text: "FRELY X402 OK" },
+    });
+    expect(await h.counts()).toMatchObject({
+      networkQuote: 1,
+      sign: 1,
+      networkSettle: 1,
+      relayDispatch: 1,
     });
 
     const repeated = await h.client.callTool({ name: "use_capability", arguments: visionArguments("mvp-e2e-1") });
     expect(repeated.structuredContent).toEqual(first.structuredContent);
-    expect(await h.counts()).toMatchObject({ resolve: 3, sign: 1, settle: 1, dispatch: 1 });
+    expect(await h.counts()).toMatchObject({
+      networkQuote: 1,
+      sign: 1,
+      networkSettle: 1,
+      relayDispatch: 1,
+    });
+
+    const afterReplay = await h.counts();
+    for (const args of [
+      { ...visionArguments("mvp-e2e-1"), task: "Other" },
+      { ...visionArguments("mvp-e2e-1"), input: { image_url: "https://images.example/other.png" } },
+      { ...visionArguments("mvp-e2e-1"), payment: { requestId: "mvp-e2e-1", budget: { network: "hedera:testnet", asset: "0.0.0", maxAmountAtomic: "1" } } },
+    ]) {
+      const conflict = await h.client.callTool({ name: "use_capability", arguments: args });
+      expect(conflict.isError).toBe(true);
+      expect(JSON.stringify(conflict.structuredContent ?? conflict.content)).toMatch(/REQUEST_ID_CONFLICT/);
+      expect(await h.counts()).toMatchObject({
+        networkQuote: afterReplay.networkQuote,
+        sign: afterReplay.sign,
+        networkSettle: afterReplay.networkSettle,
+        relayDispatch: afterReplay.relayDispatch,
+      });
+    }
   } finally {
     await h.close();
   }
@@ -178,8 +206,8 @@ test("pending settlement only queries the original transaction", async () => {
     expect(firstContent.paymentOutcome?.retryAction).toBe("query_original");
     const afterFirst = await h.counts();
     expect(afterFirst.sign).toBe(1);
-    expect(afterFirst.settle).toBe(1);
-    expect(afterFirst.dispatch).toBe(0);
+    expect(afterFirst.networkSettle).toBe(1);
+    expect(afterFirst.relayDispatch).toBe(0);
 
     const repeated = await h.client.callTool({ name: "use_capability", arguments: visionArguments("pending-e2e-1") });
     const repeatedContent = repeated.structuredContent as { paymentOutcome?: { paymentStatus?: string; retryAction?: string } };
@@ -187,10 +215,10 @@ test("pending settlement only queries the original transaction", async () => {
     expect(repeatedContent.paymentOutcome?.retryAction).toBe("query_original");
     const afterRepeat = await h.counts();
     expect(afterRepeat).toMatchObject({
-      resolve: afterFirst.resolve + 1,
+      networkQuote: afterFirst.networkQuote,
       sign: 1,
-      settle: 1,
-      dispatch: 0,
+      networkSettle: 1,
+      relayDispatch: 0,
     });
     expect(afterRepeat.mirror).toBeGreaterThan(afterFirst.mirror);
   } finally {

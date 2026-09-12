@@ -7,7 +7,7 @@ import valid from "../../../scripts/payment-spike/fixtures/synthetic/valid.json"
 import policy from "../../../scripts/payment-spike/fixtures/synthetic/policy.json";
 import archive from "../../../scripts/payment-spike/fixtures/spec-derived/archive-mainnet-180.json";
 import archivePolicy from "../../../scripts/payment-spike/fixtures/spec-derived/policy.json";
-import { preflight } from "./preflight.ts";
+import { preflight, validPolicy } from "./preflight.ts";
 
 function fixture(): InternalFixture {
   return {
@@ -18,6 +18,10 @@ function fixture(): InternalFixture {
     policy: structuredClone(policy),
     payment: structuredClone(valid.request.payment),
   };
+}
+
+function validInput(): Fixture {
+  return fixture() as Fixture;
 }
 
 type InternalFixture = {
@@ -112,7 +116,7 @@ describe("Hedera x402 offline preflight", () => {
       (r) => (r.accepts[0]!.amount = "9223372036854775807"),
     );
     upper.payment.budget.maxAmountAtomic = "9223372036854775807";
-    expect(preflight(upper).decision).toBe("prepared");
+    expect(preflight(upper).reason).toBe("NO_ACCEPTABLE_QUOTE");
   });
 
   test("binds budget scope before comparing the amount", () => {
@@ -169,6 +173,9 @@ describe("Hedera x402 offline preflight", () => {
       ["payerAccountId", "payer"],
       ["facilitatorUrl", "http://facilitator.invalid"],
       ["mirrorNodeUrl", "https://user@mirror.invalid"],
+      ["resourceUrl", "https://api.frely.cloud/v1/responses"],
+      ["amountAtomic", "0"],
+      ["amountAtomic", "01"],
       ["signerRef", "literal-private-key"],
       ["keyType", "unknown"],
     ];
@@ -198,6 +205,31 @@ describe("Hedera x402 offline preflight", () => {
       decision: "prepared",
       selection: { acceptIndex: 1 },
     });
+  });
+
+  test("requires the quote to equal the policy amount", () => {
+    const lower = validInput();
+    lower.policy = { ...lower.policy, amountAtomic: "100000000" };
+    lower.payment.budget.maxAmountAtomic = "100000000";
+    const required = decodePaymentRequiredHeader(lower.http.paymentRequiredHeader);
+    required.accepts[0]!.amount = "99999999";
+    lower.http.paymentRequiredHeader = encodePaymentRequiredHeader(required);
+    expect(preflight(lower)).toMatchObject({
+      decision: "blocked",
+      reason: "NO_ACCEPTABLE_QUOTE",
+    });
+  });
+
+  test("allows only the exact loopback Network payment resource", () => {
+    expect(validPolicy({
+      ...policy,
+      resourceUrl: "http://127.0.0.1:13600/v1/responses",
+    })).toBe(true);
+    for (const resourceUrl of [
+      "http://localhost:13600/v1/responses",
+      "http://127.0.0.1:13601/v1/responses",
+      "https://api.frely.cloud/v1/responses",
+    ]) expect(validPolicy({ ...policy, resourceUrl })).toBe(false);
   });
 
   test("blocks ambiguous valid quotes and the unsupported selector", () => {

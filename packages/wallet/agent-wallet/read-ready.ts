@@ -13,6 +13,7 @@ export async function readReadyWalletIdentity(walletDir: string): Promise<Identi
       payerAccountId: wallet.accountId,
       keyType: 'ecdsa',
       signerRef: wallet.signerRef,
+      reserveTinybar: state.limits.reserveTinybar,
     };
   } catch {
     throw new Error('WALLET_NOT_READY');

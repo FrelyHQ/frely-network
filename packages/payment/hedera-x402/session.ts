@@ -285,10 +285,14 @@ export function createPaymentSession(config: Policy, ports: Ports) {
         };
         save(id, { phase: "signed", evidence });
         const paidHeaders = new Headers(headers);
-        paidHeaders.set(
-          "PAYMENT-SIGNATURE",
-          encodePaymentSignatureHeader(signed.payload),
-        );
+        const boundPayload = {
+          ...signed.payload,
+          extensions: {
+            ...(signed.payload.extensions ?? {}),
+            bodySha256: createHash("sha256").update(request.body).digest("hex"),
+          },
+        };
+        paidHeaders.set("PAYMENT-SIGNATURE", encodePaymentSignatureHeader(boundPayload));
         if (leaseLost) throw new Error("JOURNAL_UNAVAILABLE");
         lastKnown = ports.journal.beforeDispatch(id, token!);
         let paidResponse: Response | null = null;

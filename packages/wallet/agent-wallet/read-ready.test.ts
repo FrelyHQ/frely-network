@@ -49,6 +49,7 @@ test("reads a Ready identity without creating or changing wallet files", async (
       payerAccountId: "0.0.12345",
       keyType: "ecdsa",
       signerRef: "file:" + join(h.walletDir, "agent.key"),
+      reserveTinybar: "10000000",
     });
     expect(after).toEqual(before);
     expect((await readdir(h.walletDir)).sort()).toEqual([...names].sort());

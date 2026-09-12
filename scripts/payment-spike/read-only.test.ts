@@ -17,7 +17,7 @@ async function setup(){
  // This process-only preload substitutes every network call. No socket is opened.
  await writeFile(join(dir,'mock.ts'),`import {appendFileSync} from 'node:fs';
 const env=process.env;process.env=new Proxy(env,{get(t,k){if(k==='PAYMENT_TEST_KEY'){appendFileSync(${JSON.stringify(join(dir,'secret-read'))},'read');throw Error('KEY_READ_FORBIDDEN');}return Reflect.get(t,k);}});
-globalThis.fetch=async request=>{appendFileSync(${JSON.stringify(join(dir,'calls'))},request.url+'\\n');if(process.env.TEST_TIMEOUT==='yes')return new Promise(()=>{});const u=new URL(request.url);if(u.hostname==='fixture.invalid')throw Error('BUSINESS_FORBIDDEN');if(u.pathname==='/supported')return Response.json({kinds:[{x402Version:2,scheme:'exact',network:'hedera:testnet',extra:{feePayer:'0.0.1235'}}]});if(u.pathname.startsWith('/api/v1/accounts/'))return Response.json({account:u.pathname.split('/').pop(),deleted:false,balance:{balance:100000},receiver_sig_required:false});throw Error('QUERY_FORBIDDEN');};`);
+globalThis.fetch=async request=>{appendFileSync(${JSON.stringify(join(dir,'calls'))},request.url+'\\n');if(process.env.TEST_TIMEOUT==='yes')return new Promise(()=>{});const u=new URL(request.url);if(u.hostname==='fixture.invalid')throw Error('BUSINESS_FORBIDDEN');if(u.pathname==='/supported')return Response.json({kinds:[{x402Version:2,scheme:'exact',network:'hedera:testnet',extra:{feePayer:'0.0.1235'}}]});if(u.pathname.startsWith('/api/v1/accounts/'))return Response.json({account:u.pathname.split('/').pop(),deleted:false,balance:{balance:'200000000'},receiver_sig_required:false});throw Error('QUERY_FORBIDDEN');};`);
  return {dir,input,policy,registry};
 }
 async function child(dir:string,mode:string,extra:Record<string,string>={}){

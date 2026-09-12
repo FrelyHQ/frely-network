@@ -42,3 +42,19 @@ test('payTo requiring additional signature is blocked',async()=>{
  const {p,selection,responses}=networkFixture();(responses['/api/v1/accounts/0.0.1234'] as any).receiver_sig_required=true;
  await expect(createNetworkCheck(p,async req=>{const u=new URL(req.url);return Response.json(responses[u.pathname+u.search]);})(selection)).rejects.toThrow();
 });
+test('requires payer balance to cover amount plus wallet reserve', async () => {
+ const {p,selection,responses}=networkFixture();
+ selection.requirements.amount = '100000000';
+ const setPayerBalance = (value: string) => {
+  (responses[`/api/v1/accounts/${p.payerAccountId}`] as {balance:{balance:string}}).balance.balance = value;
+ };
+ const fetch = async (req: Request) => {
+  const u = new URL(req.url);
+  return Response.json(responses[u.pathname+u.search]);
+ };
+ const check = createNetworkCheck(p, fetch, { payerReserveAtomic: '10000000' });
+ setPayerBalance('109999999');
+ await expect(check(selection)).rejects.toThrow('NETWORK_CHECK_FAILED');
+ setPayerBalance('110000000');
+ await expect(check(selection)).resolves.toBeUndefined();
+});

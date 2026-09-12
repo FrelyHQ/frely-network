@@ -8,7 +8,7 @@ import {mkdtempSync,realpathSync,rmSync,writeFileSync} from 'node:fs';
 import {tmpdir} from 'node:os';
 import {join} from 'node:path';
 test('explicit fields are mandatory, no default asset/account/key type or secret values',()=>{
- for(const change of [{keyType:undefined},{signerRef:'raw-key'},{network:'hedera:mainnet'},{privateKey:'never-display'},{assetDecimals:7,asset:'0.0.0'}])expect(()=>loadPaymentConfig({...raw,...change})).toThrow('CONFIG_INCOMPLETE');
+ for(const change of [{keyType:undefined},{signerRef:'raw-key'},{network:'hedera:mainnet'},{privateKey:'never-display'},{assetDecimals:7,asset:'0.0.0'},{amountAtomic:'0'},{amountAtomic:'01'},{resourceUrl:'https://api.frely.cloud/v1/responses'}])expect(()=>loadPaymentConfig({...raw,...change})).toThrow('CONFIG_INCOMPLETE');
  const {enabled,...disabled}=raw;
  expect(loadPaymentConfig(disabled).enabled).toBe(false);
  expect(()=>loadPaymentConfig({})).toThrow('CONFIG_INCOMPLETE');

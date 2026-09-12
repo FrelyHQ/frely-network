@@ -23,6 +23,7 @@ export type Policy = {
   network: "hedera:testnet";
   asset: string;
   assetDecimals: number;
+  amountAtomic: string;
   payerAccountId: string;
   payTo: string;
   feePayers: string[];
