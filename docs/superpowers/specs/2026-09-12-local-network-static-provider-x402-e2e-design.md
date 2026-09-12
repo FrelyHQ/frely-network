@@ -12,8 +12,9 @@ Review level: L3
 Source: 2026-09-12 用户确认的比赛 MVP 决策
 
 本设计要跑通一条可举证的真实链路：Host Agent 调用本地 `frely-mcp`，本地
-Network 服务返回固定的 Frely Relay 地址，MCP 使用本地 Agent Wallet 完成一次
-Hedera Testnet x402 付款，Relay 在结算后调用 Swarm，Swarm 再经 Relay 调用现有
+Network 服务返回固定 Provider 元数据和本地执行地址；MCP 使用同一仓库内的 Agent
+Wallet 向 Network 完成一次 Hedera Testnet x402 付款。Network 完成 Blocky 结算后，
+才以服务端凭据调用普通 Relay；Relay 调用 Swarm，Swarm 再经 Relay 调用现有
 `gpt-5.6-luna` Provider，最终从固定图片中识别出 `FRELY X402 OK`。
 
 本轮完成口径只能称为“静态 Provider 的真实付款全链路”。The Graph、ENS 和
@@ -45,16 +46,18 @@ Source: 用户逐项确认的范围与当前本地代码
 | 组件 | 本轮职责 | 本轮不承担 |
 | --- | --- | --- |
 | Host Agent | 调用 `find_capability` 或 `use_capability` | 不指定 Provider 地址，不接触钱包密钥 |
-| 本地 `frely-mcp` | 重查 Network、校验静态白名单、检查预算、签名、保存 payer journal、恢复和返回证据 | 不查询 Graph，不验证 ENS/ERC-8004，不代理服务端发现 |
-| 本地 Network | 在 `127.0.0.1:13600` 提供 `resolve`，从受信本地配置返回唯一 Provider | 不持有钱包，不调用 Relay，不执行付款，不暴露公网服务 |
-| `api.frely.cloud` Relay | API Key 准入、只为 `vision-basic` 报价、Blocky verify/settle、结算后调度、计量 | 不替 MCP 签名，不把普通模型改成付费模型 |
+| 本地 `frely-mcp` | 重查 Network、校验静态白名单、检查预算、用 Agent Wallet 签名、保存 payer journal、恢复和返回证据 | 不查询 Graph，不验证 ENS/ERC-8004，不直接调用 Relay |
+| 本地 Network | 在 `127.0.0.1:13600` 提供 `resolve` 和受 x402 保护的执行入口；报价、Blocky verify/settle、请求绑定、幂等占位、结算后调用 Relay | 不持有 payer 私钥，不暴露公网服务，不把未结算请求交给 Relay |
+| `api.frely.cloud` Relay | 用 Network 专用 API Key 准入 `vision-basic`，调度 Swarm、计量并返回业务结果 | 不返回 402，不解析付款头，不调用 Blocky，不保存 x402 状态 |
 | Blocky | x402 v2 `exact` Facilitator，验证和结算 Hedera Testnet 付款 | 不选择 Provider，不保存 Frely 业务结果 |
 | Swarm | 执行 `vision-basic` 工作流，以独立 Agent Key 调用基础模型 | 不接收用户钱包或调用者密钥 |
 | 现有 Provider | 复用 `gpt-5.6-luna` 路由完成基础模型请求 | 不新增底层 Provider，不直接参与 x402 报价 |
 | Mirror Node | 核对原交易、共识时间和账户转账 | 不作为业务成功证据 |
 
-Network 与 MCP 都运行在用户本机。Relay、Swarm、Blocky 和基础模型 Provider
-运行在远端。MCP 直接调用 Relay；Network 不在业务数据面上转发请求。
+Network 与 MCP 都运行在用户本机，并且全部 x402 代码都位于 `frely-network`
+仓库：MCP 是 payer client，Network 是 Resource Server。Relay、Swarm、Blocky 和
+基础模型 Provider 运行在远端。MCP 永不直接调用 Relay；Network 是唯一业务数据面
+出口，只有结算成功后才向 Relay 转发。
 
 ## FXE2E-004 — 固定身份与地址
 
@@ -66,7 +69,8 @@ Source: 用户给定地址、用户确认账户与 2026-09-12 设计前只读核
 | --- | --- |
 | Provider ID | `frely-vision-basic` |
 | Relay API base | `https://api.frely.cloud/v1` |
-| x402 resource | `https://api.frely.cloud/v1/responses` |
+| Provider upstream | `https://api.frely.cloud/v1/responses` |
+| Network 执行入口与 x402 resource | `http://127.0.0.1:13600/v1/responses` |
 | 外部模型名 | `vision-basic` |
 | Swarm 基础模型 | `gpt-5.6-luna` |
 | x402 版本与方案 | v2、`exact` |
@@ -127,13 +131,18 @@ Content-Type: application/json
     "endpoint": "https://api.frely.cloud/v1/responses",
     "protocol": "responses"
   },
+  "execution": {
+    "endpoint": "http://127.0.0.1:13600/v1/responses",
+    "managedBy": "network"
+  },
   "resolution": {
     "source": "static_allowlist",
     "identityVerified": false
   },
   "payment": {
     "supportsX402": true,
-    "network": "hedera:testnet"
+    "network": "hedera:testnet",
+    "resource": "http://127.0.0.1:13600/v1/responses"
   }
 }
 ```
@@ -144,9 +153,10 @@ Content-Type: application/json
 服务启动失败并报告 `STATIC_PROVIDER_NOT_CONFIGURED`，不退回 Graph 或另一个
 Provider。
 
-Network 服务从本地受信配置加载唯一 Provider，并固定绑定
-`127.0.0.1:13600`。运行时不加载 `GRAPH_ENDPOINT`、RPC 或 registry 配置，不发出
-Graph、ENS 或 ERC-8004 网络调用。
+Network 服务从本地受信配置加载唯一 Provider、唯一上游 Relay 地址和唯一的本地
+执行入口，并固定绑定 `127.0.0.1:13600`。Provider endpoint 只用于 Network 上游
+调度，`execution.endpoint` 才是 MCP 的调用目标。运行时不加载 `GRAPH_ENDPOINT`、
+RPC 或 registry 配置，不发出 Graph、ENS 或 ERC-8004 网络调用。
 
 ## FXE2E-006 — MCP 配置与信任边界
 
@@ -162,9 +172,9 @@ MCP 配置升级为明确的 `static-local` Network 模式。字段契约为：
 | `network.mode` | `static-local` |
 | `network.baseUrl` | `http://127.0.0.1:13600` |
 | `network.apiKeyRef` | `env:FRELY_NETWORK_API_KEY` |
-| `relay.apiKeyRef` | `env:FRELY_RELAY_API_KEY` |
 | `approvedProvider.id` | `frely-vision-basic` |
 | `approvedProvider.endpoint` | `https://api.frely.cloud/v1/responses` |
+| `approvedExecution.endpoint` | `http://127.0.0.1:13600/v1/responses` |
 | `walletDir` | 现有 Agent Wallet 目录的规范绝对路径 |
 | `paymentConfigPath` | 现有批准付款 profile 的规范绝对路径 |
 | `paymentRegistryPath` | 现有付款 registry 的规范绝对路径 |
@@ -177,14 +187,15 @@ reference 校验；规格不提供可能被误用的示例秘密路径。
 1. `static-local` 只允许字面值 `http://127.0.0.1:13600`，不接受
    `localhost`、IPv6、局域网地址、其他端口、用户信息、查询串或片段。
 2. Network 请求使用 `redirect: error`，10 秒超时和 1 MiB 响应上限。
-3. MCP 只接受 v2 响应，且必须逐字段匹配 Provider ID、完整 endpoint、protocol、
-   capability、payment network、`static_allowlist` 与
-   `identityVerified: false`。
-4. Relay 请求只发往冻结的完整 HTTPS resource，并拒绝重定向。Host Agent、
-   Network 响应和 402 响应均不能覆盖 URL。
-5. `FRELY_NETWORK_API_KEY` 只认证本地 Network；`FRELY_RELAY_API_KEY` 只认证
-   远端 Relay。两者不得复用。
-6. 已经出现在对话中的 Relay key 在真实测试前撤销并轮换；新 caller key、
+3. MCP 只接受 v2 响应，且必须逐字段匹配 Provider ID、上游 endpoint、执行
+   endpoint、protocol、capability、payment network、payment resource、
+   `static_allowlist` 与 `identityVerified: false`。
+4. MCP 的业务请求只发往冻结的本地 Network 执行入口并拒绝重定向。Host Agent、
+   resolve 响应和 402 响应均不能覆盖 URL；MCP 不持有 Relay caller key。
+5. `FRELY_NETWORK_API_KEY` 只认证本地 MCP → Network；
+   `FRELY_RELAY_API_KEY` 只由 Network 服务端读取，用于 Network → Relay。两者不得
+   复用或跨边界透传。
+6. 已经出现在对话中的 Relay key 在真实测试前撤销并轮换；新的 Network 上游 key、
    Swarm token 和 Swarm Agent key 分开授权、分开保存、最小权限。
 
 静态模式不再要求 Sepolia chain ID 或 ERC-8004 registry。删除这些配置要求只适用
@@ -201,13 +212,14 @@ Source: 现有 stdio MCP 两工具与付款 journal 设计
 
 `use_capability` 每次新请求都重新调用本地 Network，再校验本地白名单。它构造
 固定 `model: vision-basic`、`stream: false` 的 Responses 请求，并带唯一
-`x-frely-request-id`。第一次请求带 Relay caller key，但不带
-`PAYMENT-SIGNATURE`；收到 402 后才进入付款检查和本地签名。
+`x-frely-request-id`。第一次请求只带本地 Network key，发往
+`http://127.0.0.1:13600/v1/responses`，不带 `PAYMENT-SIGNATURE`；Network 返回
+402 后才进入付款检查和本地签名。MCP 不构造、不读取也不转发 Relay caller key。
 
 签名前必须按顺序满足：
 
 1. resolve 响应完全匹配静态白名单；
-2. 402 是 x402 v2 `exact`，resource 与完整请求路径一致；
+2. 402 是 x402 v2 `exact`，resource 精确等于本地 Network 执行入口；
 3. network、asset、amount、payTo、fee payer 和 timeout 与本地批准 profile 一致；
 4. 工具预算和 profile 单次预算都精确允许 1 HBAR，不能自动提高；
 5. requestId 尚未被不同请求指纹占用；
@@ -216,46 +228,52 @@ Source: 现有 stdio MCP 两工具与付款 journal 设计
 8. Blocky 当前 `/supported` 仍支持 `exact` 与 `hedera:testnet`。
 
 任一检查失败都必须在读取私钥、签名和结算前停止。付款重试必须复用相同
-requestId、方法、完整 URL 和完全相同的请求 body；请求指纹覆盖 Provider、模型、
-任务、图片输入和预算。
+requestId、方法、本地 Network URL 和完全相同的请求 body；请求指纹覆盖 Provider、
+执行入口、模型、任务、图片输入和预算。
 
 本地 payer journal 继续负责持久状态、原请求指纹、原交易引用、输出和恢复。
-完全相同的已交付请求直接返回 journal 中保存的结果，不再调用 Relay。相同
+完全相同的已交付请求直接返回 journal 中保存的结果，不再调用 Network。相同
 requestId 但任一受保护字段变化时返回冲突，不付款、不调度。
 
-## FXE2E-008 — Relay、Blocky 与 Swarm 行为
+## FXE2E-008 — Network Resource Server、Relay 与 Swarm 行为
 
 Status: Planned
 Review level: L3
-Source: Relay `feat/x402-resource-mvp@52e286d` 代码边界与用户确认
+Source: 用户确认 x402 全部位于 Network；现有 `packages/gateway/x402` 边界
 
-Relay 在现有 `api.frely.cloud` 部署中加入 model-scoped gate，只拦截
-`POST /v1/responses` 且 `model` 为 `vision-basic` 的非流式请求。当前六个模型继续走
-原路径，不返回 x402 报价。
-
-服务端协议层复用官方 `x402ResourceServer`、`x402HTTPResourceServer` 和
+Network 在本地 `POST /v1/responses` 上实现唯一 x402 Resource Server。服务端协议层
+复用官方 `x402ResourceServer`、`x402HTTPResourceServer` 和
 `ExactHederaScheme`，Blocky 继续作为 Facilitator。固定环境约束为：
 
 ```text
-FRELY_X402_RESOURCE_URL=https://api.frely.cloud/v1/responses
+FRELY_X402_RESOURCE_URL=http://127.0.0.1:13600/v1/responses
 FRELY_X402_AMOUNT_ATOMIC=100000000
 FRELY_X402_PAY_TO=0.0.10403579
 FRELY_X402_FEE_PAYER=0.0.7162784
 FRELY_X402_FACILITATOR_URL=https://api.testnet.blocky402.com
+FRELY_UPSTREAM_RELAY_URL=https://api.frely.cloud/v1/responses
 ```
 
-Relay 必须先完成 API Key 准入和模型范围检查，再发标准 402。收到付款头后，必须
-验证 x402 版本、quote、resource、requestId 与 body hash，调用 Blocky verify 和
-settle，并且只在结算成功后调度 Swarm。
+Network 必须先完成本地 API Key 准入、`vision-basic` 非流式模型检查和请求绑定，再发
+标准 402。收到付款头后，Network 验证 x402 版本、quote、resource、requestId 与
+body hash，调用 Blocky verify 和 settle，并且只在结算成功后使用服务端保存的
+`FRELY_RELAY_API_KEY` 调用上游 Relay。
 
-Swarm 以私有服务 token 接收 `vision-basic`，再用独立、受限的 Agent-scoped
-Frely key 调用 Relay 的 `gpt-5.6-luna` 路由。caller key、Swarm service token、
-Swarm Agent key 和底层 Provider credential 是四个不同信任域，不在请求或日志中
-互相透传。
+Network 向 Relay 转发前必须剥离 `PAYMENT-SIGNATURE`、`PAYMENT-REQUIRED`、
+`PAYMENT-RESPONSE`、本地 Network key 和钱包相关字段，只发送既有 Responses 请求、
+Network 专用 Relay caller key 与 trace/request ID。Relay 若返回 402，Network 将其
+视为 `UPSTREAM_PAYMENT_UNEXPECTED`，不得把第二个付款要求传回 MCP。
 
-本轮保留 Relay 现有的进程内 requestId 占位，不为比赛 MVP 新增数据库、分布式锁
-或跨重启幂等。真实付款和回放验收期间不得重启 Relay；跨重启服务端去重明确属于
-非目标。本地 MCP journal 仍须跨本地进程重启持久化。
+Relay 不加载 x402 SDK 或 Blocky 配置。它以 Network 专用 caller key 接收
+`vision-basic`，再用私有 Swarm service token 调度 Swarm；Swarm 使用独立、受限的
+Agent-scoped Frely key 调用 Relay 的 `gpt-5.6-luna` 路由。Network caller key、
+Swarm service token、Swarm Agent key 和底层 Provider credential 是四个不同信任
+域，不在请求或日志中互相透传。
+
+本轮保留 Network Resource Server 的进程内 requestId 占位，不新增数据库、分布式
+锁或跨 Network 重启幂等。真实付款和回放验收期间不得重启 Network；跨重启服务端
+去重明确属于非目标。本地 MCP payer journal 仍须跨 MCP 进程重启持久化。Relay
+不保存任何付款状态。
 
 ## FXE2E-009 — 完整调用时序
 
@@ -270,36 +288,38 @@ sequenceDiagram
     participant M as 本地 frely-mcp
     participant N as 本地 Network
     participant W as Agent Wallet 和 journal
-    participant R as api.frely.cloud Relay
     participant B as Blocky
     participant L as Hedera 和 Mirror
+    participant R as api.frely.cloud Relay
     participant S as 远端 Swarm
     participant P as 现有 LLM Provider
 
     H->>M: use_capability vision 和固定 OCR 输入
     M->>N: resolve v2 vision
-    N-->>M: static_allowlist 和固定 Relay endpoint
+    N-->>M: static_allowlist、Provider 元数据和本地执行地址
     Note over M: 校验本地白名单，不声称身份已验证
-    M->>R: POST responses，model vision-basic，无付款签名
-    R-->>M: HTTP 402 和 PAYMENT-REQUIRED
+    M->>N: POST responses，model vision-basic，无付款签名
+    N-->>M: HTTP 402 和 PAYMENT-REQUIRED
     M->>B: 查询 supported
     B-->>M: exact 和 hedera:testnet
     M->>L: 查询 payer 当前账户状态与余额
     L-->>M: 活跃账户、公钥绑定、可用余额
     M->>W: 校验预算、指纹并本地签名
-    M->>R: 重放同一请求和 PAYMENT-SIGNATURE
-    R->>B: verify 后 settle
+    M->>N: 重放同一请求和 PAYMENT-SIGNATURE
+    N->>B: verify 后 settle
     B->>L: 提交原始 Hedera Testnet 交易
     L-->>B: 共识结果
-    B-->>R: settlement success
-    Note over R: 只有 settled 后才能调度
+    B-->>N: settlement success
+    Note over N: 只有 settled 后才能调用 Relay
+    N->>R: vision-basic 和 Network 专用 caller key
     R->>S: vision-basic 和 Swarm service token
     S->>R: gpt-5.6-luna 和 Agent-scoped key
     R->>P: 基础模型请求和 Provider credential
     P-->>R: 基础模型响应
     R-->>S: 基础模型响应
     S-->>R: OCR 业务结果
-    R-->>M: 结果和 PAYMENT-RESPONSE
+    R-->>N: OCR 业务结果
+    N-->>M: 结果和 PAYMENT-RESPONSE
     M->>W: 保存 settled、delivered 和业务输出
     M->>L: 核对原交易
     L-->>M: transactionId、共识时间和转账明细
@@ -310,7 +330,7 @@ sequenceDiagram
 
 Status: Planned
 Review level: L3
-Source: 现有 payer journal、Relay admission 与真实付款安全边界
+Source: 现有 payer journal、Network admission 与真实付款安全边界
 
 | 情形 | 付款状态 | 业务调度 | 必须行为 |
 | --- | --- | --- | --- |
@@ -334,16 +354,19 @@ Status: Planned
 Review level: L3
 Source: 用户选择复用 `api.frely.cloud` 与 MVP 不过度设计原则
 
-部署复用当前 `api.frely.cloud` 的既有机制，不在本规格中臆测平台命令。执行者先
-只读确认实际部署入口、当前 release、source SHA、健康检查和六模型列表，再进行
-model-scoped canary：
+远程业务链复用当前 `api.frely.cloud` 的既有部署机制，不在本规格中臆测平台命令。
+执行者先只读确认实际部署入口、当前 release、source SHA、健康检查和六模型列表，再
+进行 model-scoped canary：
 
-1. 配置 Relay x402 gate，但仅作用于 `vision-basic`；
+1. 在 Relay 配置只允许 Network 专用 caller key 访问 `vision-basic`，不部署任何
+   x402 代码或 Blocky 配置；
 2. 配置私有 Swarm route、service token 和独立 Agent key；
-3. 让 `/v1/models` 按既有产品规则暴露 `vision-basic`；
-4. 先完成所有无费用 gate，再请求用户对一次 1 HBAR 付款作单独明确授权；
-5. 付款后立即完成 Mirror、业务输出、回放和回归验收；
-6. 任一既有模型回归，撤回 `vision-basic` route 和 x402 配置，恢复记录的基线版本。
+3. 让 `/v1/models` 按既有产品规则向 Network caller 暴露 `vision-basic`；
+4. 在本地 Network 启用 `/v1/responses` x402 Resource Server 和唯一上游 Relay；
+5. 先完成所有无 HBAR 付款 gate，再请求用户对一次 1 HBAR 付款作单独明确授权；
+6. 付款后立即完成 Mirror、业务输出、回放和回归验收；
+7. 任一既有模型回归，撤回 `vision-basic` route 并恢复记录的远端基线；本地回滚只需
+   停止 Network x402 服务并恢复上一份本地配置。
 
 回滚目标以部署前再次读取的实际 release 与 source SHA 为准。本文记录的
 `v0.65.24-20e832ac8ebf` 只能作为设计快照，不能替代部署当天的回滚确认。
@@ -358,11 +381,11 @@ Source: 用户要求的真实全链路 spec 与证据边界
 | --- | --- | --- | --- |
 | G0 基线与回滚 | 记录远端健康、release、source SHA、六模型和实际回滚入口 | 带时间戳的脱敏响应与回滚目标 | 不部署 |
 | G1 本地静态 resolve | 启动真实 loopback Network，调用 v2 resolve | 精确 `static_allowlist` 响应；网络观察无 Graph/RPC 调用 | 不启动 MCP 付款 |
-| G2 endpoint 授权 | 对 Provider ID、URL、redirect、Network origin 做正反例 | 只接受两个冻结地址；篡改、重定向、私网远端均拒绝 | `PROVIDER_NOT_AUTHORIZED` |
-| G3 远端 402 | 使用新 caller key 请求 `vision-basic`，不带付款头 | 标准 402；network、asset、amount、payTo、fee payer、resource 全部精确；Swarm 调度计数为零 | 不签名 |
+| G2 endpoint 授权 | 对 Provider ID、上游 URL、本地执行 URL、redirect、Network origin 做正反例 | 只接受冻结的上游地址和 loopback 执行地址；篡改与重定向均拒绝 | `PROVIDER_NOT_AUTHORIZED` |
+| G3 Network 402 | MCP 请求本地 Network `vision-basic`，不带付款头 | Network 返回标准 402；network、asset、amount、payTo、fee payer、resource 全部精确；Relay 与 Swarm 调度计数为零 | 不签名 |
 | G4 钱包与预算预检 | 实时核对 payer、公钥、余额、Blocky supported 和 1 HBAR 上限 | 公开账户快照、报价对比和不含密钥的检查结果 | `not_paid` |
 | G5 真实结算 | 获得单次授权后签名并提交原请求 | Blocky success；Mirror 确认原 transaction、Testnet、共识时间，payTo 净收 1 HBAR | `unknown` 或失败，绝不盲重试 |
-| G6 业务结果 | 追踪 settled 后 Relay、Swarm、基础模型 Provider 调用 | 调度顺序、单次计数、`PAYMENT-RESPONSE` 和包含 `FRELY X402 OK` 的最终输出 | 全链路失败，保留付款事实 |
+| G6 业务结果 | 追踪 Network settled 后的 Relay、Swarm、基础模型 Provider 调用 | Network → Relay → Swarm → Relay → Provider 顺序、单次计数、`PAYMENT-RESPONSE` 和包含 `FRELY X402 OK` 的最终输出 | 全链路失败，保留付款事实 |
 | G7 完全相同回放 | 再次调用相同 requestId 和完全相同输入 | 返回同一保存输出；签名、settle、Mirror 转账、Swarm 调度增量均为零 | 幂等验收失败 |
 | G8 冲突回放 | 保持 requestId，改变 body、图片、预算或 Provider | 稳定冲突；无签名、付款或调度 | 安全验收失败 |
 | G9 unknown 恢复 | 在测试双中模拟 settle 后超时；真实链仅在自然发生时处理 | 只查询原交易；无第二 transaction 或 requestId | 保持 `unknown` |
@@ -370,7 +393,7 @@ Source: 用户要求的真实全链路 spec 与证据边界
 | G11 秘密与证据 | 扫描日志、配置、bundle 和验收包 | 无 API key、私钥、原始签名、可广播交易或本地秘密路径 | 不交付证据包 |
 | G12 声明边界 | 审阅 README、演示词和验收结论 | 只称静态 Provider 全链路，明确 Graph/ENS/ERC-8004 未参与 | 不宣称完成 |
 
-G0 至 G4、G8 的测试双部分、G9 的模拟部分、G10 和 G11 均为无费用 gate。
+G0 至 G4、G8 的测试双部分、G9 的模拟部分、G10 和 G11 均为无 HBAR 付款 gate。
 它们全部通过后仍不得自动付款，必须再次向用户展示 payer、payTo、金额、网络和
 resource，并取得对这一次 1 HBAR 交易的明确授权。
 
@@ -392,7 +415,7 @@ Source: 用户确认的 OCR 用例与秘密处理规则
 - requestId、请求 body hash、quote 字段对比；
 - 公开 transactionId、Mirror 链接、共识时间和账户转账明细；
 - Blocky 结算结果摘要与 `PAYMENT-RESPONSE` 摘要；
-- Relay、Swarm 和基础模型单次调用计数或同一 trace 的脱敏记录；
+- Network settle/上游调用、Relay、Swarm 和基础模型单次调用计数或同一 trace 的脱敏记录；
 - 首次输出和相同回放输出，均包含 `FRELY X402 OK`；
 - 第二次签名、settle、链上转账和业务调度增量为零的证据；
 - G0 至 G12 的逐项结果和未通过原因。
@@ -413,7 +436,7 @@ Source: 比赛 MVP 不过度设计原则
 - ENS、ERC-8004 注册或身份验证；
 - Network 服务远程部署或远程 MCP；
 - Hedera Mainnet、多资产、多 Provider、多钱包或自动切换；
-- Relay 跨重启持久幂等、数据库、分布式锁、高可用或负载测试；
+- Network Resource Server 跨重启持久幂等、数据库、分布式锁、高可用或负载测试；
 - 自动退款、自动充值、额度自动提升或 settle 未知时自动重发；
 - 重写现有六模型的认证、计费或路由；
 - npm 发布、合并、推送或正式生产发布，除非另行授权。
@@ -429,13 +452,13 @@ Source: FXE2E-012 与用户确认的单次真实付款目标
 1. G0 至 G4 的所有无费用 gate 通过；
 2. 用户在看到最终付款摘要后，单独授权一次 1 HBAR Testnet 交易；
 3. Mirror 确认唯一原交易从 payer 向 payTo 支付精确 1 HBAR；
-4. Relay 只在 settled 后调用 Swarm，Swarm 通过 Relay 复用
-   `gpt-5.6-luna` Provider；
+4. Network 只在 settled 后调用 Relay；Relay 不参与 x402，并把 `vision-basic` 调度
+   给 Swarm；Swarm 通过 Relay 复用 `gpt-5.6-luna` Provider；
 5. 最终业务输出包含精确文本 `FRELY X402 OK`；
 6. 完全相同回放返回已保存结果，且没有第二次签名、结算、链上转账或业务调度；
 7. 既有健康检查、模型列表和至少一个普通模型请求没有回归；
 8. 脱敏证据包完整，G0 至 G12 均有可核对结果；
 9. 结论明确写出 The Graph、ENS 和 ERC-8004 未参与。
 
-任何一项缺失都只能报告对应层已通过，不能报告“全链路完成”。用户审阅并确认
-本设计后，再基于它编写 MVP 实施计划；本规格本身不授权部署或真实付款。
+任何一项缺失都只能报告对应层已通过，不能报告“全链路完成”。本规格及其实施
+计划都不授权部署或真实付款；真实 1 HBAR 前仍需当次明确授权。
