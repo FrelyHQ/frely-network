@@ -2,9 +2,9 @@
 
 Static Astro showcase. Interaction:
 
-1. **Splash** — full-viewport Spline + transparent logo. Scene receives the click so its post-click animation can play.
-2. **Engaged** — same Spline frame stays visible; HTML overlays show **Frely Network** + supported-agent placeholder (`—`).
-3. **Details** — first downward wheel on the first screen smooth-scrolls to the project intro (`#details`) and unlocks the rest of the page (How it works).
+1. **Splash** — full-viewport Spline (iframe receives clicks; page chrome is `pointer-events: none` so the scene Click Me can play). Transparent logo only.
+2. **Engaged** — after you click inside the Spline scene, the post-click animation stays visible; HTML overlays show **Frely Network** + agent placeholder (`—`).
+3. **Details** — a clear downward wheel gesture smooth-scrolls to `#details` (project intro).
 
 On narrow screens the iframe is skipped; ambient + page Click Me remain.
 

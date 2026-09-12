@@ -118,12 +118,15 @@ const useViewer = Boolean(splineScene);
     stage.dataset.state = "engaged";
     document.documentElement.dataset.landing = "engaged";
     if (sceneBrand instanceof HTMLElement) sceneBrand.hidden = false;
-    if (clickMe instanceof HTMLElement) clickMe.setAttribute("aria-hidden", "true");
+    if (clickMe instanceof HTMLElement) {
+      clickMe.hidden = true;
+      clickMe.setAttribute("aria-hidden", "true");
+    }
   };
 
   const goDetails = () => {
     if (!stage || stage.dataset.state === "details") return;
-    if (stage.dataset.state === "splash") goEngaged();
+    // Do not invent engaged overlays if the user never opened the scene.
     stage.dataset.state = "details";
     document.documentElement.dataset.landing = "revealed";
     document.body.classList.add("is-revealed");
@@ -142,6 +145,7 @@ const useViewer = Boolean(splineScene);
     });
   };
 
+  // Mobile / no-iframe fallback only — desktop must click the Spline scene itself.
   clickMe?.addEventListener("click", (e) => {
     e.preventDefault();
     goEngaged();
@@ -153,7 +157,7 @@ const useViewer = Boolean(splineScene);
     }
   });
 
-  // Cross-origin iframe clicks do not bubble; blur ≈ user interacted with the scene.
+  // Cross-origin: parent never sees iframe clicks; blur ≈ user clicked the scene (图二).
   window.addEventListener("blur", () => {
     window.requestAnimationFrame(() => {
       if (iframe instanceof HTMLIFrameElement && document.activeElement === iframe) {
@@ -168,6 +172,8 @@ const useViewer = Boolean(splineScene);
     (e) => {
       if (document.body.classList.contains("is-revealed")) return;
       if (e.deltaY <= 0) return;
+      // Ignore tiny trackpad noise; require a real downward gesture.
+      if (e.deltaY < 40) return;
       e.preventDefault();
       if (wheelLocked) return;
       wheelLocked = true;
@@ -185,7 +191,6 @@ const useViewer = Boolean(splineScene);
       // cross-origin
     }
   } else {
-    // Viewer / mobile ambient path
     window.setTimeout(() => stage?.classList.add("is-spline-ready"), 400);
   }
 </script>
@@ -200,6 +205,8 @@ const useViewer = Boolean(splineScene);
     position: relative;
     z-index: 1;
     min-height: 100svh;
+    /* Critical: must not steal clicks from the Spline iframe underneath */
+    pointer-events: none;
   }
 
   .stage-spline {
@@ -329,11 +336,12 @@ const useViewer = Boolean(splineScene);
     filter: drop-shadow(0 2px 12px rgba(0, 0, 0, 0.45));
   }
 
+  /* Desktop: no page hit-layer — Spline's own Click Me must receive the pointer */
   .click-me {
-    pointer-events: auto;
+    pointer-events: none;
     position: absolute;
     inset: 0;
-    display: grid;
+    display: none;
     place-items: center;
     width: 100%;
     height: 100%;
@@ -345,11 +353,6 @@ const useViewer = Boolean(splineScene);
     cursor: pointer;
     appearance: none;
     font: inherit;
-  }
-
-  /* Once Spline is ready, let the scene receive the click so its post-click UI plays */
-  .stage.is-spline-ready .click-me {
-    pointer-events: none;
   }
 
   .click-me-label {
@@ -374,23 +377,9 @@ const useViewer = Boolean(splineScene);
     animation: pulse-glow 1.8s ease-in-out infinite;
   }
 
-  .stage.is-spline-ready .click-me-label {
-    position: absolute;
-    width: 1px;
-    height: 1px;
-    padding: 0;
-    margin: -1px;
-    overflow: hidden;
-    clip: rect(0, 0, 0, 0);
-    white-space: nowrap;
-    border: 0;
-    box-shadow: none;
-    background: transparent;
-  }
-
   .stage[data-state="engaged"] .click-me,
   .stage[data-state="details"] .click-me {
-    display: none;
+    display: none !important;
   }
 
   .click-me:focus-visible {
@@ -404,8 +393,9 @@ const useViewer = Boolean(splineScene);
     display: grid;
     place-content: center;
     justify-items: center;
+    align-content: center;
     gap: 0.35rem;
-    padding: 1.5rem;
+    padding: 1.5rem 1.5rem 7.5rem;
     text-align: center;
     pointer-events: none;
     animation: rise 0.7s cubic-bezier(0.22, 1, 0.36, 1) both;
@@ -514,22 +504,9 @@ const useViewer = Boolean(splineScene);
       opacity: 1;
     }
 
-    .stage.is-spline-ready .click-me {
+    .click-me {
+      display: grid;
       pointer-events: auto;
-    }
-
-    .stage.is-spline-ready .click-me-label {
-      position: static;
-      width: auto;
-      height: auto;
-      margin-top: min(10vh, 88px);
-      padding: 0.7rem 1.15rem;
-      overflow: visible;
-      clip: auto;
-      white-space: normal;
-      border: 1px solid rgba(148, 163, 184, 0.28);
-      background: rgba(12, 16, 24, 0.72);
-      box-shadow: 0 10px 40px rgba(0, 0, 0, 0.35);
     }
 
     .click-me:focus-visible {
