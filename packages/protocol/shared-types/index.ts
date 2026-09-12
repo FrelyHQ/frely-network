@@ -1,9 +1,11 @@
+export type ProviderProtocol = "responses" | "a2a" | "mcp" | "http";
+
 /** A provider returned by live discovery before identity resolution. */
 export interface ProviderCandidate {
   id: string;
   ensName?: string;
+  protocol?: ProviderProtocol;
   capabilities: string[];
-  /** Native service declaration; Network payment is enforced separately even when false. */
   supportsX402: boolean;
   reputation?: number;
 }
@@ -12,31 +14,240 @@ export interface ProviderCandidate {
 export interface ResolvedProvider {
   id: string;
   ensName?: string;
-  /** Verified Frely A2A execution URL, never the Network payment ingress or Card URL. */
   endpoint: string;
-  protocol: "a2a";
-  agentCardUrl: string;
-  a2aProtocolVersion: "0.3.0" | "1.0";
+  protocol: ProviderProtocol;
   verified: boolean;
 }
 
-/** A capability request accepted by the Network A2A orchestration layer. */
+/** A capability request accepted by the Broker MCP layer. */
 export interface CapabilityRequest {
   capabilities: string[];
   task: string;
   input?: unknown;
+  model?: string;
   maxAmount?: string;
 }
 
-/** The result returned after provider execution and optional payment. */
+/** A normalized, bounded payment outcome. Raw payment payloads are never retained. */
+export interface PaymentEvidence {
+  network: string;
+  transactionId?: string;
+  payer?: string;
+  status?: "settled" | "released" | "pending_settlement";
+  paymentReference?: string;
+  authorizedAmount?: string;
+  billingUnit?: "usd_micro";
+  maximumChargeUnits?: string;
+  finalChargeUnits?: string;
+  releasedChargeUnits?: string;
+}
+
+/** The result returned after provider execution and payment settlement. */
 export interface CapabilityResult {
   provider: {
     id: string;
     ensName?: string;
+    capabilities: string[];
+    protocol: ProviderProtocol;
   };
-  payment?: {
-    network: string;
-    transactionId?: string;
-  };
+  payment: PaymentEvidence;
   output: unknown;
+  correlationId: string;
+}
+
+/** Public result for discovery; endpoint URLs remain Broker-internal. */
+export interface CapabilityDescriptor {
+  id: string;
+  ensName?: string;
+  capabilities: string[];
+  protocol: ProviderProtocol;
+  verified: true;
+}
+
+/** Stable error categories exposed at the MCP boundary. */
+export type BrokerErrorCode =
+  | "INVALID_REQUEST"
+  | "CAPABILITY_NOT_SUPPORTED"
+  | "NO_PROVIDER"
+  | "NO_VERIFIED_PROVIDER"
+  | "IDENTITY_VERIFICATION_FAILED"
+  | "PROTOCOL_NOT_SUPPORTED"
+  | "PAYMENT_REQUIRED"
+  | "PAYMENT_LIMIT_EXCEEDED"
+  | "PAYMENT_NETWORK_UNSUPPORTED"
+  | "PAYMENT_FAILED"
+  | "PROVIDER_REQUEST_FAILED"
+  | "PROVIDER_RESPONSE_INVALID"
+  | "BROKER_NOT_READY";
+
+export class BrokerError extends Error {
+  readonly code: BrokerErrorCode;
+
+  constructor(code: BrokerErrorCode, message = code) {
+    super(message);
+    this.name = "BrokerError";
+    this.code = code;
+  }
+}
+
+function parseIpv4(value: string): number[] | undefined {
+  const parts = value.split(".");
+  if (parts.length !== 4 || !parts.every((part) => /^\d+$/u.test(part))) return undefined;
+  const octets = parts.map(Number);
+  return octets.every((part) => part >= 0 && part <= 255) ? octets : undefined;
+}
+
+function isPrivateIpv4(value: string): boolean {
+  const octets = parseIpv4(value);
+  if (!octets) return false;
+  const [a, b] = octets;
+  return (
+    a === 0 ||
+    a === 10 ||
+    a === 127 ||
+    (a === 169 && b === 254) ||
+    (a === 172 && b >= 16 && b <= 31) ||
+    (a === 192 && b === 168) ||
+    (a === 100 && b >= 64 && b <= 127)
+  );
+}
+
+function parseIpv6(value: string): number[] | undefined {
+  const halves = value.split("::");
+  if (halves.length > 2) return undefined;
+
+  const parseGroups = (part: string): number[] | undefined => {
+    if (!part) return [];
+    const groups = part.split(":");
+    const result: number[] = [];
+    for (const [index, group] of groups.entries()) {
+      if (group.includes(".")) {
+        if (index !== groups.length - 1) return undefined;
+        const octets = parseIpv4(group);
+        if (!octets) return undefined;
+        result.push((octets[0] << 8) | octets[1], (octets[2] << 8) | octets[3]);
+      } else {
+        if (!/^[0-9a-f]{1,4}$/u.test(group)) return undefined;
+        result.push(Number.parseInt(group, 16));
+      }
+    }
+    return result;
+  };
+
+  const left = parseGroups(halves[0] ?? "");
+  const right = halves.length === 2 ? parseGroups(halves[1] ?? "") : [];
+  if (!left || !right) return undefined;
+  if (halves.length === 1) return left.length === 8 ? left : undefined;
+  const missing = 8 - left.length - right.length;
+  return missing > 0 ? [...left, ...Array.from({ length: missing }, () => 0), ...right] : undefined;
+}
+
+function isPrivateIpv6(value: string): boolean {
+  const groups = parseIpv6(value);
+  if (!groups) return false;
+  const allZero = groups.every((group) => group === 0);
+  const loopback = groups.slice(0, 7).every((group) => group === 0) && groups[7] === 1;
+  if (allZero || loopback) return true;
+
+  const first = groups[0] ?? 0;
+  if ((first & 0xfe00) === 0xfc00 || (first & 0xffc0) === 0xfe80 || (first & 0xff00) === 0xff00) return true;
+
+  const mapped = groups.slice(0, 5).every((group) => group === 0) && groups[5] === 0xffff;
+  const compatible = groups.slice(0, 6).every((group) => group === 0);
+  if (!mapped && !compatible) return false;
+  const octets = [
+    (groups[6] ?? 0) >> 8,
+    (groups[6] ?? 0) & 0xff,
+    (groups[7] ?? 0) >> 8,
+    (groups[7] ?? 0) & 0xff,
+  ];
+  return isPrivateIpv4(octets.join("."));
+}
+
+/** Reject private, loopback, link-local and credential-bearing HTTP URLs. */
+export function isSafePublicHttpUrl(
+  value: unknown,
+  options: { requireHttps?: boolean } = {},
+): value is string {
+  if (typeof value !== "string" || value.trim().length === 0) return false;
+  let url: URL;
+  try {
+    url = new URL(value);
+  } catch {
+    return false;
+  }
+  if (options.requireHttps !== false && url.protocol !== "https:") return false;
+  if (url.protocol !== "http:" && url.protocol !== "https:") return false;
+  if (url.username || url.password) return false;
+
+  const hostname = url.hostname.toLowerCase().replace(/^\[|\]$/g, "");
+  if (
+    hostname === "localhost" ||
+    hostname.endsWith(".localhost") ||
+    hostname.endsWith(".local") ||
+    hostname.endsWith(".internal") ||
+    hostname === "metadata.google.internal"
+  ) return false;
+
+  if (isPrivateIpv4(hostname) || (hostname.includes(":") && isPrivateIpv6(hostname))) return false;
+  return true;
+}
+
+/** Stable protocol values shared by the Network admission boundary and its consumers. */
+export const A2A_PROTOCOL_VERSION = "frely.a2a.v1" as const;
+export const A2A_TASK_KIND = "model.inference" as const;
+export const A2A_PAYMENT_CONTRACT_VERSION = "frely.payment-admission.v1" as const;
+export const A2A_PAYMENT_SCHEME = "exact" as const;
+export const A2A_PAYMENT_NETWORK = "hedera:testnet" as const;
+/** Frely's internal quote unit; x402 atomic amounts remain Network-owned. */
+export const A2A_BILLING_UNIT = "usd_micro" as const;
+
+export interface A2APaymentRequirementsRequest {
+  readonly resource: string;
+  readonly method: "POST";
+  readonly requestHash: string;
+}
+
+/** Opaque x402 requirement text. Network owns its encoding and verification. */
+export interface A2APaymentChallenge {
+  readonly contractVersion: typeof A2A_PAYMENT_CONTRACT_VERSION;
+  readonly scheme: typeof A2A_PAYMENT_SCHEME;
+  readonly network: typeof A2A_PAYMENT_NETWORK;
+  readonly requirementRevision: string;
+  readonly resource: string;
+  readonly paymentRequired: string;
+  readonly chargeQuote: A2AChargeQuote;
+  readonly expiresAt: string;
+}
+
+export interface A2AChargeQuote {
+  readonly quoteReference: string;
+  readonly billingUnit: typeof A2A_BILLING_UNIT;
+  readonly maximumChargeUnits: string;
+  readonly expiresAt: string;
+}
+
+export interface A2APaymentVerifyRequest extends A2APaymentRequirementsRequest {
+  readonly requestId: string;
+  readonly idempotencyKeyHash: string;
+  /** Opaque proof; only the payment verifier may inspect it. */
+  readonly proof: string;
+}
+
+export type A2APaymentReplayStatus = "fresh" | "replayed";
+
+/** Allowlisted scalar facts returned from Network to Relay after verification. */
+export interface A2APaymentAdmission {
+  readonly contractVersion: typeof A2A_PAYMENT_CONTRACT_VERSION;
+  readonly paymentReference: string;
+  readonly requirementRevision: string;
+  readonly scheme: typeof A2A_PAYMENT_SCHEME;
+  readonly payerReference: string;
+  readonly network: typeof A2A_PAYMENT_NETWORK;
+  readonly asset: string;
+  readonly authorizedAmount: string;
+  readonly chargeQuote: A2AChargeQuote;
+  readonly verifiedAt: string;
+  readonly expiresAt: string;
+  readonly replayStatus: A2APaymentReplayStatus;
 }
