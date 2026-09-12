@@ -23,10 +23,10 @@ mdq:
 
 | 范围 | 状态 | 当前证据 |
 | --- | --- | --- |
-| Task 1-5：契约、静态 Network、MCP payer、付款约束、Network x402 server | 已实现 | 集成基线 `3af3a90`；最近一次本地回归为 225 个测试、1013 个断言通过 |
-| Task 6：现有 Relay `vision-basic` canary | 待执行 | 只验证现有入口，不改远程部署 |
-| Task 7：联合无 HBAR preflight | 待实现、待执行 | 禁止签名、付款和 `PAYMENT-SIGNATURE` |
-| Task 8：唯一一次真实 1 HBAR 与同 requestId 回放 | 待执行 | 已有精确参数授权；仅在 Task 7 全绿且参数无漂移时生效 |
+| Task 1-5：契约、静态 Network、MCP payer、付款约束、Network x402 server | 已实现 | 集成基线 `3af3a90`；当前全仓 246 个测试、1082 个断言通过 |
+| Task 6：现有 Relay `vision-basic` canary | 阻塞 | health/API Key 正常；`vision-basic` 返回 `plan_subscription_required` |
+| Task 7：联合无 HBAR preflight | 已实现并执行，等待 G0 | G1-G4、G8-G12 通过；未签名、未付款 |
+| Task 8：唯一一次真实 1 HBAR 与同 requestId 回放 | 阻塞、未执行 | G0 未通过，付款门保持关闭 |
 
 Task 1-5 下方的步骤保留为实现与复现说明；当前进度与最终验收状态以本表、Task 6-8
 和验证文档为准。代码已实现不等于真实付款全链路已完成。
@@ -921,7 +921,7 @@ git commit -m "feat(network): settle x402 before Relay dispatch"
 
 ## Task 6 — FXPLAN-007：验证现有 Relay 入口与 `vision-basic` canary
 
-Status: Pending
+Status: Blocked
 Review level: L3
 Source: FXE2E-004、FXE2E-008、FXE2E-011、FXE2E-012 G0、G10-G11
 
@@ -1000,7 +1000,7 @@ git commit -m "docs(verification): record Relay canary baseline"
 
 ## Task 7 — FXPLAN-008：联合无 HBAR 付款验收和证据门
 
-Status: Pending
+Status: Blocked
 Review level: L3
 Source: FXE2E-012 G0-G4、G8-G12；FXE2E-013
 
@@ -1169,7 +1169,7 @@ git commit -m "test(e2e): add static provider no-HBAR acceptance gate"
 
 ## Task 8 — FXPLAN-009：单次真实 1 HBAR、业务结果和零增量回放
 
-Status: Pending
+Status: Blocked
 Review level: L3
 Source: FXE2E-009、FXE2E-010、FXE2E-012 G5-G7、FXE2E-015
 
@@ -1290,7 +1290,7 @@ git commit -m "docs(verification): record static provider x402 acceptance"
 
 ## FXPLAN-010 — 完成检查与停止条件
 
-Status: Pending
+Status: Blocked
 Review level: L3
 Source: FXE2E-010、FXE2E-012、FXE2E-014、FXE2E-015
 
