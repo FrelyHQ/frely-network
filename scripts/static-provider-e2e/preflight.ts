@@ -1,5 +1,6 @@
-import { createHash } from "node:crypto";
+import { createHash, randomUUID } from "node:crypto";
 import { mkdir, readdir, readFile, stat, writeFile } from "node:fs/promises";
+import { tmpdir } from "node:os";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 import {
@@ -15,6 +16,12 @@ export const FROZEN_PAYMENT_INTENT = {
   payer: "0.0.10386782",
   payTo: "0.0.10403579",
   feePayer: "0.0.7162784",
+} as const;
+
+export const FROZEN_AUTHORIZATION = {
+  ...FROZEN_PAYMENT_INTENT,
+  upstream: "https://api.frely.cloud/v1/responses",
+  model: "vision-basic",
 } as const;
 
 const RELAY_BASE = "https://api.frely.cloud";
@@ -73,6 +80,7 @@ export type WalletPublicIdentity = {
 
 export type PreflightPorts = {
   fetch: (input: RequestInfo | URL, init?: RequestInit) => Promise<Response>;
+  evidenceKind?: "live" | "synthetic";
   env?: Record<string, string | undefined>;
   now?: () => string;
   evidenceDir?: string;
@@ -203,6 +211,8 @@ const PNG = Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a, 0x00, 0
 
 export function testPorts(seen: Request[]): PreflightPorts {
   return {
+    evidenceKind: "synthetic",
+    evidenceDir: join(tmpdir(), "frely-static-provider-e2e-tests", randomUUID()),
     walletIdentity: {
       network: "hedera:testnet",
       payerAccountId: "0.0.10386782",
@@ -391,8 +401,12 @@ function claimBoundary() {
 }
 
 export async function runPreflight(ports: PreflightPorts): Promise<{
+  evidenceKind: "live" | "synthetic";
+  fetchedAt: string;
   paymentAuthorizationRecorded: true;
   paymentSent: false;
+  intent: PaymentIntent;
+  authorization: typeof FROZEN_AUTHORIZATION;
   gates: Record<string, GateResult>;
   claim: ReturnType<typeof claimBoundary>;
   image?: JsonRecord;
@@ -400,6 +414,7 @@ export async function runPreflight(ports: PreflightPorts): Promise<{
 }> {
   const env = ports.env ?? process.env;
   const evidenceDir = ports.evidenceDir ?? join(repoRoot(), ".local/acceptance/static-provider");
+  const evidenceKind = ports.evidenceKind ?? "synthetic";
   const fetchImpl = ports.fetch;
   const intent = { ...FROZEN_PAYMENT_INTENT };
   assertExactPaymentIntent(intent);
@@ -674,11 +689,14 @@ export async function runPreflight(ports: PreflightPorts): Promise<{
   await mkdir(evidenceDir, { recursive: true });
   const scanned = await scanSecrets(evidenceDir);
   gates.G11 = gate(scanned.status, scanned.result);
+  const fetchedAt = (ports.now ?? (() => new Date().toISOString()))();
   const evidence = redactEvidence({
-    fetchedAt: (ports.now ?? (() => new Date().toISOString()))(),
+    evidenceKind,
+    fetchedAt,
     paymentAuthorizationRecorded: true,
     paymentSent: false,
     intent,
+    authorization: FROZEN_AUTHORIZATION,
     health,
     image: imageMeta,
     gates,
@@ -689,8 +707,12 @@ export async function runPreflight(ports: PreflightPorts): Promise<{
   if (afterWrite.status === "fail") gates.G11 = gate("fail", afterWrite.result);
 
   return {
+    evidenceKind,
+    fetchedAt,
     paymentAuthorizationRecorded: true,
     paymentSent: false,
+    intent,
+    authorization: FROZEN_AUTHORIZATION,
     gates,
     claim,
     image: imageMeta,
@@ -704,7 +726,7 @@ function requiredGatesFailed(gates: Record<string, GateResult>): boolean {
 }
 
 if (import.meta.main) {
-  const evidence = await runPreflight({ fetch });
+  const evidence = await runPreflight({ fetch, evidenceKind: "live" });
   const summary = {
     paymentAuthorizationRecorded: evidence.paymentAuthorizationRecorded,
     paymentSent: evidence.paymentSent,

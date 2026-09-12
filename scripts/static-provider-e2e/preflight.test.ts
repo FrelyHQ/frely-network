@@ -18,6 +18,13 @@ test("preflight never sends PAYMENT-SIGNATURE", async () => {
   expect(seen.some((request) => request.headers.has("PAYMENT-SIGNATURE"))).toBe(false);
 });
 
+test("test preflight writes only synthetic evidence outside the repository acceptance directory", () => {
+  const ports = testPorts([]);
+  expect(ports.evidenceKind).toBe("synthetic");
+  expect(ports.evidenceDir?.startsWith(tmpdir())).toBe(true);
+  expect(ports.evidenceDir).not.toContain("/.local/acceptance/static-provider");
+});
+
 test("preflight never calls signer, settle or use_capability", async () => {
   const seen: Request[] = [];
   const ports = testPorts(seen);
