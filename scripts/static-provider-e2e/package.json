@@ -1,0 +1,15 @@
+{
+  "name": "@frely-network/static-provider-e2e",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "dependencies": {
+    "@frely-network/agent-wallet": "workspace:*",
+    "@frely-network/capability-resolution": "workspace:*",
+    "@frely-network/hedera-x402": "workspace:*",
+    "@frely-network/static-network": "workspace:*",
+    "@frely-network/x402-payer-session": "workspace:*",
+    "@modelcontextprotocol/sdk": "1.30.0",
+    "@x402/hedera": "2.25.0"
+  }
+}

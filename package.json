@@ -31,6 +31,8 @@
     "verify:compose": "docker compose --env-file .env.example -f compose.production.yaml config --quiet",
     "check": "bun run typecheck && bun test && bun run build",
     "provider:identity": "bun scripts/register-provider/identity-cli.ts",
+    "frely:mcp:build": "bun apps/frely-mcp/build-package.ts",
+    "frely:static:e2e": "bun test scripts/static-provider-e2e/preflight.test.ts",
     "ens:subnames": "bun scripts/register-provider/ens-subnames.ts",
     "explorer:build": "bun build apps/explorer/src/main.ts --outdir apps/explorer/dist --target browser --minify",
     "explorer:dev": "bun run explorer:build && bun apps/explorer/server.ts"

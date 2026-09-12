@@ -173,6 +173,19 @@
         "viem": "^2.21.0",
       },
     },
+    "scripts/static-provider-e2e": {
+      "name": "@frely-network/static-provider-e2e",
+      "version": "0.0.0",
+      "dependencies": {
+        "@frely-network/agent-wallet": "workspace:*",
+        "@frely-network/capability-resolution": "workspace:*",
+        "@frely-network/hedera-x402": "workspace:*",
+        "@frely-network/static-network": "workspace:*",
+        "@frely-network/x402-payer-session": "workspace:*",
+        "@modelcontextprotocol/sdk": "1.30.0",
+        "@x402/hedera": "2.25.0",
+      },
+    },
   },
   "packages": {
     "@adraffy/ens-normalize": ["@adraffy/ens-normalize@1.10.1", "", {}, "sha512-96Z2IP3mYmF1Xg2cDm8f1gWGf/HUVedQ3FMifV4kG/PQ4yEP51xDtRAEfhVNt5f/uzpNkZHwWQuUcu6D6K+Ekw=="],
@@ -236,6 +249,8 @@
     "@frely-network/shared-types": ["@frely-network/shared-types@workspace:packages/protocol/shared-types"],
 
     "@frely-network/static-network": ["@frely-network/static-network@workspace:apps/static-network"],
+
+    "@frely-network/static-provider-e2e": ["@frely-network/static-provider-e2e@workspace:scripts/static-provider-e2e"],
 
     "@frely-network/the-graph": ["@frely-network/the-graph@workspace:packages/discovery/the-graph"],
 
