@@ -948,7 +948,7 @@ SHA-256，不记录任何凭据。
 
 - [ ] **Step 2: 读取 Relay 当前状态。**
 
-只读访问 `GET https://api.frely.cloud/v1/health` 和经过认证的
+只读访问 `GET https://api.frely.cloud/health` 和经过认证的
 `GET https://api.frely.cloud/v1/models`。记录时间、HTTP 状态、release/source 标识和
 `vision-basic` 可用性。健康失败、认证失败或模型缺失时，记录明确失败并停止；不尝试
 部署、修复 Relay 或探测 Swarm。
