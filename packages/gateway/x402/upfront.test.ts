@@ -1,5 +1,5 @@
 import { createHash } from "node:crypto";
-import { mkdtemp, rm } from "node:fs/promises";
+import { mkdir, mkdtemp, rm, stat, symlink } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { describe, expect, test } from "bun:test";
@@ -245,6 +245,24 @@ describe("file attempt store", () => {
       await store.markDelivered("req-1", "c".repeat(64));
       await expect(store.markSettled("req-1", { success: true, network: "hedera:testnet", transaction: "tx-2" })).rejects.toThrow("ATTEMPT_STATE_INVALID");
       store.close();
+    } finally {
+      await rm(directory, { recursive: true, force: true });
+    }
+  });
+
+  test("rejects broad or symlinked directories without changing their permissions", async () => {
+    const directory = await mkdtemp(join(tmpdir(), "x402-attempts-"));
+    try {
+      const shared = join(directory, "shared");
+      await mkdir(shared, { mode: 0o755 });
+      expect(() => new FileX402AttemptStore(shared)).toThrow("ATTEMPT_STORE_UNAVAILABLE");
+      expect((await stat(shared)).mode & 0o777).toBe(0o755);
+
+      const target = join(directory, "target");
+      const link = join(directory, "link");
+      await mkdir(target, { mode: 0o700 });
+      await symlink(target, link);
+      expect(() => new FileX402AttemptStore(link)).toThrow("ATTEMPT_STORE_UNAVAILABLE");
     } finally {
       await rm(directory, { recursive: true, force: true });
     }

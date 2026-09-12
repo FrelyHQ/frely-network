@@ -1,7 +1,7 @@
 import { createHash } from "node:crypto";
 import { Database } from "bun:sqlite";
-import { chmodSync, existsSync, mkdirSync } from "node:fs";
-import { join } from "node:path";
+import { chmodSync, existsSync, lstatSync, mkdirSync } from "node:fs";
+import { isAbsolute, join, normalize, parse } from "node:path";
 import {
   decodePaymentHeader,
   type PaymentPayload,
@@ -122,23 +122,50 @@ export class FileX402AttemptStore implements X402AttemptStore {
   private readonly db: Database;
 
   constructor(directory: string) {
-    if (!directory || directory.includes("\0")) throw new Error("ATTEMPT_STORE_UNAVAILABLE");
-    mkdirSync(directory, { recursive: true, mode: 0o700 });
-    chmodSync(directory, 0o700);
-    const path = join(directory, "attempts.sqlite");
-    this.db = new Database(path, { create: true });
-    this.db.exec(`
-      CREATE TABLE IF NOT EXISTS attempts (
-        request_id TEXT PRIMARY KEY,
-        fingerprint TEXT NOT NULL,
-        proof_digest TEXT NOT NULL,
-        phase TEXT NOT NULL,
-        settlement_json TEXT,
-        response_digest TEXT,
-        expires_at TEXT NOT NULL
-      );
-    `);
-    if (existsSync(path)) chmodSync(path, 0o600);
+    let database: Database | undefined;
+    try {
+      if (
+        !directory ||
+        directory.includes("\0") ||
+        !isAbsolute(directory) ||
+        normalize(directory) !== directory ||
+        directory === parse(directory).root
+      ) throw new Error();
+      mkdirSync(directory, { recursive: true, mode: 0o700 });
+      const directoryInfo = lstatSync(directory);
+      const uid = typeof process.getuid === "function" ? process.getuid() : -1;
+      if (
+        directoryInfo.isSymbolicLink() ||
+        !directoryInfo.isDirectory() ||
+        directoryInfo.uid !== uid ||
+        (directoryInfo.mode & 0o7777) !== 0o700
+      ) throw new Error();
+      const path = join(directory, "attempts.sqlite");
+      const existed = existsSync(path);
+      if (existed) {
+        const fileInfo = lstatSync(path);
+        if (fileInfo.isSymbolicLink() || !fileInfo.isFile() || fileInfo.uid !== uid || (fileInfo.mode & 0o7777) !== 0o600) {
+          throw new Error();
+        }
+      }
+      database = new Database(path, { create: true });
+      database.exec(`
+        CREATE TABLE IF NOT EXISTS attempts (
+          request_id TEXT PRIMARY KEY,
+          fingerprint TEXT NOT NULL,
+          proof_digest TEXT NOT NULL,
+          phase TEXT NOT NULL,
+          settlement_json TEXT,
+          response_digest TEXT,
+          expires_at TEXT NOT NULL
+        );
+      `);
+      if (!existed) chmodSync(path, 0o600);
+      this.db = database;
+    } catch {
+      database?.close();
+      throw new Error("ATTEMPT_STORE_UNAVAILABLE");
+    }
   }
 
   async claim(input: {
