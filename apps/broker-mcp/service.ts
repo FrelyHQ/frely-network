@@ -6,10 +6,11 @@ import {
 const SERVICE = "frely-network-broker-mcp";
 const MCP_PROTOCOL_VERSION = "2024-11-05";
 const MAX_MCP_BODY_BYTES = 128 * 1024;
-const PAYMENT_ADMISSION_NOT_CONFIGURED = "PAYMENT_ADMISSION_NOT_CONFIGURED";
+const X402_RESOURCE_NOT_CONFIGURED = "X402_RESOURCE_NOT_CONFIGURED";
 
 export interface BrokerMcpServiceOptions {
-  readonly paymentAdmission?: (request: Request) => Response | Promise<Response>;
+  readonly x402Responses?: (request: Request) => Response | Promise<Response>;
+  readonly requireX402Responses?: boolean;
 }
 
 export interface BrokerService {
@@ -20,8 +21,6 @@ export interface BrokerService {
 export interface BrokerRuntime {
   broker?: BrokerService;
   ready: boolean;
-  /** Payment verifier was constructed successfully for the live process. */
-  paymentReady?: boolean;
 }
 
 const defaultRuntime: BrokerRuntime = { ready: false };
@@ -160,19 +159,21 @@ export function createBrokerMcpFetch(
   const options = isBrokerRuntime(input) ? suppliedOptions : input;
   return async (request) => {
     const pathname = new URL(request.url).pathname;
-    if (pathname === "/a2a/payment/requirements" || pathname === "/a2a/payment/verify") {
-      return options.paymentAdmission
-        ? Promise.resolve(options.paymentAdmission(request))
-        : Promise.resolve(json({ code: PAYMENT_ADMISSION_NOT_CONFIGURED }, 503));
+    if (pathname === "/x402/frely/responses") {
+      return options.x402Responses
+        ? Promise.resolve(options.x402Responses(request))
+        : Promise.resolve(json({ code: X402_RESOURCE_NOT_CONFIGURED }, 503));
     }
     const url = new URL(request.url);
     if (request.method === "GET" && url.pathname === "/healthz") {
       return json({ service: SERVICE, status: "ok" });
     }
     if (request.method === "GET" && url.pathname === "/readyz") {
-      return runtime.ready && runtime.broker && runtime.paymentReady
-        ? json({ service: SERVICE, status: "ready" })
-        : json({ service: SERVICE, status: "not_ready", code: "BROKER_NOT_READY" }, 503);
+      if (!runtime.ready || !runtime.broker) return json({ service: SERVICE, status: "not_ready", code: "BROKER_NOT_READY" }, 503);
+      if (options.requireX402Responses && !options.x402Responses) {
+        return json({ service: SERVICE, status: "not_ready", code: X402_RESOURCE_NOT_CONFIGURED }, 503);
+      }
+      return json({ service: SERVICE, status: "ready" });
     }
     if (request.method === "POST" && url.pathname === "/mcp") return handleMcp(request, runtime);
     return json({ code: "NOT_FOUND" }, 404);

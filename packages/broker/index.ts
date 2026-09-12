@@ -97,7 +97,6 @@ export class Broker {
 }
 
 export type {
-  A2APaymentSettlementPort,
   A2AServiceInvocationConfig,
   CapabilityInvocationPort,
   InvocationResult,

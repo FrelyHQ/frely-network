@@ -13,6 +13,8 @@ FROM oven/bun:1.4.0-debian AS runtime
 WORKDIR /app
 ENV NODE_ENV=production
 COPY --from=build --chown=bun:bun /app/dist ./dist
+RUN mkdir -p /var/lib/frely-network/x402-replay \
+    && chown -R bun:bun /var/lib/frely-network
 USER bun
 EXPOSE 4100
 CMD ["bun", "dist/broker-mcp.js"]

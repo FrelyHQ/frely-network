@@ -1,3 +1,7 @@
+import { createHash } from "node:crypto";
+import { mkdir, open, readFile, unlink } from "node:fs/promises";
+import { join } from "node:path";
+
 import type { A2APaymentRequirementsRequest, A2APaymentVerifyRequest } from "@frely-network/shared-types";
 import { createFixtureHederaX402AdmissionVerifier, HederaX402PaymentRejectedError, type HederaX402AdmissionVerifier } from "@frely-network/hedera-x402";
 
@@ -30,16 +34,71 @@ export interface X402GatewaySettler {
   settle(payload: PaymentPayload, requirement: PaymentRequirement): Promise<GatewaySettlement>;
 }
 
+export interface X402ReplayStore {
+  claim(proofDigest: string, expiresAt: string): Promise<boolean>;
+}
+
 export interface X402GatewayConfig {
   verifier: X402GatewayVerifier;
   settler: X402GatewaySettler;
   network: string;
   maxAmount?: string;
   version?: X402Version;
+  replayStore?: X402ReplayStore;
+  now?: () => number;
 }
 
 export class GatewayPaymentError extends Error {
   readonly code = "PAYMENT_GATEWAY_FAILED" as const;
+}
+
+export class FileX402ReplayStore implements X402ReplayStore {
+  constructor(
+    private readonly directory: string,
+    private readonly now: () => number = Date.now,
+  ) {
+    if (!directory || directory.includes("\0")) throw new GatewayPaymentError();
+  }
+
+  async claim(proofDigest: string, expiresAt: string): Promise<boolean> {
+    if (!/^[0-9a-f]{64}$/u.test(proofDigest)) throw new GatewayPaymentError();
+    const expiry = Date.parse(expiresAt);
+    if (!Number.isFinite(expiry) || expiry <= this.now()) return false;
+    await mkdir(this.directory, { recursive: true, mode: 0o700 });
+    const path = join(this.directory, `${proofDigest}.json`);
+    for (let attempt = 0; attempt < 2; attempt += 1) {
+      try {
+        const file = await open(path, "wx", 0o600);
+        try {
+          await file.writeFile(JSON.stringify({ expiresAt }));
+        } finally {
+          await file.close();
+        }
+        return true;
+      } catch (error) {
+        if (!isNodeError(error, "EEXIST")) throw error;
+        let existingExpiry: number;
+        try {
+          const existing = JSON.parse(await readFile(path, "utf8")) as { expiresAt?: unknown };
+          existingExpiry = typeof existing.expiresAt === "string" ? Date.parse(existing.expiresAt) : Number.NaN;
+        } catch (readError) {
+          if (isNodeError(readError, "ENOENT")) continue;
+          return false;
+        }
+        if (!Number.isFinite(existingExpiry) || existingExpiry > this.now()) return false;
+        try {
+          await unlink(path);
+        } catch (unlinkError) {
+          if (!isNodeError(unlinkError, "ENOENT")) return false;
+        }
+      }
+    }
+    return false;
+  }
+}
+
+function isNodeError(error: unknown, code: string): boolean {
+  return error instanceof Error && "code" in error && (error as NodeJS.ErrnoException).code === code;
 }
 
 function asObject(value: unknown): Record<string, unknown> | undefined {
@@ -118,6 +177,34 @@ function acceptedRequirement(payload: PaymentPayload, requirements: PaymentRequi
   });
 }
 
+function normalizedResource(value: string): string | undefined {
+  try {
+    const url = new URL(value);
+    if ((url.protocol !== "http:" && url.protocol !== "https:") || url.username || url.password || url.hash) return undefined;
+    return url.toString();
+  } catch {
+    return undefined;
+  }
+}
+
+function resourceMatches(request: Request, requirements: PaymentRequired, payload: PaymentPayload): boolean {
+  const expected = requirements.resource?.url;
+  if (expected === undefined) return true;
+  const normalizedExpected = normalizedResource(expected);
+  const normalizedRequest = normalizedResource(request.url);
+  if (!normalizedExpected || normalizedExpected !== normalizedRequest) return false;
+  const payloadResource = payload.resource?.url;
+  return payloadResource === undefined || normalizedResource(payloadResource) === normalizedExpected;
+}
+
+function replayExpiresAt(requirement: PaymentRequirement, now: number): string {
+  const seconds = requirement.maxTimeoutSeconds;
+  const ttlSeconds = typeof seconds === "number" && Number.isSafeInteger(seconds) && seconds >= 1 && seconds <= 86_400
+    ? seconds
+    : 300;
+  return new Date(now + ttlSeconds * 1_000).toISOString();
+}
+
 /** Payee-side admission/settlement only. It owns no users, plans, credentials or ledger. */
 export class X402Gateway {
   private readonly version: X402Version;
@@ -147,6 +234,7 @@ export class X402Gateway {
     }
     if (!payload) return requirementsResponse(requirements, "PAYMENT_REJECTED");
     if (payload.x402Version !== requirements.x402Version) return requirementsResponse(requirements, "PAYMENT_REJECTED");
+    if (!resourceMatches(request, requirements, payload)) return requirementsResponse(requirements, "PAYMENT_REJECTED");
     const requirement = acceptedRequirement(payload, requirements);
     if (!requirement || requirement.scheme !== "exact" || requirement.network !== this.config.network) {
       return requirementsResponse(requirements, "PAYMENT_REJECTED");
@@ -162,6 +250,19 @@ export class X402Gateway {
       return requirementsResponse(requirements, "PAYMENT_REJECTED");
     }
     if (!verification.isValid) return requirementsResponse(requirements, "PAYMENT_REJECTED");
+
+    if (this.config.replayStore) {
+      const proofDigest = createHash("sha256").update(encoded, "utf8").digest("hex");
+      try {
+        const claimed = await this.config.replayStore.claim(
+          proofDigest,
+          replayExpiresAt(requirement, this.config.now?.() ?? Date.now()),
+        );
+        if (!claimed) return requirementsResponse(requirements, "PAYMENT_REPLAYED");
+      } catch {
+        return Response.json({ code: "PAYMENT_REPLAY_UNAVAILABLE" }, { status: 503 });
+      }
+    }
 
     const response = await handler();
     if (!response.ok) return response;
