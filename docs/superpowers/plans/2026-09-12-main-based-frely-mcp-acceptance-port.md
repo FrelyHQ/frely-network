@@ -16,22 +16,22 @@ mdq:
 
 **Spec:** [基于最新 main 的 frely-mcp 验收切片移植规格](../specs/2026-09-12-main-based-frely-mcp-acceptance-port-design.md)。实施者必须先完整阅读。
 
-## 执行快照 — 2026-09-12 23:30 Asia/Shanghai
+## 执行快照 — 2026-09-12 23:40 Asia/Shanghai
 
-目标实现 SHA：`7c332ca6a95d747ede0ee7471a25832c2293b2ed`。Grok 完成前四个基础提交后因 Grok Build 额度耗尽停止；当前分支已由本地执行者接手并完成其余实现、安全加固与无费用验证。详细证据见 [验证记录](../../verification/2026-09-12-main-based-frely-mcp-acceptance-port.md)。
+目标实现 SHA：`cb87175a74737e7e88bf51db3c28c216564849f2`。Grok 完成前四个基础提交后因 Grok Build 额度耗尽停止；当前分支已由本地执行者接手并完成其余实现、安全加固、无费用验证和一次性 G6 live runner。详细证据见 [验证记录](../../verification/2026-09-12-main-based-frely-mcp-acceptance-port.md)。
 
 - [x] FPLAN-002 至 FPLAN-008：main 基线/来源护栏和七个实现切片已落地。
-- [x] G0、G1、G2、G4、G5：通过；全量结果为 662 tests pass、0 fail、build pass。
+- [x] G0、G1、G2、G4、G5：通过；全量结果为 664 tests pass、0 fail、build pass。
 - [x] G3：公开 health、认证 models 和 `gpt-5.6-luna` 最小业务请求均成功；HTTP 200、状态 `completed`、输出包含 `FRELY X402 OK`，且没有 payment headers。
-- [ ] G6：用户已授权新分支的一次、最多 1 HBAR Testnet 逻辑请求；live runner、target SHA 绑定和付款证据仍待完成。
+- [x] G6：目标 SHA 上完成一次 1 HBAR Testnet settlement、Relay 业务成功和同 ID 缓存重放；Mirror 与 journal 独立证据已核验。
 
-G0–G5 已关闭，可确认“基于 main 的功能移植与无费用本地链路通过”。G6 仍是单独证据层：本轮授权只在 FPLAN-011 的约束下执行，完成前不能报告真实 Hedera x402 验收通过。
+G0–G6 已关闭：可确认“基于 main 的功能移植、无费用验收和一次真实 Hedera x402 付款验收通过”。该结论只绑定上述 target SHA 和 request ID；一次性授权已经消耗。
 
 ## FPLAN-001 — Global Constraints
 
-Status: Planned
+Status: Completed
 Review level: L3
-Source: FMAP-001 至 FMAP-014
+Source: FMAP-001 至 FMAP-015
 
 - 执行前 `git fetch origin --prune`；目标分支必须以当时最新 `origin/main` 为祖先。当前文档基线是 `259c79f1e854382d43e64e4e0e3d963d4d955de7`，来源审计 tip 固定为 `a854f545afabaa5ea56c5b3925ca231d8d7c5018`。
 - 禁止 merge/cherry-pick B1 或 integration，禁止整目录恢复，禁止覆盖 root lockfile、shared types、现有 `packages/payment/hedera-x402` 或 `apps/broker-mcp`。
@@ -664,7 +664,7 @@ git commit -m "test(e2e): verify main-based static provider acceptance"
 
 ## FPLAN-010 — 计划完成判据
 
-Status: Planned
+Status: Completed
 Review level: L3
 Source: FMAP-014；FPLAN-002 至 FPLAN-009
 
@@ -681,7 +681,7 @@ Source: FMAP-014；FPLAN-002 至 FPLAN-009
 
 ## FPLAN-011 — 一次性 G6 真实 HBAR 验收
 
-Status: Planned
+Status: Completed
 Review level: L3
 Source: FMAP-015；用户于 2026-09-12 的一次性新分支授权
 
@@ -693,20 +693,20 @@ Source: FMAP-015；用户于 2026-09-12 的一次性新分支授权
 - Modify: 本规格与计划的执行快照
 - Local only: `.local/runtime/static-provider/**`、`.local/acceptance/static-provider/**`
 
-- [ ] **1. 先测试 live 编排行为。** 测试必须运行真实 gate 和结果校验，仅替换外部 MCP transport：授权完全匹配时首次调用一次，第二次使用完全相同的 request ID/参数；只有两次结果都为 settled/succeeded、交易 ID 相同、输出包含 `FRELY X402 OK` 时才写成功证据。缺授权、结果 unknown、业务失败或重放不一致时必须失败且不得尝试新的逻辑请求。
+- [x] **1. 先测试 live 编排行为。** 测试必须运行真实 gate 和结果校验，仅替换外部 MCP transport：授权完全匹配时首次调用一次，第二次使用完全相同的 request ID/参数；只有两次结果都为 settled/succeeded、交易 ID 相同、输出包含 `FRELY X402 OK` 时才写成功证据。缺授权、结果 unknown、业务失败或重放不一致时必须失败且不得尝试新的逻辑请求。
 
-- [ ] **2. 实现最小 live runner。** 复用已有 approval gate，读取受限本地 runtime 配置，启动本地 static-network 与打包后的 frely-mcp，再调用 stdio `use_capability`。runner 不保存或打印 secret、payment proof 或私钥；输出只含 target SHA、request ID、状态、交易 ID、Relay request ID/业务断言和重放断言。
+- [x] **2. 实现最小 live runner。** 复用已有 approval gate，读取受限本地 runtime 配置，启动本地 static-network 与打包后的 frely-mcp，再调用 stdio `use_capability`。runner 不保存或打印 secret、payment proof 或私钥；输出只含 target SHA、request ID、状态、交易 ID、Relay request ID/业务断言和重放断言。
 
-- [ ] **3. 固定目标实现并重跑无费用验证。** 提交 live runner 代码，记录该实现 commit 为 target SHA；至少运行 live tests、synthetic preflight、typecheck 和全量 `bun run check`。真实付款证据文档的后续提交不改变这次执行代码身份。
+- [x] **3. 固定目标实现并重跑无费用验证。** live runner 提交为 `cb87175a74737e7e88bf51db3c28c216564849f2`；全量结果为 664 tests、0 fail、2194 assertions，typecheck、build 和 synthetic preflight 均通过。
 
-- [ ] **4. 准备一次性本地运行材料。** 将已有本地受限凭据转换为当前 main-native config schema，不修改旧脏 worktree；目录权限 0700、secret/key/config/journal 文件 0600。生成一个稳定 request ID 和 15 分钟内有效的 `.local/` approval，精确绑定 target SHA 与 `100000000`。
+- [x] **4. 准备一次性本地运行材料。** 已在新 worktree 的 `.local/` 中生成受限配置；未修改旧脏 worktree。request ID 为 `main-port-03127143-4062-426f-9d43-b2cf0be1dfaa`，approval 精确绑定 target SHA 与 `100000000`。
 
-- [ ] **5. 付款前只读预检。** 从 Mirror Node 读取 payer 当前账户、公钥与余额；公钥必须匹配本地 signer，余额必须覆盖 1 HBAR 与手续费。再确认 Relay `gpt-5.6-luna` canary 已通过、Network 只监听 127.0.0.1、journal 对该 request ID 尚无记录。
+- [x] **5. 付款前只读预检。** payer 余额为 `572777702` tinybar，公钥匹配 signer；图片 HTTP 200、端口空闲，Network 为 127.0.0.1，journal 与 attempt store 均不存在，Relay canary 已通过。
 
-- [ ] **6. 执行且只执行一次首个付费 dispatch。** 启动本地 Network 与 MCP，运行 live runner。若返回明确 settled/succeeded，runner 使用相同 request ID 和完全相同参数执行缓存重放；若结果 unknown/异常，立即停止，不重新发起，转入原交易查询。
+- [x] **6. 执行且只执行一次首个付费 dispatch。** live runner exit 0；首次 payment `settled`、service `succeeded`，随后只用同一 request ID 和参数执行缓存重放。
 
-- [ ] **7. 核验三类独立证据。** 查询 Mirror 原交易确认 `SUCCESS` 和双方 1 HBAR 净变化；核验 Relay 输出包含 `FRELY X402 OK`；核验重放交易 ID 与业务结果相同、journal 一条记录且 Mirror 没有第二笔授权金额转账。
+- [x] **7. 核验三类独立证据。** Mirror 原交易 `SUCCESS`，payer `-100000000`、payTo `+100000000` tinybar；fee payer 手续费 `268648` tinybar。Relay 输出包含验收文本；重放结果完全相等，journal 与 Network attempt store 各一条，付款时间窗只有一笔匹配转账。
 
-- [ ] **8. 更新验证记录。** 记录实际 target SHA、request ID、交易 ID、Mirror 结果、业务结果和重放结果；不记录 token、私钥或 payment proof。失败或 unknown 必须保留真实状态，不能用旧分支结果补齐。
+- [x] **8. 更新验证记录。** 已在 FVFY-009 记录 target/request/transaction、Mirror、Relay 和重放证据；未记录 token、私钥或 payment proof。
 
-- [ ] **9. 最终回归与提交文档。** 运行相关 tests、`bun run check`、`git diff --check` 和 secret scan，再提交验证文档。除非用户另行要求，不 push、不部署、不 merge。
+- [x] **9. 最终回归与提交文档。** 相关 tests、`bun run check`、`git diff --check` 和人工审阅的敏感字面量扫描均通过；未 push、部署或 merge。

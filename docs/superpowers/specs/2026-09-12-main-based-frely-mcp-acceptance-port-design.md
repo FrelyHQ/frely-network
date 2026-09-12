@@ -383,3 +383,15 @@ Source: 用户于 2026-09-12 明确允许“新分支再执行一次”，并要
 4. 同 request ID 重放返回同一交易与同一业务结果，journal 仍只有一条逻辑记录，链上无第二笔授权金额转账。
 
 若首次有 proof 的请求超时、断线或缺少可信 settlement header，状态必须保持 `unknown`。此时停止业务重放，只按 journal 中的原交易 ID 查询 Mirror；不得重新签名、重发付款请求或生成新 request ID。无论成功、失败还是 unknown，本授权在首次有 proof 的 dispatch 后即消耗。
+
+本次实际执行绑定如下，授权已经消耗：
+
+| 字段 | 值 |
+| --- | --- |
+| target SHA | `cb87175a74737e7e88bf51db3c28c216564849f2` |
+| amountAtomic | `100000000` |
+| request ID | `main-port-03127143-4062-426f-9d43-b2cf0be1dfaa` |
+| transaction ID | `0.0.7162784@1789227538.623873938` |
+| 最终状态 | payment `settled`；service `succeeded`；replay `succeeded` |
+
+该表记录执行身份，不把运行结果本身定义成规格要求；完整证据和独立核验见验证记录 FVFY-009。
