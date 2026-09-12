@@ -1,13 +1,13 @@
 ---
 /**
  * Full-viewport Spline stage.
- * Splash → Engaged (keep Spline post-click scene + brand overlays) → Details (wheel to #flow).
+ * Splash → Engaged (native Spline act-2 stays visible) → Details (wheel to #details).
+ * Brand title lives in the published Spline scene; page only adds logo + scroll hint.
  */
 const GITHUB = "https://github.com/FrelyHQ/frely-network";
-/** Replace when a real supported-agent count is available. */
-const AGENT_COUNT_PLACEHOLDER = "—";
+/** Same public file; query busts CDN cache after scene edits (FRELY NETWORK, etc.). */
 const DEFAULT_SPLINE_PUBLIC =
-  "https://my.spline.design/aidatamodelinteraction-yXFK4f6oAzDsrDztvyJ1dXk4/";
+  "https://my.spline.design/aidatamodelinteraction-yXFK4f6oAzDsrDztvyJ1dXk4/?v=frely-20260912";
 const splineScene = import.meta.env.PUBLIC_SPLINE_SCENE as string | undefined;
 const splinePublic =
   (import.meta.env.PUBLIC_SPLINE_PUBLIC as string | undefined) || DEFAULT_SPLINE_PUBLIC;
@@ -66,12 +66,7 @@ const useViewer = Boolean(splineScene);
         </span>
       </button>
 
-      <div class="scene-brand" data-testid="scene-brand" hidden>
-        <p class="scene-brand-title" data-testid="scene-title">Frely Network</p>
-        <p class="scene-brand-count" data-testid="agent-count">{AGENT_COUNT_PLACEHOLDER}</p>
-        <p class="scene-brand-caption" data-testid="agent-count-label">Supported agents</p>
-        <p class="scene-brand-hint" data-testid="scroll-hint">Scroll for project details</p>
-      </div>
+      <p class="scroll-hint" data-testid="scroll-hint" hidden>Scroll for project details</p>
     </div>
   </div>
 
@@ -100,24 +95,18 @@ const useViewer = Boolean(splineScene);
 </section>
 
 <script>
-  const AGENT_PLACEHOLDER = "—";
   const stage = document.getElementById("top");
   const clickMe = document.querySelector("[data-testid='click-me']");
-  const sceneBrand = document.querySelector("[data-testid='scene-brand']");
+  const scrollHint = document.querySelector("[data-testid='scroll-hint']");
   const detailsLead = document.querySelector("[data-testid='details-lead']");
   const after = document.querySelector("[data-testid='after-reveal']");
-  const agentCount = document.querySelector("[data-testid='agent-count']");
   const iframe = document.querySelector("[data-testid='spline-iframe']");
-
-  if (agentCount instanceof HTMLElement && !agentCount.textContent?.trim()) {
-    agentCount.textContent = AGENT_PLACEHOLDER;
-  }
 
   const goEngaged = () => {
     if (!stage || stage.dataset.state === "engaged" || stage.dataset.state === "details") return;
     stage.dataset.state = "engaged";
     document.documentElement.dataset.landing = "engaged";
-    if (sceneBrand instanceof HTMLElement) sceneBrand.hidden = false;
+    if (scrollHint instanceof HTMLElement) scrollHint.hidden = false;
     if (clickMe instanceof HTMLElement) {
       clickMe.hidden = true;
       clickMe.setAttribute("aria-hidden", "true");
@@ -126,7 +115,6 @@ const useViewer = Boolean(splineScene);
 
   const goDetails = () => {
     if (!stage || stage.dataset.state === "details") return;
-    // Do not invent engaged overlays if the user never opened the scene.
     stage.dataset.state = "details";
     document.documentElement.dataset.landing = "revealed";
     document.body.classList.add("is-revealed");
@@ -145,7 +133,6 @@ const useViewer = Boolean(splineScene);
     });
   };
 
-  // Mobile / no-iframe fallback only — desktop must click the Spline scene itself.
   clickMe?.addEventListener("click", (e) => {
     e.preventDefault();
     goEngaged();
@@ -157,7 +144,6 @@ const useViewer = Boolean(splineScene);
     }
   });
 
-  // Cross-origin: parent never sees iframe clicks; blur ≈ user clicked the scene (图二).
   window.addEventListener("blur", () => {
     window.requestAnimationFrame(() => {
       if (iframe instanceof HTMLIFrameElement && document.activeElement === iframe) {
@@ -172,7 +158,6 @@ const useViewer = Boolean(splineScene);
     (e) => {
       if (document.body.classList.contains("is-revealed")) return;
       if (e.deltaY <= 0) return;
-      // Ignore tiny trackpad noise; require a real downward gesture.
       if (e.deltaY < 40) return;
       e.preventDefault();
       if (wheelLocked) return;
@@ -205,7 +190,6 @@ const useViewer = Boolean(splineScene);
     position: relative;
     z-index: 1;
     min-height: 100svh;
-    /* Critical: must not steal clicks from the Spline iframe underneath */
     pointer-events: none;
   }
 
@@ -305,7 +289,6 @@ const useViewer = Boolean(splineScene);
     opacity: 0;
   }
 
-  /* Keep Spline through engaged; only ease back on details */
   .stage[data-state="details"] .stage-spline {
     opacity: 0.22;
     pointer-events: none;
@@ -330,13 +313,12 @@ const useViewer = Boolean(splineScene);
   }
 
   .stage-logo-img {
-    height: 2.25rem;
+    height: 2.35rem;
     width: auto;
     object-fit: contain;
-    filter: drop-shadow(0 2px 12px rgba(0, 0, 0, 0.45));
+    filter: drop-shadow(0 2px 14px rgba(37, 99, 235, 0.35));
   }
 
-  /* Desktop: no page hit-layer — Spline's own Click Me must receive the pointer */
   .click-me {
     pointer-events: none;
     position: absolute;
@@ -387,52 +369,17 @@ const useViewer = Boolean(splineScene);
     outline-offset: -6px;
   }
 
-  .scene-brand {
+  .scroll-hint {
     position: absolute;
-    inset: 0;
-    display: grid;
-    place-content: center;
-    justify-items: center;
-    align-content: center;
-    gap: 0.35rem;
-    padding: 1.5rem 1.5rem 7.5rem;
-    text-align: center;
-    pointer-events: none;
-    animation: rise 0.7s cubic-bezier(0.22, 1, 0.36, 1) both;
-  }
-
-  .scene-brand-title {
+    left: 50%;
+    bottom: 1.75rem;
+    transform: translateX(-50%);
     margin: 0;
-    font-size: clamp(1.65rem, 3.6vw, 2.6rem);
-    font-weight: 800;
-    letter-spacing: -0.02em;
-    color: #f4f7fb;
-    text-shadow: 0 8px 40px rgba(0, 0, 0, 0.65);
-  }
-
-  .scene-brand-count {
-    margin: 0.35rem 0 0;
-    font-size: clamp(2.8rem, 8vw, 5.2rem);
-    font-weight: 800;
-    line-height: 1;
-    letter-spacing: -0.04em;
-    color: #fff;
-    text-shadow: 0 10px 48px rgba(0, 0, 0, 0.7);
-  }
-
-  .scene-brand-caption {
-    margin: 0.15rem 0 0;
-    font-size: 0.72rem;
-    font-weight: 600;
-    letter-spacing: 0.18em;
-    text-transform: uppercase;
-    color: rgba(226, 232, 240, 0.78);
-  }
-
-  .scene-brand-hint {
-    margin: 1.4rem 0 0;
-    font-size: 0.8rem;
-    color: rgba(148, 163, 184, 0.9);
+    font-size: 0.78rem;
+    letter-spacing: 0.04em;
+    color: rgba(148, 163, 184, 0.92);
+    text-shadow: 0 2px 12px rgba(0, 0, 0, 0.65);
+    animation: rise 0.7s cubic-bezier(0.22, 1, 0.36, 1) both;
   }
 
   .stage[data-state="details"] .stage-chrome {

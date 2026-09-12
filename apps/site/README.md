@@ -2,8 +2,8 @@
 
 Static Astro showcase. Interaction:
 
-1. **Splash** — full-viewport Spline (iframe receives clicks; page chrome is `pointer-events: none` so the scene Click Me can play). Transparent logo only.
-2. **Engaged** — after you click inside the Spline scene, the post-click animation stays visible; HTML overlays show **Frely Network** + agent placeholder (`—`).
+1. **Splash** — full-viewport Spline ([public scene](https://my.spline.design/aidatamodelinteraction-yXFK4f6oAzDsrDztvyJ1dXk4/)); page chrome is `pointer-events: none` so the scene Click Me can play. Blue transparent logo in the corner.
+2. **Engaged** — after clicking inside the Spline scene, act-2 stays native (title lives in Spline). Page only shows a light scroll hint.
 3. **Details** — a clear downward wheel gesture smooth-scrolls to `#details` (project intro).
 
 On narrow screens the iframe is skipped; ambient + page Click Me remain.
@@ -21,7 +21,7 @@ PUBLIC_SPLINE_PUBLIC=https://my.spline.design/your-scene/
 PUBLIC_SPLINE_SCENE=https://prod.spline.design/YOUR_ID/scene.splinecode
 ```
 
-Brand mark: `public/logo.png` (transparent). Agent count is a placeholder until product data exists.
+Brand mark: `public/logo.png` (blue transparent).
 
 ## Scripts
 
