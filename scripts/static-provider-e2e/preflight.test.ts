@@ -1,9 +1,10 @@
 import { expect, test } from "bun:test";
-import { mkdir, mkdtemp, rm, writeFile } from "node:fs/promises";
+import { mkdir, mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import {
   assertExactPaymentIntent,
+  FROZEN_AUTHORIZATION,
   redactEvidence,
   runConflictReplayDouble,
   runPreflight,
@@ -104,12 +105,15 @@ test("G9 unknown recovery double only queries the original transaction", () => {
 });
 
 test("preflight records authorization without sending payment", async () => {
-  const evidence = await runPreflight(testPorts([]));
+  const ports = testPorts([]);
+  const evidence = await runPreflight(ports);
   expect(evidence.paymentAuthorizationRecorded).toBe(true);
   expect(evidence.paymentSent).toBe(false);
   expect(evidence.gates.G5.result).toBe("Not run — authorized but not executed in preflight");
   expect(evidence.gates.G6.result).toBe("Not run — authorized but not executed in preflight");
   expect(evidence.gates.G7.result).toBe("Not run — authorized but not executed in preflight");
+  const recorded = JSON.parse(await readFile(join(ports.evidenceDir!, "preflight.json"), "utf8"));
+  expect(recorded.approvedRunParameters).toEqual(FROZEN_AUTHORIZATION);
 });
 
 test("G11 scan rejects secret-bearing evidence", async () => {
@@ -143,6 +147,28 @@ test("mocked G10 records an existing-model regression result", async () => {
   expect(evidence.gates.G10.status).toBe("pass");
   expect(evidence.gates.G10.model).toBe("gpt-5.6-luna");
   expect(evidence.gates.G10.httpStatus).toBe(200);
+});
+
+test("G0 records a business subscription 402 without treating it as x402", async () => {
+  const base = testPorts([]);
+  const evidence = await runPreflight({
+    ...base,
+    fetch: async (input, init) => {
+      const request = input instanceof Request ? input : new Request(String(input), init);
+      if (request.url === "https://api.frely.cloud/v1/models") {
+        return Response.json({ data: [{ id: "gpt-5.6-luna" }] });
+      }
+      if (request.url === "https://api.frely.cloud/v1/responses"
+        && JSON.parse(await request.clone().text()).model === "vision-basic") {
+        return Response.json({ error: { code: "plan_subscription_required" } }, { status: 402 });
+      }
+      return base.fetch(request);
+    },
+  });
+  expect(evidence.gates.G0.status).toBe("fail");
+  expect(evidence.gates.G0.canaryStatus).toBe(402);
+  expect(evidence.gates.G0.canaryCode).toBe("plan_subscription_required");
+  expect(evidence.gates.G0.x402Requested).toBe(false);
 });
 
 test("G4 fails when Ready wallet payer drifts from the frozen payer", async () => {

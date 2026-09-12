@@ -406,7 +406,7 @@ export async function runPreflight(ports: PreflightPorts): Promise<{
   paymentAuthorizationRecorded: true;
   paymentSent: false;
   intent: PaymentIntent;
-  authorization: typeof FROZEN_AUTHORIZATION;
+  approvedRunParameters: typeof FROZEN_AUTHORIZATION;
   gates: Record<string, GateResult>;
   claim: ReturnType<typeof claimBoundary>;
   image?: JsonRecord;
@@ -437,8 +437,10 @@ export async function runPreflight(ports: PreflightPorts): Promise<{
     const vision = modelIds.includes("vision-basic");
     let canaryText = "";
     let canaryStatus: number | null = null;
+    let canaryCode: string | null = null;
     let x402Requested = false;
-    if (relayKey && vision) {
+    let relayReturned402 = false;
+    if (relayKey) {
       const canary = await boundedGet(fetchImpl, RELAY_RESPONSES, {
         method: "POST",
         headers: {
@@ -455,10 +457,19 @@ export async function runPreflight(ports: PreflightPorts): Promise<{
         }),
       }, 2 * 1024 * 1024);
       canaryStatus = canary.status;
-      x402Requested = canary.status === 402
-        || canary.headers.has("PAYMENT-REQUIRED")
+      relayReturned402 = canary.status === 402;
+      x402Requested = canary.headers.has("PAYMENT-REQUIRED")
         || canary.headers.has("PAYMENT-SIGNATURE");
-      canaryText = outputText(JSON.parse(canary.body.toString("utf8") || "{}"));
+      const canaryBody = JSON.parse(canary.body.toString("utf8") || "{}") as JsonRecord;
+      const canaryError = canaryBody.error && typeof canaryBody.error === "object" && !Array.isArray(canaryBody.error)
+        ? canaryBody.error as JsonRecord
+        : undefined;
+      canaryCode = typeof canaryBody.code === "string"
+        ? canaryBody.code
+        : typeof canaryError?.code === "string"
+          ? canaryError.code
+          : null;
+      canaryText = outputText(canaryBody);
     }
     const canaryOk = Boolean(relayKey)
       && got.status === 200
@@ -473,6 +484,10 @@ export async function runPreflight(ports: PreflightPorts): Promise<{
         : "FRELY_RELAY_API_KEY_MISSING", {
       healthStatus: got.status,
       visionBasicAvailable: vision,
+      canaryStatus,
+      canaryCode,
+      outputContainsExactText: canaryText.includes("FRELY X402 OK"),
+      relayReturned402,
       x402Requested,
       relayPaymentBoundaryViolation: x402Requested,
     });
@@ -696,7 +711,7 @@ export async function runPreflight(ports: PreflightPorts): Promise<{
     paymentAuthorizationRecorded: true,
     paymentSent: false,
     intent,
-    authorization: FROZEN_AUTHORIZATION,
+    approvedRunParameters: FROZEN_AUTHORIZATION,
     health,
     image: imageMeta,
     gates,
@@ -712,7 +727,7 @@ export async function runPreflight(ports: PreflightPorts): Promise<{
     paymentAuthorizationRecorded: true,
     paymentSent: false,
     intent,
-    authorization: FROZEN_AUTHORIZATION,
+    approvedRunParameters: FROZEN_AUTHORIZATION,
     gates,
     claim,
     image: imageMeta,

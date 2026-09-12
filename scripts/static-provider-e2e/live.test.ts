@@ -60,7 +60,7 @@ async function withPreflight(
     paymentAuthorizationRecorded: true,
     paymentSent: false,
     intent: FROZEN_PAYMENT_INTENT,
-    authorization: {
+    approvedRunParameters: {
       ...FROZEN_PAYMENT_INTENT,
       upstream: "https://api.frely.cloud/v1/responses",
       model: "vision-basic",

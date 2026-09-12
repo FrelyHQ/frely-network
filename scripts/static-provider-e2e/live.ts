@@ -47,7 +47,7 @@ async function assertPreflightGreen(
     paymentAuthorizationRecorded?: unknown;
     paymentSent?: unknown;
     intent?: unknown;
-    authorization?: unknown;
+    approvedRunParameters?: unknown;
     image?: { url?: unknown; status?: unknown; redirected?: unknown; sha256?: unknown };
     claim?: { mode?: unknown; identityVerified?: unknown; discovery?: unknown };
     gates?: Record<string, { status?: unknown }>;
@@ -56,7 +56,7 @@ async function assertPreflightGreen(
   if (raw.paymentAuthorizationRecorded !== true) throw new Error("PREFLIGHT_NOT_GREEN");
   if (raw.paymentSent !== false) throw new Error("PREFLIGHT_NOT_GREEN");
   assertExactPaymentIntent(raw.intent as PaymentIntent);
-  if (JSON.stringify(raw.authorization) !== JSON.stringify(FROZEN_AUTHORIZATION)) {
+  if (JSON.stringify(raw.approvedRunParameters) !== JSON.stringify(FROZEN_AUTHORIZATION)) {
     throw new Error("LIVE_AUTHORIZATION_MISMATCH");
   }
   const fetchedAt = typeof raw.fetchedAt === "string" ? Date.parse(raw.fetchedAt) : Number.NaN;
@@ -189,7 +189,7 @@ export async function runLive(ports: LivePorts = {}): Promise<unknown> {
       authorizationMatched: true,
       requestId,
       intent: FROZEN_PAYMENT_INTENT,
-      authorization: FROZEN_AUTHORIZATION,
+      approvedRunParameters: FROZEN_AUTHORIZATION,
       ...value,
     });
     await writeFile(join(evidenceDir, "live.json"), `${JSON.stringify(evidence, null, 2)}\n`);
