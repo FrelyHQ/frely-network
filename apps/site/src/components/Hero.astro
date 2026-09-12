@@ -1,0 +1,418 @@
+---
+/**
+ * Long-page hero: 100vh Spline stage, then #details in normal document flow.
+ * Spline iframe keeps in-scene Click Me / act-2. No scroll lock or wheel hijack.
+ */
+const GITHUB = "https://github.com/FrelyHQ/frely-network";
+/** Same public file; bump `v` after each Spline Publish so the iframe is not stuck on CDN cache. */
+const DEFAULT_SPLINE_PUBLIC =
+  "https://my.spline.design/aidatamodelinteraction-yXFK4f6oAzDsrDztvyJ1dXk4/?v=frely-20260912-1133";
+const splineScene = import.meta.env.PUBLIC_SPLINE_SCENE as string | undefined;
+const splinePublic =
+  (import.meta.env.PUBLIC_SPLINE_PUBLIC as string | undefined) || DEFAULT_SPLINE_PUBLIC;
+const useViewer = Boolean(splineScene);
+---
+
+<section id="top" class="stage" data-testid="stage" data-state="splash">
+  <div class="stage-spline" data-testid="spline-layer" aria-hidden="true">
+    <div class="stage-ambient" data-testid="spline-ambient">
+      <div class="ambient-glow"></div>
+      <div class="ambient-ring ambient-ring--a"></div>
+      <div class="ambient-ring ambient-ring--b"></div>
+      <div class="ambient-core"></div>
+    </div>
+    {
+      useViewer ? (
+        <div class="stage-spline-frame" data-testid="spline-viewer-host">
+          <script
+            is:inline
+            type="module"
+            src="https://unpkg.com/@splinetool/viewer@1.9.82/build/spline-viewer.js"
+          ></script>
+          <spline-viewer
+            url={splineScene}
+            style="width:100%;height:100%;background:transparent;"
+          ></spline-viewer>
+        </div>
+      ) : (
+        <iframe
+          title="Frely Network scene"
+          src={splinePublic}
+          class="stage-spline-frame"
+          loading="eager"
+          allow="autoplay; fullscreen"
+          data-testid="spline-iframe"
+        ></iframe>
+      )
+    }
+  </div>
+
+  <div class="stage-viewport" data-testid="stage-viewport">
+    <div class="stage-chrome" data-testid="splash">
+      <a class="stage-logo" href="/" aria-label="Frely Network" data-testid="splash-logo">
+        <img
+          src="/logo.png?v=blue-1133"
+          alt=""
+          width="168"
+          height="44"
+          class="stage-logo-img"
+        />
+      </a>
+
+      <button
+        type="button"
+        class="click-me"
+        data-testid="click-me"
+        aria-label="Enter Frely Network scene"
+      >
+        <span class="click-me-label">
+          <span>Click Me</span>
+          <span class="click-me-arrow" aria-hidden="true">↓</span>
+        </span>
+      </button>
+
+      <p class="scroll-hint" data-testid="scroll-hint">Scroll for project details</p>
+    </div>
+  </div>
+
+  <div id="details" class="stage-details-lead" data-testid="details-lead">
+    <div class="details-lead-panel animate-rise">
+      <p class="details-eyebrow" data-testid="hero-brand">Frely Network</p>
+      <h1 class="details-title" data-testid="reveal-title">Open agent capability network</h1>
+      <p class="details-body" data-testid="reveal-body">
+        Let an agent discover, verify, pay for, and use capabilities it does not have — Graph
+        discovery, ENS / ERC-8004 identity, Hedera x402 settlement.
+      </p>
+      <div class="details-actions">
+        <a
+          href={GITHUB}
+          target="_blank"
+          rel="noreferrer"
+          class="btn btn-primary btn-lg"
+          data-testid="cta-github"
+        >
+          View on GitHub
+        </a>
+        <a href="#flow" class="btn btn-ghost btn-lg" data-testid="cta-flow">See the path</a>
+      </div>
+    </div>
+  </div>
+</section>
+
+<script>
+  const stage = document.getElementById("top");
+  const clickMe = document.querySelector("[data-testid='click-me']");
+  const iframe = document.querySelector("[data-testid='spline-iframe']");
+
+  const goEngaged = () => {
+    if (!stage || stage.dataset.state === "engaged") return;
+    stage.dataset.state = "engaged";
+    document.documentElement.dataset.landing = "engaged";
+    if (clickMe instanceof HTMLElement) {
+      clickMe.hidden = true;
+      clickMe.setAttribute("aria-hidden", "true");
+    }
+  };
+
+  clickMe?.addEventListener("click", (e) => {
+    e.preventDefault();
+    goEngaged();
+  });
+  clickMe?.addEventListener("keydown", (e) => {
+    if (e instanceof KeyboardEvent && (e.key === "Enter" || e.key === " ")) {
+      e.preventDefault();
+      goEngaged();
+    }
+  });
+
+  // Focusing the Spline iframe (in-scene Click Me) marks engaged / hides mobile CTA.
+  window.addEventListener("blur", () => {
+    window.requestAnimationFrame(() => {
+      if (iframe instanceof HTMLIFrameElement && document.activeElement === iframe) {
+        goEngaged();
+      }
+    });
+  });
+
+  if (iframe instanceof HTMLIFrameElement) {
+    const markReady = () => stage?.classList.add("is-spline-ready");
+    iframe.addEventListener("load", markReady);
+    try {
+      if (iframe.contentDocument?.readyState === "complete") markReady();
+    } catch {
+      // cross-origin
+    }
+  } else {
+    window.setTimeout(() => stage?.classList.add("is-spline-ready"), 400);
+  }
+</script>
+
+<style>
+  .stage {
+    position: relative;
+    isolation: isolate;
+  }
+
+  .stage-viewport {
+    position: relative;
+    z-index: 1;
+    min-height: 100svh;
+    pointer-events: none;
+  }
+
+  /*
+   * Phase 1: keep fixed so the first viewport stays a full-bleed scene.
+   * #details / after-reveal sit above it (higher z-index + opaque backgrounds).
+   */
+  .stage-spline {
+    position: fixed;
+    inset: 0;
+    z-index: 0;
+    background: #05070d;
+    transition: opacity 0.75s cubic-bezier(0.22, 1, 0.36, 1);
+  }
+
+  .stage-ambient {
+    position: absolute;
+    inset: 0;
+    display: grid;
+    place-items: center;
+    transition: opacity 0.7s ease;
+    pointer-events: none;
+  }
+
+  .ambient-glow {
+    position: absolute;
+    width: min(52vw, 420px);
+    height: min(52vw, 420px);
+    border-radius: 50%;
+    background: radial-gradient(circle, rgba(59, 130, 246, 0.28), transparent 68%);
+    filter: blur(8px);
+    animation: ambient-breathe 3.6s ease-in-out infinite;
+  }
+
+  .ambient-ring {
+    position: absolute;
+    border-radius: 50%;
+    border: 1px solid rgba(147, 197, 253, 0.18);
+  }
+
+  .ambient-ring--a {
+    width: min(38vw, 280px);
+    height: min(22vw, 150px);
+    transform: rotateX(66deg) rotateZ(-8deg);
+    animation: ambient-spin 18s linear infinite;
+  }
+
+  .ambient-ring--b {
+    width: min(48vw, 360px);
+    height: min(28vw, 190px);
+    border-color: rgba(96, 165, 250, 0.12);
+    transform: rotateX(66deg) rotateZ(12deg);
+    animation: ambient-spin 26s linear infinite reverse;
+  }
+
+  .ambient-core {
+    width: 18px;
+    height: 18px;
+    border-radius: 50%;
+    background: radial-gradient(circle at 35% 30%, #fff, #93c5fd 45%, #2563eb 100%);
+    box-shadow: 0 0 24px rgba(96, 165, 250, 0.55);
+  }
+
+  @keyframes ambient-breathe {
+    0%,
+    100% {
+      transform: scale(0.92);
+      opacity: 0.7;
+    }
+    50% {
+      transform: scale(1.05);
+      opacity: 1;
+    }
+  }
+
+  @keyframes ambient-spin {
+    to {
+      transform: rotateX(66deg) rotateZ(352deg);
+    }
+  }
+
+  .stage-spline-frame {
+    position: absolute;
+    inset: 0;
+    width: 100%;
+    height: 100%;
+    border: 0;
+    background: transparent;
+    opacity: 0;
+    transition: opacity 0.9s ease;
+    pointer-events: none;
+  }
+
+  .stage.is-spline-ready .stage-spline-frame {
+    opacity: 1;
+    pointer-events: auto;
+  }
+
+  .stage.is-spline-ready .stage-ambient {
+    opacity: 0;
+  }
+
+  .stage-chrome {
+    position: absolute;
+    inset: 0;
+    z-index: 2;
+    pointer-events: none;
+  }
+
+  .stage-logo {
+    pointer-events: auto;
+    position: absolute;
+    top: 1.15rem;
+    left: 1.25rem;
+    z-index: 3;
+    display: inline-flex;
+    align-items: center;
+    text-decoration: none;
+  }
+
+  .stage-logo-img {
+    height: 2.35rem;
+    width: auto;
+    object-fit: contain;
+    filter: drop-shadow(0 2px 14px rgba(37, 99, 235, 0.35));
+  }
+
+  .click-me {
+    pointer-events: none;
+    position: absolute;
+    inset: 0;
+    display: none;
+    place-items: center;
+    width: 100%;
+    height: 100%;
+    margin: 0;
+    padding: 0;
+    border: 0;
+    background: transparent;
+    color: #f4f7fb;
+    cursor: pointer;
+    appearance: none;
+    font: inherit;
+  }
+
+  .click-me-label {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.45rem;
+    margin-top: min(8vh, 72px);
+    padding: 0.7rem 1.15rem;
+    border-radius: 999px;
+    border: 1px solid rgba(148, 163, 184, 0.28);
+    background: rgba(12, 16, 24, 0.72);
+    font-size: 0.92rem;
+    font-weight: 600;
+    letter-spacing: 0.02em;
+    backdrop-filter: blur(12px);
+    box-shadow: 0 10px 40px rgba(0, 0, 0, 0.35);
+    color: #f4f7fb;
+  }
+
+  .click-me-arrow {
+    opacity: 0.8;
+    animation: pulse-glow 1.8s ease-in-out infinite;
+  }
+
+  .stage[data-state="engaged"] .click-me {
+    display: none !important;
+  }
+
+  .click-me:focus-visible {
+    outline: 2px solid var(--ring);
+    outline-offset: -6px;
+  }
+
+  .scroll-hint {
+    position: absolute;
+    left: 50%;
+    bottom: 1.75rem;
+    z-index: 6;
+    transform: translateX(-50%);
+    margin: 0;
+    font-size: 0.78rem;
+    letter-spacing: 0.04em;
+    color: rgba(148, 163, 184, 0.92);
+    text-shadow: 0 2px 12px rgba(0, 0, 0, 0.65);
+    pointer-events: none;
+  }
+
+  .stage-details-lead {
+    position: relative;
+    z-index: 3;
+    min-height: 100svh;
+    display: grid;
+    place-items: center;
+    padding: 5.5rem 1.5rem 3rem;
+    background: var(--background);
+  }
+
+  .details-lead-panel {
+    width: min(42rem, 100%);
+    margin-inline: auto;
+    text-align: center;
+  }
+
+  .details-eyebrow {
+    margin: 0;
+    font-size: 0.8rem;
+    font-weight: 700;
+    letter-spacing: 0.22em;
+    text-transform: uppercase;
+    color: var(--primary);
+  }
+
+  .details-title {
+    margin: 1rem 0 0;
+    font-size: clamp(2.1rem, 4.5vw, 3.35rem);
+    font-weight: 800;
+    line-height: 1.05;
+    letter-spacing: -0.02em;
+  }
+
+  .details-body {
+    margin: 1.15rem auto 0;
+    max-width: 34rem;
+    font-size: 1.05rem;
+    line-height: 1.65;
+    color: var(--muted-foreground);
+  }
+
+  .details-actions {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.75rem;
+    margin-top: 1.75rem;
+    justify-content: center;
+  }
+
+  @media (max-width: 640px) {
+    .stage-spline-frame {
+      display: none;
+      pointer-events: none !important;
+    }
+
+    .stage-ambient {
+      opacity: 1;
+    }
+
+    .click-me {
+      display: grid;
+      pointer-events: auto;
+    }
+
+    .click-me:focus-visible {
+      outline-offset: 3px;
+    }
+  }
+</style>

@@ -1,0 +1,19 @@
+{
+  "name": "@frely-network/site",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "astro dev --port 3010",
+    "build": "astro build",
+    "preview": "astro preview --port 3010"
+  },
+  "dependencies": {
+    "astro": "^5.13.0"
+  },
+  "devDependencies": {
+    "@tailwindcss/vite": "^4.1.11",
+    "tailwindcss": "^4.1.11",
+    "typescript": "^5.9.2"
+  }
+}
