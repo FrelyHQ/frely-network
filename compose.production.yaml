@@ -1,3 +1,5 @@
+name: frely-network
+
 services:
   broker-mcp:
     build:
@@ -19,6 +21,14 @@ services:
       X402_PRIVATE_KEY: ${X402_PRIVATE_KEY:-}
       X402_MAX_AMOUNT: ${X402_MAX_AMOUNT:-}
       FRELY_API_KEY: ${FRELY_API_KEY:-}
+      FRELY_NETWORK_RELAY_API_KEY: ${FRELY_NETWORK_RELAY_API_KEY:-}
+      FRELY_NETWORK_A2A_PAYMENT_REQUIRED: ${FRELY_NETWORK_A2A_PAYMENT_REQUIRED:-}
+      FRELY_NETWORK_A2A_PAYMENT_REVISION: ${FRELY_NETWORK_A2A_PAYMENT_REVISION:-}
+      FRELY_NETWORK_A2A_QUOTE_REFERENCE: ${FRELY_NETWORK_A2A_QUOTE_REFERENCE:-}
+      FRELY_NETWORK_A2A_MAX_AMOUNT: ${FRELY_NETWORK_A2A_MAX_AMOUNT:-}
+      FRELY_NETWORK_A2A_QUOTE_EXPIRY_SECONDS: ${FRELY_NETWORK_A2A_QUOTE_EXPIRY_SECONDS:-300}
+      X402_FACILITATOR_ACCOUNT_ID: ${X402_FACILITATOR_ACCOUNT_ID:-}
+      X402_FACILITATOR_PRIVATE_KEY: ${X402_FACILITATOR_PRIVATE_KEY:-}
     ports:
       - "${FRELY_NETWORK_BIND_ADDRESS:-127.0.0.1}:${FRELY_NETWORK_PUBLISHED_PORT:-13600}:4100"
     healthcheck:
@@ -26,7 +36,7 @@ services:
         - CMD
         - bun
         - -e
-        - fetch('http://127.0.0.1:4100/healthz').then(r=>{if(!r.ok)process.exit(1)}).catch(()=>process.exit(1))
+        - fetch('http://127.0.0.1:4100/readyz').then(r=>{if(!r.ok)process.exit(1)}).catch(()=>process.exit(1))
       interval: 15s
       timeout: 3s
       retries: 5

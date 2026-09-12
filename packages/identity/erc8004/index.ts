@@ -72,7 +72,7 @@ export class ViemErc8004Reader implements Erc8004Reader {
 }
 
 function protocol(value: unknown): ResolvedProvider["protocol"] {
-  if (value === "responses" || value === "mcp" || value === "http") return value;
+  if (value === "responses" || value === "a2a" || value === "mcp" || value === "http") return value;
   throw new Error("PROTOCOL_NOT_SUPPORTED");
 }
 
@@ -92,7 +92,9 @@ export class ProviderIdentityResolver {
     const capabilities = identity.metadata.capabilities ?? [];
     if (!candidate.capabilities.every((capability) => capabilities.includes(capability))) throw new Error("CAPABILITY_NOT_SUPPORTED");
     if (identity.metadata.agentId !== undefined && String(identity.metadata.agentId) !== identity.agentId) throw new Error("IDENTITY_VERIFICATION_FAILED");
-    if (identity.metadata.protocol !== undefined) protocol(identity.metadata.protocol);
+    const requestedProtocol = identity.metadata.protocol !== undefined || candidate.protocol !== undefined
+      ? protocol(identity.metadata.protocol ?? candidate.protocol)
+      : undefined;
     if (identity.metadata.endpoint !== undefined) {
       let metadataEndpoint: URL;
       try { metadataEndpoint = new URL(identity.metadata.endpoint); } catch { throw new Error("IDENTITY_VERIFICATION_FAILED"); }
@@ -101,6 +103,7 @@ export class ProviderIdentityResolver {
     const ens: EnsRecords = await this.ens.resolve(candidate.ensName, {
       registryAddress: identity.registryAddress,
       agentId: identity.agentId,
+      ...(requestedProtocol === undefined ? {} : { protocol: requestedProtocol }),
     });
     if (!sameRegistration(ens.agentRegistration, identity.registryAddress, identity.agentId)) throw new Error("IDENTITY_VERIFICATION_FAILED");
     if (identity.metadata.ens && identity.metadata.ens !== candidate.ensName) throw new Error("IDENTITY_VERIFICATION_FAILED");
@@ -109,6 +112,9 @@ export class ProviderIdentityResolver {
     if (identity.metadata.endpoint && new URL(identity.metadata.endpoint).toString() !== endpoint.toString()) {
       throw new Error("IDENTITY_VERIFICATION_FAILED");
     }
-    return { id: candidate.id, ensName: candidate.ensName, endpoint: ens.endpoint, protocol: protocol(ens.protocol), verified: true };
+    const resolvedProtocol = protocol(ens.protocol);
+    if (requestedProtocol !== undefined && resolvedProtocol !== requestedProtocol) throw new Error("IDENTITY_VERIFICATION_FAILED");
+    if (candidate.protocol !== undefined && resolvedProtocol !== candidate.protocol) throw new Error("IDENTITY_VERIFICATION_FAILED");
+    return { id: candidate.id, ensName: candidate.ensName, endpoint: ens.endpoint, protocol: resolvedProtocol, verified: true };
   }
 }

@@ -1,5 +1,6 @@
 import { createHash } from "node:crypto";
 import type {
+  A2AChargeQuote,
   A2APaymentAdmission,
   A2APaymentChallenge,
   A2APaymentRequirementsRequest,
@@ -12,7 +13,25 @@ import {
 } from "@frely-network/shared-types";
 
 import { isSafePublicHttpUrl, type PaymentEvidence } from "@frely-network/shared-types";
-import { createClientHederaSigner, PrivateKey } from "@x402/hedera";
+import { x402Facilitator } from "@x402/core/facilitator";
+import type {
+  Network as X402Network,
+  PaymentPayload as X402PaymentPayload,
+  PaymentRequirements as X402PaymentRequirements,
+  SettleResponse as X402SettleResponse,
+  VerifyResponse as X402VerifyResponse,
+} from "@x402/core/types";
+import {
+  createClientHederaSigner,
+  createHederaClient,
+  createHederaPreflightTransfer,
+  createHederaSignAndSubmitTransaction,
+  createHederaVerifyPayerSignature,
+  PrivateKey,
+  toFacilitatorHederaSigner,
+  type FacilitatorHederaSigner,
+} from "@x402/hedera";
+import { ExactHederaScheme as ExactHederaFacilitatorScheme } from "@x402/hedera/exact/facilitator";
 import { ExactHederaScheme } from "@x402/hedera/exact/client";
 
 export const HEDERA_TESTNET_NETWORK = "hedera:testnet" as const;
@@ -82,7 +101,14 @@ export interface PaymentRequest {
 export interface PaymentClientResult {
   response: Response;
   payment?: PaymentEvidence;
+  /** Transient authorization data for an immediate A2A settlement adapter. Never persist or log. */
+  authorization?: PaymentAuthorization;
   challenged: boolean;
+}
+
+export interface PaymentAuthorization {
+  readonly paymentPayload: PaymentPayload;
+  readonly paymentRequirement: PaymentRequirement;
 }
 
 export interface HederaX402ClientConfig {
@@ -152,6 +178,7 @@ export class ExactHederaPaymentSigner implements HederaPaymentSigner {
       if (!payload) throw new Error("invalid_payload");
       return {
         x402Version: 2,
+        resource: { url: context.url },
         accepted: requirement,
         payload,
       };
@@ -359,7 +386,12 @@ export class HederaX402Client {
 
     const paymentHeader = encodeBase64Json(payload);
     const retryHeaders = cloneHeaders(request.headers);
-    if (required.x402Version === 1) retryHeaders.set("X-PAYMENT", paymentHeader);
+    if (required.x402Version === 1) {
+      retryHeaders.set("X-PAYMENT", paymentHeader);
+      // The Frely A2A ingress has one opaque proof header independent of the
+      // underlying x402 wire version; keep the legacy provider header too.
+      retryHeaders.set("PAYMENT-SIGNATURE", paymentHeader);
+    }
     else {
       retryHeaders.set("PAYMENT-SIGNATURE", paymentHeader);
       // Blocky402 and some Hedera v2 deployments still consume the v1-compatible name.
@@ -374,7 +406,12 @@ export class HederaX402Client {
 
     const payment = await settlementFromResponse(retry, this.network);
     if (!payment && this.requireSettlementEvidence) throw new PaymentError("PAYMENT_FAILED");
-    return { response: retry, ...(payment ? { payment } : {}), challenged: true };
+    return {
+      response: retry,
+      ...(payment ? { payment } : {}),
+      authorization: { paymentPayload: payload, paymentRequirement: requirement },
+      challenged: true,
+    };
   }
 }
 
@@ -390,7 +427,11 @@ export function decodePaymentHeader(value: string): PaymentRequired | PaymentPay
 
 const MAX_PROOF_BYTES = 128 * 1024;
 const MAX_REQUIREMENT_BYTES = 64 * 1024;
+const MAX_CHARGE_UNITS_DIGITS = 19;
+const MAX_CHARGE_UNITS = 9_223_372_036_854_775_807n;
+const MAX_REPLAY_ENTRIES = 2_048;
 const SAFE_REFERENCE = /^[A-Za-z0-9][A-Za-z0-9_.:/-]{0,191}$/u;
+const SAFE_CHAIN_REFERENCE = /^[A-Za-z0-9][A-Za-z0-9_.:@/-]{0,191}$/u;
 const SAFE_HASH = /^[a-f0-9]{64}$/u;
 const SECRET_REFERENCE_PATTERNS = [
   /^(?:bearer|basic)[_.:/-]/iu,
@@ -456,6 +497,7 @@ export function createHederaX402AdmissionVerifier(options: HederaX402AdmissionVe
         network: A2A_PAYMENT_NETWORK,
         asset: admission.asset,
         authorizedAmount: admission.authorizedAmount,
+        chargeQuote: admission.chargeQuote,
         verifiedAt: admission.verifiedAt,
         expiresAt: admission.expiresAt,
         replayStatus: admission.replayStatus,
@@ -480,13 +522,351 @@ export class HederaX402PaymentRejectedError extends Error {
   }
 }
 
+export interface HederaX402FacilitatorPort {
+  verify(paymentPayload: X402PaymentPayload, paymentRequirements: X402PaymentRequirements): Promise<X402VerifyResponse>;
+  settle(paymentPayload: X402PaymentPayload, paymentRequirements: X402PaymentRequirements): Promise<X402SettleResponse>;
+}
+
+/** Build the official x402 Hedera v2 facilitator for the testnet CAIP-2 name. */
+export function createHederaX402Facilitator(
+  signer: FacilitatorHederaSigner,
+  options: { readonly aliasPolicy?: "reject" | "allow" } = {},
+): x402Facilitator {
+  const scheme = new ExactHederaFacilitatorScheme(signer, options);
+  return new x402Facilitator().register(HEDERA_TESTNET_NETWORK, scheme);
+}
+
+/** Creates the facilitator signer from process-owned configuration without exposing the key. */
+export function createHederaX402FacilitatorFromConfig(
+  accountId: string,
+  privateKey: string,
+  options: { readonly aliasPolicy?: "reject" | "allow" } = {},
+): x402Facilitator {
+  const key = PrivateKey.fromStringECDSA(privateKey);
+  const buildClient = (network: string) => createHederaClient(network);
+  const signer = toFacilitatorHederaSigner({
+    getAddresses: () => [accountId],
+    signAndSubmitTransaction: createHederaSignAndSubmitTransaction(buildClient, key),
+    preflightTransfer: createHederaPreflightTransfer(),
+    verifyPayerSignature: createHederaVerifyPayerSignature(),
+  });
+  return createHederaX402Facilitator(signer, options);
+}
+
+export interface LiveHederaX402AdmissionVerifierOptions {
+  /** Produces a challenge whose quote and opaque x402 requirement are payee-owned. */
+  requirements(input: A2APaymentRequirementsRequest): Promise<A2APaymentChallenge>;
+  readonly facilitator: HederaX402FacilitatorPort;
+  readonly now?: () => string;
+  readonly maxReplayEntries?: number;
+}
+
+/**
+ * Live Network-side adapter. It is the only boundary that decodes the opaque
+ * x402 proof and invokes the official Hedera facilitator. Replay state stores
+ * only a proof digest plus safe correlation/admission facts.
+ */
+export function createLiveHederaX402AdmissionVerifier(
+  options: LiveHederaX402AdmissionVerifierOptions,
+): HederaX402AdmissionVerifier {
+  const now = options.now ?? (() => new Date().toISOString());
+  const maxReplayEntries = options.maxReplayEntries ?? MAX_REPLAY_ENTRIES;
+  if (!Number.isSafeInteger(maxReplayEntries) || maxReplayEntries < 1 || maxReplayEntries > 65_536) throw new Error("A2A_PAYMENT_REPLAY_LIMIT_INVALID");
+  const acceptedProofs = new Map<string, {
+    readonly resource: string;
+    readonly requestHash: string;
+    readonly idempotencyKeyHash: string;
+    readonly requirementDigest: string;
+    readonly admission: HederaX402VerifiedPayment;
+  }>();
+
+  const getChallenge = async (input: A2APaymentRequirementsRequest): Promise<A2APaymentChallenge> => {
+    validateRequirementsRequest(input);
+    const challenge = validateChallenge(await options.requirements(input), input.resource, now());
+    decodeLivePaymentRequired(challenge);
+    return challenge;
+  };
+
+  return {
+    requirements: getChallenge,
+    verify: async (input) => {
+      validateVerifyRequest(input);
+      const challenge = await getChallenge(input);
+      const currentTime = now();
+      const currentTimestamp = Date.parse(currentTime);
+      if (!Number.isFinite(currentTimestamp)) throw new Error("A2A_PAYMENT_TIME_INVALID");
+      purgeReplayEntries(acceptedProofs, currentTimestamp);
+
+      const proofHash = sha256(input.proof);
+      const previous = acceptedProofs.get(proofHash);
+      if (previous) {
+        if (
+          previous.resource !== input.resource ||
+          previous.requestHash !== input.requestHash ||
+          previous.idempotencyKeyHash !== input.idempotencyKeyHash ||
+          previous.requirementDigest !== challengeRequirementDigest(challenge)
+        ) throw new HederaX402PaymentRejectedError("payment_replayed", challenge);
+        return admissionResponse({ ...previous.admission, replayStatus: "replayed" });
+      }
+
+      let decodedProof: PaymentRequired | PaymentPayload;
+      let required: PaymentRequired;
+      try {
+        decodedProof = decodePaymentHeader(input.proof);
+        required = decodeLivePaymentRequired(challenge);
+      } catch {
+        throw new HederaX402PaymentRejectedError("payment_invalid", challenge);
+      }
+      if (isPaymentRequired(decodedProof)) throw new HederaX402PaymentRejectedError("payment_invalid", challenge);
+      let requirement: PaymentRequirement;
+      try {
+        requirement = selectLivePaymentRequirement(required, decodedProof, challenge.resource);
+      } catch {
+        throw new HederaX402PaymentRejectedError("payment_invalid", challenge);
+      }
+      let verified: X402VerifyResponse;
+      try {
+        verified = await options.facilitator.verify(
+          toOfficialPaymentPayload(decodedProof),
+          toOfficialPaymentRequirement(requirement),
+        );
+      } catch {
+        throw new HederaX402PaymentRejectedError("payment_invalid", challenge);
+      }
+      if (verified.isValid !== true || typeof verified.payer !== "string" || !verified.payer) {
+        throw new HederaX402PaymentRejectedError("payment_invalid", challenge);
+      }
+
+      const admission: HederaX402VerifiedPayment = {
+        paymentReference: `hedera:proof:${proofHash.slice(0, 48)}`,
+        requirementRevision: challenge.requirementRevision,
+        payerReference: verified.payer,
+        asset: requirement.asset as string,
+        authorizedAmount: (requirement.amount ?? requirement.maxAmountRequired) as string,
+        chargeQuote: challenge.chargeQuote,
+        verifiedAt: currentTime,
+        expiresAt: challenge.expiresAt,
+        replayStatus: "fresh",
+      };
+      let validated: HederaX402VerifiedPayment;
+      try {
+        validated = validateVerifiedPayment(admission, challenge, currentTime);
+      } catch (error) {
+        if (error instanceof HederaX402PaymentRejectedError) throw error;
+        throw new HederaX402PaymentRejectedError("payment_invalid", challenge);
+      }
+      while (acceptedProofs.size >= maxReplayEntries) {
+        const oldest = acceptedProofs.keys().next().value;
+        if (typeof oldest !== "string") break;
+        acceptedProofs.delete(oldest);
+      }
+      acceptedProofs.set(proofHash, {
+        resource: input.resource,
+        requestHash: input.requestHash,
+        idempotencyKeyHash: input.idempotencyKeyHash,
+        requirementDigest: challengeRequirementDigest(challenge),
+        admission: validated,
+      });
+      return admissionResponse(validated);
+    },
+  };
+}
+
+export interface HederaX402PaymentSettlementInput {
+  readonly paymentPayload: PaymentPayload;
+  readonly paymentRequirement: PaymentRequirement;
+  /** Optional Relay projection used by a refund implementation to calculate the release. */
+  readonly payment?: PaymentEvidence;
+}
+
+export interface HederaX402PaymentSettlementPort {
+  settle(input: HederaX402PaymentSettlementInput): Promise<PaymentEvidence>;
+  release(input: HederaX402PaymentSettlementInput): Promise<PaymentEvidence>;
+}
+
+export interface LiveHederaX402PaymentSettlementOptions {
+  readonly facilitator: HederaX402FacilitatorPort;
+  /** Must issue a real compensating transfer/refund; the adapter never fabricates a release. */
+  release(input: HederaX402PaymentSettlementInput): Promise<PaymentEvidence>;
+}
+
+/** Official-facilitator settlement plus an explicitly injected refund path. */
+export function createLiveHederaX402PaymentSettlement(
+  options: LiveHederaX402PaymentSettlementOptions,
+): HederaX402PaymentSettlementPort {
+  return {
+    settle: async (input) => {
+      let result: X402SettleResponse;
+      try {
+        result = await options.facilitator.settle(
+          toOfficialPaymentPayload(input.paymentPayload),
+          toOfficialPaymentRequirement(input.paymentRequirement),
+        );
+      } catch {
+        throw new PaymentError("PAYMENT_FAILED");
+      }
+      if (result.success !== true || canonicalNetwork(result.network) !== HEDERA_TESTNET_NETWORK || !safeChainReference(result.transaction)) {
+        throw new PaymentError("PAYMENT_FAILED");
+      }
+      const amount = input.paymentRequirement.amount ?? input.paymentRequirement.maxAmountRequired;
+      if (!amount || !/^[1-9][0-9]*$/u.test(amount)) throw new PaymentError("PAYMENT_FAILED");
+      if (result.payer !== undefined && !safeReference(result.payer)) throw new PaymentError("PAYMENT_FAILED");
+      return {
+        network: HEDERA_TESTNET_NETWORK,
+        status: "settled",
+        transactionId: result.transaction,
+        paymentReference: paymentReferenceForPayload(input.paymentPayload),
+        authorizedAmount: amount,
+        ...(result.payer === undefined ? {} : { payer: result.payer }),
+      };
+    },
+    release: async (input) => {
+      try {
+        return normalizeSettlementEvidence(await options.release(input));
+      } catch (error) {
+        if (error instanceof PaymentError) throw error;
+        throw new PaymentError("PAYMENT_FAILED");
+      }
+    },
+  };
+}
+
+function isPaymentRequired(value: PaymentRequired | PaymentPayload): value is PaymentRequired {
+  return Array.isArray((value as { accepts?: unknown }).accepts);
+}
+
+function decodeLivePaymentRequired(challenge: A2APaymentChallenge): PaymentRequired {
+  let decoded: PaymentRequired | PaymentPayload;
+  try { decoded = decodePaymentHeader(challenge.paymentRequired); }
+  catch { throw new Error("A2A_PAYMENT_REQUIREMENT_INVALID"); }
+  if (!isPaymentRequired(decoded)) throw new Error("A2A_PAYMENT_REQUIREMENT_INVALID");
+  if (decoded.x402Version !== 2 || !decoded.resource?.url || normalizeResource(decoded.resource.url) !== challenge.resource) throw new Error("A2A_PAYMENT_REQUIREMENT_INVALID");
+  if (!decoded.accepts.some((candidate) => candidate.scheme === "exact" && canonicalNetwork(candidate.network) === HEDERA_TESTNET_NETWORK)) {
+    throw new Error("A2A_PAYMENT_NETWORK_UNSUPPORTED");
+  }
+  return decoded;
+}
+
+function selectLivePaymentRequirement(
+  required: PaymentRequired,
+  payload: PaymentPayload,
+  resource: string,
+): PaymentRequirement {
+  if (payload.x402Version !== 2 || required.x402Version !== 2) throw new Error("A2A_PAYMENT_VERSION_MISMATCH");
+  if (!payload.resource?.url || normalizeResource(payload.resource.url) !== resource) throw new Error("A2A_PAYMENT_RESOURCE_MISMATCH");
+  const candidates = required.accepts.filter((candidate) => candidate.scheme === "exact" && canonicalNetwork(candidate.network) === HEDERA_TESTNET_NETWORK);
+  const selected = candidates.find((candidate) => matchesSelectedRequirement(payload, candidate));
+  if (!selected) throw new Error("A2A_PAYMENT_REQUIREMENT_MISMATCH");
+  validateOfficialRequirement(selected);
+  return selected;
+}
+
+function validateOfficialRequirement(value: PaymentRequirement): void {
+  const amount = value.amount ?? value.maxAmountRequired;
+  if (
+    value.scheme !== "exact" ||
+    canonicalNetwork(value.network) === undefined ||
+    typeof value.asset !== "string" ||
+    !safeReference(value.asset) ||
+    typeof value.payTo !== "string" ||
+    !safeReference(value.payTo) ||
+    typeof value.maxTimeoutSeconds !== "number" ||
+    !Number.isSafeInteger(value.maxTimeoutSeconds) ||
+    value.maxTimeoutSeconds < 1 ||
+    value.maxTimeoutSeconds > 86_400 ||
+    typeof amount !== "string" ||
+    !/^[1-9][0-9]*$/u.test(amount)
+  ) throw new Error("A2A_PAYMENT_REQUIREMENT_INVALID");
+  try {
+    if (BigInt(amount) <= 0n) throw new Error("amount");
+  } catch {
+    throw new Error("A2A_PAYMENT_REQUIREMENT_INVALID");
+  }
+}
+
+function toOfficialPaymentRequirement(value: PaymentRequirement): X402PaymentRequirements {
+  validateOfficialRequirement(value);
+  const amount = value.amount ?? value.maxAmountRequired;
+  return {
+    scheme: "exact",
+    network: (value.network === HEDERA_V1_TESTNET_NETWORK ? HEDERA_V1_TESTNET_NETWORK : HEDERA_TESTNET_NETWORK) as X402Network,
+    asset: value.asset as string,
+    amount: amount as string,
+    payTo: value.payTo as string,
+    maxTimeoutSeconds: value.maxTimeoutSeconds as number,
+    extra: asObject(value.extra) ?? {},
+  };
+}
+
+function toOfficialPaymentPayload(value: PaymentPayload): X402PaymentPayload {
+  if (value.x402Version !== 1 && value.x402Version !== 2) throw new Error("A2A_PAYMENT_PROOF_INVALID");
+  if (!asObject(value.payload)) throw new Error("A2A_PAYMENT_PROOF_INVALID");
+  return value as unknown as X402PaymentPayload;
+}
+
+function admissionResponse(value: HederaX402VerifiedPayment): A2APaymentAdmission {
+  return {
+    contractVersion: A2A_PAYMENT_CONTRACT_VERSION,
+    paymentReference: value.paymentReference,
+    requirementRevision: value.requirementRevision,
+    scheme: A2A_PAYMENT_SCHEME,
+    payerReference: value.payerReference,
+    network: A2A_PAYMENT_NETWORK,
+    asset: value.asset,
+    authorizedAmount: value.authorizedAmount,
+    chargeQuote: value.chargeQuote,
+    verifiedAt: value.verifiedAt,
+    expiresAt: value.expiresAt,
+    replayStatus: value.replayStatus,
+  };
+}
+
+function purgeReplayEntries(
+  entries: Map<string, { readonly admission: HederaX402VerifiedPayment }>,
+  currentTimestamp: number,
+): void {
+  for (const [key, value] of entries) {
+    if (Date.parse(value.admission.expiresAt) <= currentTimestamp) entries.delete(key);
+  }
+}
+
+function paymentReferenceForPayload(value: PaymentPayload): string {
+  return `hedera:payload:${sha256(JSON.stringify(value)).slice(0, 48)}`;
+}
+
+function challengeRequirementDigest(value: A2APaymentChallenge): string {
+  return sha256(JSON.stringify({ paymentRequired: value.paymentRequired, chargeQuote: value.chargeQuote }));
+}
+
+function safeChainReference(value: unknown): value is string {
+  return typeof value === "string" && SAFE_CHAIN_REFERENCE.test(value) && !SECRET_REFERENCE_PATTERNS.some((pattern) => pattern.test(value));
+}
+
+function normalizeSettlementEvidence(value: PaymentEvidence): PaymentEvidence {
+  if (!value || typeof value !== "object" || canonicalNetwork(value.network) !== HEDERA_TESTNET_NETWORK || value.status !== "released") {
+    throw new PaymentError("PAYMENT_FAILED");
+  }
+  if (value.transactionId !== undefined && !safeChainReference(value.transactionId)) throw new PaymentError("PAYMENT_FAILED");
+  if (value.payer !== undefined && !safeReference(value.payer)) throw new PaymentError("PAYMENT_FAILED");
+  if (value.paymentReference !== undefined && !safeReference(value.paymentReference)) throw new PaymentError("PAYMENT_FAILED");
+  return {
+    network: HEDERA_TESTNET_NETWORK,
+    status: "released",
+    ...(value.transactionId ? { transactionId: value.transactionId } : {}),
+    ...(value.payer ? { payer: value.payer } : {}),
+    ...(value.paymentReference ? { paymentReference: value.paymentReference } : {}),
+  };
+}
+
 export interface FixtureHederaX402Options {
   readonly expectedProof?: string;
   readonly requirementRevision?: string;
   readonly paymentRequired?: string;
+  readonly quoteReference?: string;
   readonly payerReference?: string;
   readonly asset?: string;
   readonly authorizedAmount?: string;
+  readonly maximumChargeUnits?: string;
   readonly expiresInSeconds?: number;
   readonly now?: () => string;
 }
@@ -503,10 +883,18 @@ export function createFixtureHederaX402AdmissionVerifier(options: FixtureHederaX
   if (!Number.isSafeInteger(expiresInSeconds) || expiresInSeconds < 1 || expiresInSeconds > 86_400) throw new Error("FIXTURE_EXPIRY_INVALID");
   const requirementRevision = options.requirementRevision ?? "fixture-v1";
   const paymentRequired = options.paymentRequired ?? "fixture:x402:hedera-testnet:exact:v1";
+  const quoteReference = options.quoteReference ?? "quote:fixture-v1";
   const payerReference = options.payerReference ?? "fixture:payer";
   const asset = options.asset ?? "HBAR";
   const authorizedAmount = options.authorizedAmount ?? "1";
-  const acceptedProofs = new Map<string, { requestHash: string; idempotencyKeyHash: string; admission: HederaX402VerifiedPayment }>();
+  const maximumChargeUnits = options.maximumChargeUnits ?? "1000000";
+  const acceptedProofs = new Map<string, {
+    resource: string;
+    requestHash: string;
+    idempotencyKeyHash: string;
+    requirementDigest: string;
+    admission: HederaX402VerifiedPayment;
+  }>();
 
   const verifier = createHederaX402AdmissionVerifier({
     now,
@@ -517,13 +905,24 @@ export function createFixtureHederaX402AdmissionVerifier(options: FixtureHederaX
       requirementRevision,
       resource: normalizeResource(input.resource),
       paymentRequired,
+      chargeQuote: {
+        quoteReference,
+        billingUnit: "usd_micro",
+        maximumChargeUnits,
+        expiresAt: futureIso(now(), expiresInSeconds),
+      },
       expiresAt: futureIso(now(), expiresInSeconds),
     }),
     verifyProof: async (input) => {
       const proofHash = sha256(input.proof);
       const previous = acceptedProofs.get(proofHash);
       if (previous) {
-        if (previous.requestHash !== input.requestHash || previous.idempotencyKeyHash !== input.idempotencyKeyHash) {
+        if (
+          previous.resource !== input.challenge.resource ||
+          previous.requestHash !== input.requestHash ||
+          previous.idempotencyKeyHash !== input.idempotencyKeyHash ||
+          previous.requirementDigest !== challengeRequirementDigest(input.challenge)
+        ) {
           throw new HederaX402PaymentRejectedError("payment_replayed", input.challenge);
         }
         return { ...previous.admission, replayStatus: "replayed" };
@@ -535,11 +934,18 @@ export function createFixtureHederaX402AdmissionVerifier(options: FixtureHederaX
         payerReference,
         asset,
         authorizedAmount,
+        chargeQuote: input.challenge.chargeQuote,
         verifiedAt: now(),
         expiresAt: input.challenge.expiresAt,
         replayStatus: "fresh",
       };
-      acceptedProofs.set(proofHash, { requestHash: input.requestHash, idempotencyKeyHash: input.idempotencyKeyHash, admission });
+      acceptedProofs.set(proofHash, {
+        resource: input.challenge.resource,
+        requestHash: input.requestHash,
+        idempotencyKeyHash: input.idempotencyKeyHash,
+        requirementDigest: challengeRequirementDigest(input.challenge),
+        admission,
+      });
       return admission;
     },
   });
@@ -563,11 +969,19 @@ function validateRequestShape(resource: string, method: string, requestHash: str
 
 function validateChallenge(value: A2APaymentChallenge, resource: string, currentTime: string): A2APaymentChallenge {
   if (value.contractVersion !== A2A_PAYMENT_CONTRACT_VERSION || value.scheme !== A2A_PAYMENT_SCHEME || value.network !== A2A_PAYMENT_NETWORK) throw new Error("A2A_PAYMENT_CONTRACT_UNSUPPORTED");
-  if (!safeReference(value.requirementRevision) || value.paymentRequired.length === 0 || new TextEncoder().encode(value.paymentRequired).byteLength > MAX_REQUIREMENT_BYTES || /[\r\n]/u.test(value.paymentRequired)) throw new Error("A2A_PAYMENT_REQUIREMENT_INVALID");
+  if (typeof value.paymentRequired !== "string" || !safeReference(value.requirementRevision) || value.paymentRequired.length === 0 || new TextEncoder().encode(value.paymentRequired).byteLength > MAX_REQUIREMENT_BYTES || /[\r\n]/u.test(value.paymentRequired)) throw new Error("A2A_PAYMENT_REQUIREMENT_INVALID");
   const normalizedResource = normalizeResource(resource);
   if (normalizeResource(value.resource) !== normalizedResource) throw new Error("A2A_PAYMENT_RESOURCE_MISMATCH");
   const expiresAt = parseIso(value.expiresAt);
-  const normalizedChallenge = { ...value, resource: normalizedResource, expiresAt: new Date(expiresAt).toISOString() };
+  const currentTimestamp = Date.parse(currentTime);
+  if (!Number.isFinite(currentTimestamp)) throw new Error("A2A_PAYMENT_TIME_INVALID");
+  const chargeQuote = validateChargeQuote(value.chargeQuote, currentTimestamp, expiresAt);
+  const normalizedChallenge = {
+    ...value,
+    resource: normalizedResource,
+    chargeQuote,
+    expiresAt: new Date(expiresAt).toISOString(),
+  };
   if (expiresAt <= Date.parse(currentTime)) throw new HederaX402PaymentRejectedError("payment_expired", normalizedChallenge);
   return normalizedChallenge;
 }
@@ -575,13 +989,49 @@ function validateChallenge(value: A2APaymentChallenge, resource: string, current
 function validateVerifiedPayment(value: HederaX402VerifiedPayment, challenge: A2APaymentChallenge, currentTime: string): HederaX402VerifiedPayment {
   if (!safeReference(value.paymentReference) || !safeReference(value.payerReference) || !safeReference(value.asset)) throw new Error("A2A_PAYMENT_ADMISSION_REFERENCE_INVALID");
   if (value.requirementRevision !== challenge.requirementRevision || !/^[1-9][0-9]*$/u.test(value.authorizedAmount) || value.authorizedAmount.length > 128 || BigInt(value.authorizedAmount) <= 0n) throw new Error("A2A_PAYMENT_ADMISSION_INVALID");
+  const currentTimestamp = Date.parse(currentTime);
+  if (!Number.isFinite(currentTimestamp)) throw new Error("A2A_PAYMENT_TIME_INVALID");
+  const chargeQuote = validateChargeQuote(value.chargeQuote, currentTimestamp, Date.parse(challenge.expiresAt));
+  if (
+    chargeQuote.quoteReference !== challenge.chargeQuote.quoteReference ||
+    chargeQuote.billingUnit !== challenge.chargeQuote.billingUnit ||
+    chargeQuote.maximumChargeUnits !== challenge.chargeQuote.maximumChargeUnits ||
+    chargeQuote.expiresAt !== challenge.chargeQuote.expiresAt
+  ) throw new Error("A2A_PAYMENT_QUOTE_MISMATCH");
   if (value.replayStatus !== "fresh" && value.replayStatus !== "replayed") throw new Error("A2A_PAYMENT_REPLAY_STATUS_INVALID");
   const verifiedAt = parseIso(value.verifiedAt);
   const expiresAt = parseIso(value.expiresAt);
-  if (expiresAt > parseIso(challenge.expiresAt) || expiresAt <= verifiedAt || expiresAt <= Date.parse(currentTime)) {
+  if (expiresAt > parseIso(challenge.expiresAt) || expiresAt <= verifiedAt || expiresAt <= currentTimestamp) {
     throw new HederaX402PaymentRejectedError("payment_expired", challenge);
   }
-  return { ...value, verifiedAt: new Date(verifiedAt).toISOString(), expiresAt: new Date(expiresAt).toISOString() };
+  return {
+    ...value,
+    chargeQuote,
+    verifiedAt: new Date(verifiedAt).toISOString(),
+    expiresAt: new Date(expiresAt).toISOString(),
+  };
+}
+
+function validateChargeQuote(value: unknown, currentTimestamp: number, maximumExpiry: number): A2AChargeQuote {
+  const record = asObject(value);
+  if (!record || typeof record.quoteReference !== "string" || record.billingUnit !== "usd_micro" || typeof record.maximumChargeUnits !== "string" || typeof record.expiresAt !== "string") {
+    throw new Error("A2A_PAYMENT_QUOTE_INVALID");
+  }
+  if (!safeReference(record.quoteReference) || !/^[1-9][0-9]*$/u.test(record.maximumChargeUnits) || record.maximumChargeUnits.length > MAX_CHARGE_UNITS_DIGITS) {
+    throw new Error("A2A_PAYMENT_QUOTE_INVALID");
+  }
+  let maximumChargeUnits: bigint;
+  try { maximumChargeUnits = BigInt(record.maximumChargeUnits); }
+  catch { throw new Error("A2A_PAYMENT_QUOTE_INVALID"); }
+  if (maximumChargeUnits <= 0n || maximumChargeUnits > MAX_CHARGE_UNITS) throw new Error("A2A_PAYMENT_QUOTE_INVALID");
+  const expiresAt = parseIso(record.expiresAt);
+  if (expiresAt <= currentTimestamp || expiresAt > maximumExpiry) throw new Error("A2A_PAYMENT_QUOTE_INVALID");
+  return {
+    quoteReference: record.quoteReference,
+    billingUnit: "usd_micro",
+    maximumChargeUnits: record.maximumChargeUnits,
+    expiresAt: new Date(expiresAt).toISOString(),
+  };
 }
 
 function safeReference(value: string): boolean {

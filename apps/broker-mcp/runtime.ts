@@ -1,4 +1,4 @@
-import { Broker, ResponsesInvocation } from "@frely-network/broker";
+import { A2AServiceInvocation, Broker, ProtocolInvocation, ResponsesInvocation } from "@frely-network/broker";
 import { TheGraphDiscovery } from "@frely-network/the-graph";
 import { ViemEnsReader } from "@frely-network/ens";
 import { ProviderIdentityResolver, ViemErc8004Reader } from "@frely-network/erc8004";
@@ -42,15 +42,31 @@ export function createBrokerRuntimeFromEnv(environment: RuntimeEnvironment = pro
   if (!registry) return { ready: false };
 
   try {
-    const payment = new HederaX402Client({
-      signer: createHederaPaymentSigner(accountId, privateKey),
+    const signer = createHederaPaymentSigner(accountId, privateKey);
+    const responsesPayment = new HederaX402Client({
+      signer,
       maxAmount: required(environment, "X402_MAX_AMOUNT"),
     });
-    const invocation = new ResponsesInvocation({
-      payment,
+    const a2aPayment = new HederaX402Client({
+      signer,
+      maxAmount: required(environment, "X402_MAX_AMOUNT"),
+      // Relay returns its own bounded quote projection; Network settlement is
+      // a separate adapter and remains pending until one is configured.
+      requireSettlementEvidence: false,
+    });
+    const responses = new ResponsesInvocation({
+      payment: responsesPayment,
       requirePayment: true,
       headers: { authorization: `Bearer ${frelyApiKey}` },
     });
+    const a2a = new A2AServiceInvocation({
+      payment: a2aPayment,
+      headers: { authorization: `Bearer ${frelyApiKey}` },
+      ...(required(environment, "FRELY_NETWORK_A2A_AGENT_ID") ? { agentId: required(environment, "FRELY_NETWORK_A2A_AGENT_ID") } : {}),
+      defaultModel: required(environment, "FRELY_A2A_DEFAULT_MODEL"),
+      requireSettlement: false,
+    });
+    const invocation = new ProtocolInvocation({ responses, a2a });
     const identity = new ProviderIdentityResolver(
       new ViemEnsReader({ rpcUrl: ensRpcUrl }),
       new ViemErc8004Reader({ rpcUrl: ensRpcUrl, registryAddress: registry }),

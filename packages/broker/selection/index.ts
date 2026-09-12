@@ -24,7 +24,7 @@ export function selectVerifiedCandidate(
     .filter(({ candidate, provider }) =>
       candidate.supportsX402 &&
       provider.verified &&
-      provider.protocol === "responses" &&
+      (provider.protocol === "responses" || provider.protocol === "a2a") &&
       capabilities.every((capability) => candidate.capabilities.includes(capability)),
     )
     .sort((left, right) => {

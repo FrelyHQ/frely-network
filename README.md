@@ -58,6 +58,37 @@ configuration is valid. `/mcp` exposes only `find_capability` and
 cross-project startup contract and its readiness gates remain documented so
 that the public snapshot boundary stays explicit.
 
+## Release to ctb-eu
+
+Network has its own release target and does not participate in the Friday
+Relay seven-service release. The target contract is
+[`ops/release/release-config.json`](ops/release/release-config.json): it binds
+the `frely-network` Compose project to host `ctb-eu`, the production
+environment file `/etc/frely-network/production.env`, and the public readiness
+URL `https://network.frely.cloud/readyz`.
+
+The temporary deployment policy permits an on-host Docker build. A release is
+still identified by both a SemVer and the full 40-character source SHA, and
+the build writes an integrity-checked manifest that deploy and verify must
+consume:
+
+```bash
+bun run release --target frely-network --version 0.1.0 --sha "$(git rev-parse HEAD)"
+```
+
+For staged operation, use `--stage build`, then pass the generated manifest
+and its `manifest_digest` to `--stage deploy` and `--stage verify`. The build
+manifest is stored under `/var/lib/frely-network/releases` on `ctb-eu`. The
+installed `/usr/local/sbin/release-frely-network` wrapper checks the host
+identity before invoking the release runner. Deployment uses `docker compose
+up -d --no-build --wait`, so it consumes the exact image tag recorded by the
+manifest. The environment file is host-owned and must define the ordinary
+Compose variables required by the service; secret values are not committed.
+
+The release verification is intentionally a public contract check against
+`/readyz`. Routing for `network.frely.cloud` remains an external host
+prerequisite and is not changed by this repository's release command.
+
 ## Cross-project local integration
 
 Read [`docs/cross-project-integration.md`](docs/cross-project-integration.md)

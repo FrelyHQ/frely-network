@@ -2,6 +2,7 @@ node_modules/
 dist/
 coverage/
 *.tsbuildinfo
+ops/release/releases/
 
 .local/
 .env
@@ -10,3 +11,4 @@ coverage/
 
 .DS_Store
 Thumbs.db
+.agents/.cache/
