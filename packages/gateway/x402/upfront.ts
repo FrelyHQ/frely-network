@@ -13,6 +13,7 @@ import type { GatewaySettlement, X402GatewaySettler, X402GatewayVerifier } from 
 const MAX_PROOF_BYTES = 128 * 1024;
 const REQUEST_ID = /^[A-Za-z0-9][A-Za-z0-9_.:/-]{0,191}$/;
 const BODY_SHA = /^[a-f0-9]{64}$/;
+const TRANSACTION_ID = /^[A-Za-z0-9][A-Za-z0-9_.:@/-]{0,255}$/;
 
 export type UpfrontAdmission =
   | { kind: "response"; response: Response }
@@ -166,15 +167,22 @@ export class FileX402AttemptStore implements X402AttemptStore {
   }
 
   async markSettled(requestId: string, settlement: GatewaySettlement): Promise<void> {
-    this.db
-      .query("UPDATE attempts SET phase = 'settled', settlement_json = ? WHERE request_id = ?")
+    const result = this.db
+      .query("UPDATE attempts SET phase = 'settled', settlement_json = ? WHERE request_id = ? AND phase = 'claimed'")
       .run(JSON.stringify(settlement), requestId);
+    if (result.changes !== 1) throw new Error("ATTEMPT_STATE_INVALID");
   }
 
   async markDelivered(requestId: string, responseDigest: string): Promise<void> {
-    this.db
-      .query("UPDATE attempts SET phase = 'delivered', response_digest = ? WHERE request_id = ?")
+    if (!BODY_SHA.test(responseDigest)) throw new Error("ATTEMPT_STATE_INVALID");
+    const result = this.db
+      .query("UPDATE attempts SET phase = 'delivered', response_digest = ? WHERE request_id = ? AND phase = 'settled'")
       .run(responseDigest, requestId);
+    if (result.changes !== 1) throw new Error("ATTEMPT_STATE_INVALID");
+  }
+
+  close(): void {
+    this.db.close();
   }
 }
 
@@ -288,7 +296,12 @@ export class UpfrontX402Gateway {
     } catch {
       return { kind: "response", response: Response.json({ code: "PAYMENT_SETTLEMENT_FAILED" }, { status: 502 }) };
     }
-    if (!settlement.success || settlement.network !== this.config.network) {
+    if (
+      !settlement.success ||
+      settlement.network !== this.config.network ||
+      typeof settlement.transaction !== "string" ||
+      !TRANSACTION_ID.test(settlement.transaction)
+    ) {
       return { kind: "response", response: Response.json({ code: "PAYMENT_SETTLEMENT_FAILED" }, { status: 502 }) };
     }
     const settled: GatewaySettlement = {

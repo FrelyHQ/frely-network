@@ -156,6 +156,18 @@ describe("isolated upfront x402 admission", () => {
     expect(second.kind).toBe("response");
     if (second.kind === "response") expect(second.response.status).toBe(409);
   });
+
+  test("does not treat a settlement without a transaction identifier as settled", async () => {
+    const gateway = new UpfrontX402Gateway({
+      network: "hedera:testnet",
+      verifier: { verify: async () => ({ isValid: true }) },
+      settler: { settle: async () => ({ success: true, network: "hedera:testnet" }) },
+      attemptStore: memoryStore(),
+    });
+    const admission = await gateway.admit(paidRequest(), body, requirements);
+    expect(admission.kind).toBe("response");
+    if (admission.kind === "response") expect(admission.response.status).toBe(502);
+  });
 });
 
 describe("existing gateway order is unchanged", () => {
@@ -213,6 +225,26 @@ describe("file attempt store", () => {
           expiresAt: "2099-01-01T00:00:00.000Z",
         }),
       ).toBe("conflict");
+    } finally {
+      await rm(directory, { recursive: true, force: true });
+    }
+  });
+
+  test("enforces claimed to settled to delivered without phase regression", async () => {
+    const directory = await mkdtemp(join(tmpdir(), "x402-attempts-"));
+    try {
+      const store = new FileX402AttemptStore(directory);
+      await store.claim({
+        requestId: "req-1",
+        fingerprint: "a".repeat(64),
+        proofDigest: "b".repeat(64),
+        expiresAt: "2099-01-01T00:00:00.000Z",
+      });
+      await expect(store.markDelivered("req-1", "c".repeat(64))).rejects.toThrow("ATTEMPT_STATE_INVALID");
+      await store.markSettled("req-1", { success: true, network: "hedera:testnet", transaction: "tx-1" });
+      await store.markDelivered("req-1", "c".repeat(64));
+      await expect(store.markSettled("req-1", { success: true, network: "hedera:testnet", transaction: "tx-2" })).rejects.toThrow("ATTEMPT_STATE_INVALID");
+      store.close();
     } finally {
       await rm(directory, { recursive: true, force: true });
     }
