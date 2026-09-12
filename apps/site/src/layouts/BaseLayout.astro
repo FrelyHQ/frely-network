@@ -20,13 +20,26 @@ const {
     <meta name="viewport" content="width=device-width, initial-scale=1" />
     <meta name="description" content={description} />
     <title>{title}</title>
+    <script is:inline>
+      (() => {
+        const navigation = performance.getEntriesByType("navigation")[0];
+        if (navigation?.type !== "reload") return;
+
+        // Run before the page and its scene scripts can restore the previous section.
+        history.scrollRestoration = "manual";
+        if (location.hash) history.replaceState(history.state, "", location.pathname + location.search);
+        const resetScroll = () => window.scrollTo({ top: 0, left: 0, behavior: "instant" });
+        resetScroll();
+        window.addEventListener("pageshow", resetScroll, { once: true });
+      })();
+    </script>
     <link rel="preconnect" href="https://fonts.googleapis.com" />
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
     <link
       href="https://fonts.googleapis.com/css2?family=Syne:wght@400;500;600;700;800&display=swap"
       rel="stylesheet"
     />
-    <link rel="icon" type="image/png" href="/logo.png" />
+    <link rel="icon" type="image/png" sizes="64x64" href="/favicon.png" />
   </head>
   <body>
     <slot />

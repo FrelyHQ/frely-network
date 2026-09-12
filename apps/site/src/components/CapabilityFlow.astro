@@ -1,74 +1,42 @@
 ---
 const steps = [
-  {
-    id: "discover",
-    title: "Discover",
-    body: "Find capability providers on-chain via The Graph and ENS.",
-  },
-  {
-    id: "verify",
-    title: "Verify",
-    body: "Confirm identity with ENSv2 / ERC-8004 before any payment.",
-  },
-  {
-    id: "pay",
-    title: "Pay",
-    body: "Settle with Hedera x402 and Blocky402 — real testnet payment.",
-  },
-  {
-    id: "execute",
-    title: "Execute",
-    body: "Call the provider over A2A and return structured results.",
-  },
-] as const;
+  { id: 'discover', title: 'Discover a capability', label: 'Discover', tech: 'The Graph', body: 'Start with the capability a task needs. Network queries indexed registration information to find candidate providers.', note: 'Discovery supplies candidates; it does not authorize a service call.' },
+  { id: 'verify', title: 'Verify the service identity', label: 'Verify identity', tech: 'ENS / ERC-8004 / Agent Card', body: 'Cross-check the readable name, registered agent and public Agent Card. The identity, HTTPS execution address and supported protocol must agree.', note: 'Invalid records or a mismatched endpoint stop the request before calling or paying.' },
+  { id: 'quote', title: 'Get a quote. Check the budget.', label: 'Quote & budget', tech: 'x402 payment requirements', body: 'Get the price for this request and compare it with the consumer’s allowed budget. Paid access is scoped to the individual call.', note: 'A quote outside the budget never proceeds to execution.' },
+  { id: 'payment', title: 'Verify the payment conditions', label: 'Verify payment', tech: 'x402 / Blocky402', body: 'The client supplies a signed payment payload. Network asks the payment facilitator to verify it before granting access to the capability.', note: 'Verification confirms the payment conditions. Final settlement follows successful execution.' },
+  { id: 'execute', title: 'Put the capability to work', label: 'Execute', tech: 'A2A / Frely / Frely Swarm', body: 'Frely receives the authorized A2A request and passes the task to Swarm. Swarm runs the corresponding Skill, Agent or workflow in its execution environment.', note: 'Prompts, agent code and the runtime stay off-chain.' },
+  { id: 'settle', title: 'Settle and return the result', label: 'Settle & return', tech: 'Hedera / x402', body: 'After successful execution, the facilitator settles the quoted payment on Hedera. The consumer receives the result with the associated settlement evidence.', note: 'One execution ID links the request, its retries, the result and the payment record.' },
+];
 ---
 
-<section
-  id="flow"
-  aria-labelledby="flow-heading"
-  class="relative mx-auto max-w-6xl px-6 pb-28 pt-10"
-  data-testid="capability-flow"
->
-  <div
-    aria-hidden="true"
-    class="pointer-events-none absolute inset-x-0 top-0 h-px"
-    style="background: linear-gradient(90deg, transparent, rgba(96,165,250,0.45), transparent);"
-  >
-  </div>
-
-  <div class="mb-12 max-w-2xl">
-    <p class="text-sm font-semibold tracking-[0.18em] text-[var(--primary)] uppercase">P0 path</p>
-    <h2
-      id="flow-heading"
-      class="mt-3 text-3xl font-bold tracking-tight text-[var(--foreground)] sm:text-4xl"
-    >
-      Discover → Verify → Pay → Execute
-    </h2>
-    <p class="mt-3 text-[var(--muted-foreground)]">
-      The hackathon demo is driven by CLI / A2A — this page explains the path. No invented success
-      states on the showcase surface.
-    </p>
-  </div>
-
-  <ol class="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
-    {
-      steps.map((step, index) => (
-        <li
-          data-testid={`flow-step-${step.id}`}
-          class="group relative overflow-hidden rounded-2xl border border-[var(--border)] bg-white/[0.03] p-5 backdrop-blur-md transition duration-300 hover:border-sky-400/35 hover:bg-white/[0.05]"
-        >
-          <div
-            aria-hidden="true"
-            class="pointer-events-none absolute -right-8 -top-8 h-24 w-24 rounded-full opacity-0 blur-2xl transition group-hover:opacity-100"
-            style="background: rgba(59,130,246,0.35);"
-          />
-          <span class="text-xs font-semibold tracking-[0.16em] text-[var(--primary)]">
-            {String(index + 1).padStart(2, "0")}
-          </span>
-          <h3 class="mt-3 text-lg font-semibold text-[var(--foreground)]">{step.title}</h3>
-          <p class="mt-2 text-sm leading-relaxed text-[var(--muted-foreground)]">{step.body}</p>
+<section id="flow" class="story-section capability-flow" aria-labelledby="flow-heading" data-testid="capability-flow">
+  <div class="flow-layout">
+    <div class="flow-navigation">
+      <h2 id="flow-heading" class="story-heading" data-reveal>From discovery<br /><span>to a paid result.</span></h2>
+      <p class="story-intro" data-reveal>An agent can find, verify and purchase the capability it needs, one request at a time.</p>
+      <nav class="flow-options" aria-label="Capability purchase walkthrough"><ol class="flow-index">
+        {steps.map((step, index) => <li><a href={`#flow-${step.id}`} data-flow-link={step.id} aria-current={index === 0 ? 'step' : undefined}><span class="flow-option-number">0{index + 1}</span>{step.label}<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" aria-hidden="true"><path d="M5 12h14m-6-6 6 6-6 6" /></svg></a></li>)}
+      </ol></nav>
+      <p class="flow-caption">How the network works</p>
+    </div>
+    <div class="flow-card-viewport">
+    <ol class="flow-stages" aria-label="Capability purchase steps">
+      {steps.map((step, index) => (
+        <li id={`flow-${step.id}`} class="flow-stage" data-flow-stage={step.id} data-testid={`flow-step-${step.id}`}>
+          <div class="flow-stage-top"><span class="flow-stage-number">0{index + 1}</span><span class="flow-tech">{step.tech}</span></div>
+          <h3>{step.title}</h3><p>{step.body}</p>
+          <div class="flow-note"><span aria-hidden="true"></span><p>{step.note}</p></div>
         </li>
-      ))
-    }
-  </ol>
+      ))}
+    </ol>
+    </div>
+  </div>
+  <div class="flow-principles" data-reveal>
+    <div><h3>Verify before proceeding.</h3><p>Discovery failures, invalid addresses and inconsistent identities end the flow before any service call or payment.</p></div>
+    <div><h3>Keep every retry accountable.</h3><p>Retries share an execution ID. An uncertain payment is checked before proceeding, preventing a timeout from becoming a second charge.</p></div>
+  </div>
 </section>
+
+<script>
+  import "../scripts/flow-wheel";
+</script>

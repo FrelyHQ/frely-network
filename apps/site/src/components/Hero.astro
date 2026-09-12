@@ -1,19 +1,9 @@
 ---
-/**
- * Long-page hero: 100vh Spline stage, then #details in normal document flow.
- * Spline iframe keeps in-scene Click Me / act-2. No scroll lock or wheel hijack.
- */
 const GITHUB = "https://github.com/FrelyHQ/frely-network";
-/** Same public file; bump `v` after each Spline Publish so the iframe is not stuck on CDN cache. */
-const DEFAULT_SPLINE_PUBLIC =
-  "https://my.spline.design/aidatamodelinteraction-yXFK4f6oAzDsrDztvyJ1dXk4/?v=frely-20260912-1133";
-const splineScene = import.meta.env.PUBLIC_SPLINE_SCENE as string | undefined;
-const splinePublic =
-  (import.meta.env.PUBLIC_SPLINE_PUBLIC as string | undefined) || DEFAULT_SPLINE_PUBLIC;
-const useViewer = Boolean(splineScene);
 ---
 
 <section id="top" class="stage" data-testid="stage" data-state="splash">
+  <div class="hero-screen first-screen" data-testid="first-screen" data-scene-load="loading">
   <div class="stage-spline" data-testid="spline-layer" aria-hidden="true">
     <div class="stage-ambient" data-testid="spline-ambient">
       <div class="ambient-glow"></div>
@@ -21,30 +11,7 @@ const useViewer = Boolean(splineScene);
       <div class="ambient-ring ambient-ring--b"></div>
       <div class="ambient-core"></div>
     </div>
-    {
-      useViewer ? (
-        <div class="stage-spline-frame" data-testid="spline-viewer-host">
-          <script
-            is:inline
-            type="module"
-            src="https://unpkg.com/@splinetool/viewer@1.9.82/build/spline-viewer.js"
-          ></script>
-          <spline-viewer
-            url={splineScene}
-            style="width:100%;height:100%;background:transparent;"
-          ></spline-viewer>
-        </div>
-      ) : (
-        <iframe
-          title="Frely Network scene"
-          src={splinePublic}
-          class="stage-spline-frame"
-          loading="eager"
-          allow="autoplay; fullscreen"
-          data-testid="spline-iframe"
-        ></iframe>
-      )
-    }
+    <canvas class="stage-spline-frame" data-testid="first-scene-canvas"></canvas>
   </div>
 
   <div class="stage-viewport" data-testid="stage-viewport">
@@ -64,6 +31,7 @@ const useViewer = Boolean(splineScene);
         class="click-me"
         data-testid="click-me"
         aria-label="Enter Frely Network scene"
+        disabled
       >
         <span class="click-me-label">
           <span>Click Me</span>
@@ -71,80 +39,43 @@ const useViewer = Boolean(splineScene);
         </span>
       </button>
 
-      <p class="scroll-hint" data-testid="scroll-hint">Scroll for project details</p>
+      <p class="scene-brand" data-testid="scene-brand" hidden>FRELY NETWORK</p>
+      <p class="scroll-hint" data-testid="scroll-hint" aria-live="polite">Loading scene…</p>
     </div>
   </div>
+  </div>
+
+  <div id="second-screen" class="hero-screen second-screen" data-testid="second-screen" data-scene-load="loading" aria-label="Frely Network particle scene">
+    <canvas class="stage-spline-frame" data-testid="second-scene-canvas" aria-hidden="true"></canvas>
 
   <div id="details" class="stage-details-lead" data-testid="details-lead">
-    <div class="details-lead-panel animate-rise">
-      <p class="details-eyebrow" data-testid="hero-brand">Frely Network</p>
-      <h1 class="details-title" data-testid="reveal-title">Open agent capability network</h1>
+    <div class="details-lead-panel">
+      <h1 class="details-title" data-testid="reveal-title"><span data-stroke-line><span data-stroke-fallback>Private capabilities.</span></span><span data-stroke-line><span data-stroke-fallback>An open network.</span></span></h1>
       <p class="details-body" data-testid="reveal-body">
-        Let an agent discover, verify, pay for, and use capabilities it does not have — Graph
-        discovery, ENS / ERC-8004 identity, Hedera x402 settlement.
+        Discover, verify and pay per call for AI capabilities.
+        Frely Network connects the services of Frely and Frely Swarm to an open, verifiable network.
       </p>
       <div class="details-actions">
+        <a href="#architecture" class="btn btn-primary btn-lg" data-testid="cta-explore">Explore the network<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" aria-hidden="true"><path d="M12 4v16m-6-6 6 6 6-6" /></svg></a>
         <a
           href={GITHUB}
           target="_blank"
           rel="noreferrer"
-          class="btn btn-primary btn-lg"
+          class="btn btn-ghost btn-lg"
           data-testid="cta-github"
         >
           View on GitHub
         </a>
-        <a href="#flow" class="btn btn-ghost btn-lg" data-testid="cta-flow">See the path</a>
       </div>
     </div>
+  </div>
+    <p class="scroll-hint">Scroll up to return · Scroll down to explore</p>
   </div>
 </section>
 
 <script>
-  const stage = document.getElementById("top");
-  const clickMe = document.querySelector("[data-testid='click-me']");
-  const iframe = document.querySelector("[data-testid='spline-iframe']");
-
-  const goEngaged = () => {
-    if (!stage || stage.dataset.state === "engaged") return;
-    stage.dataset.state = "engaged";
-    document.documentElement.dataset.landing = "engaged";
-    if (clickMe instanceof HTMLElement) {
-      clickMe.hidden = true;
-      clickMe.setAttribute("aria-hidden", "true");
-    }
-  };
-
-  clickMe?.addEventListener("click", (e) => {
-    e.preventDefault();
-    goEngaged();
-  });
-  clickMe?.addEventListener("keydown", (e) => {
-    if (e instanceof KeyboardEvent && (e.key === "Enter" || e.key === " ")) {
-      e.preventDefault();
-      goEngaged();
-    }
-  });
-
-  // Focusing the Spline iframe (in-scene Click Me) marks engaged / hides mobile CTA.
-  window.addEventListener("blur", () => {
-    window.requestAnimationFrame(() => {
-      if (iframe instanceof HTMLIFrameElement && document.activeElement === iframe) {
-        goEngaged();
-      }
-    });
-  });
-
-  if (iframe instanceof HTMLIFrameElement) {
-    const markReady = () => stage?.classList.add("is-spline-ready");
-    iframe.addEventListener("load", markReady);
-    try {
-      if (iframe.contentDocument?.readyState === "complete") markReady();
-    } catch {
-      // cross-origin
-    }
-  } else {
-    window.setTimeout(() => stage?.classList.add("is-spline-ready"), 400);
-  }
+  import "../scripts/hero-scenes";
+  import "../scripts/intro-stroke-text";
 </script>
 
 <style>
@@ -160,12 +91,52 @@ const useViewer = Boolean(splineScene);
     pointer-events: none;
   }
 
-  /*
-   * Phase 1: keep fixed so the first viewport stays a full-bleed scene.
-   * #details / after-reveal sit above it (higher z-index + opaque backgrounds).
-   */
+  .hero-screen {
+    position: relative;
+    height: 100svh;
+    overflow: hidden;
+  }
+
+  .second-screen {
+    background: radial-gradient(ellipse at top, #211969, #000 75%);
+  }
+
+  .second-screen .stage-spline-frame {
+    transition: none;
+  }
+
+  .first-screen {
+    container-type: size;
+  }
+
+  @font-face {
+    font-family: "Frely Scene";
+    src: url("/fonts/scene-title.otf") format("opentype");
+    font-weight: 400;
+    font-style: normal;
+    font-display: swap;
+  }
+
+  .scene-brand {
+    /* Match the exported orthographic scene: its shorter viewport axis spans 790 units. */
+    --scene-unit: calc(min(100cqw, 100cqh) / 790);
+    position: absolute;
+    left: calc(50% + 8.707 * var(--scene-unit));
+    top: calc(50% - 28.879 * var(--scene-unit));
+    transform: translate(-50%, -50%);
+    width: max-content;
+    margin: 0;
+    color: #fff;
+    font-family: "Frely Scene", sans-serif;
+    font-size: calc(46.08 * var(--scene-unit));
+    font-weight: 400;
+    line-height: 1;
+    white-space: nowrap;
+    pointer-events: auto;
+  }
+
   .stage-spline {
-    position: fixed;
+    position: absolute;
     inset: 0;
     z-index: 0;
     background: #05070d;
@@ -250,12 +221,12 @@ const useViewer = Boolean(splineScene);
     pointer-events: none;
   }
 
-  .stage.is-spline-ready .stage-spline-frame {
+  .hero-screen[data-scene-load="ready"] .stage-spline-frame {
     opacity: 1;
     pointer-events: auto;
   }
 
-  .stage.is-spline-ready .stage-ambient {
+  .hero-screen[data-scene-load="ready"] .stage-ambient {
     opacity: 0;
   }
 
@@ -288,7 +259,8 @@ const useViewer = Boolean(splineScene);
     pointer-events: none;
     position: absolute;
     inset: 0;
-    display: none;
+    display: grid;
+    opacity: 0;
     place-items: center;
     width: 100%;
     height: 100%;
@@ -329,6 +301,8 @@ const useViewer = Boolean(splineScene);
   }
 
   .click-me:focus-visible {
+    opacity: 1;
+    pointer-events: auto;
     outline: 2px solid var(--ring);
     outline-offset: -6px;
   }
@@ -345,74 +319,90 @@ const useViewer = Boolean(splineScene);
     color: rgba(148, 163, 184, 0.92);
     text-shadow: 0 2px 12px rgba(0, 0, 0, 0.65);
     pointer-events: none;
+    width: max-content;
+    max-width: calc(100% - 2rem);
+    text-align: center;
   }
 
   .stage-details-lead {
     position: relative;
     z-index: 3;
-    min-height: 100svh;
+    height: 100%;
     display: grid;
     place-items: center;
-    padding: 5.5rem 1.5rem 3rem;
-    background: var(--background);
+    padding: 6rem 1.5rem 5rem;
+    background: transparent;
   }
 
   .details-lead-panel {
-    width: min(42rem, 100%);
+    width: min(72rem, 100%);
     margin-inline: auto;
     text-align: center;
   }
 
-  .details-eyebrow {
+  .details-title {
     margin: 0;
-    font-size: 0.8rem;
-    font-weight: 700;
-    letter-spacing: 0.22em;
-    text-transform: uppercase;
-    color: var(--primary);
+    font-size: clamp(2rem, 6.9vw, 6.25rem);
+    font-weight: 600;
+    line-height: 1.08;
+    letter-spacing: -0.055em;
   }
 
-  .details-title {
-    margin: 1rem 0 0;
-    font-size: clamp(2.1rem, 4.5vw, 3.35rem);
-    font-weight: 800;
-    line-height: 1.05;
-    letter-spacing: -0.02em;
-  }
+  .details-title > span { display: block; position: relative; }
+  .details-title > span:last-child { color: #83b5ff; }
+  .details-title [data-stroke-ready] > [data-stroke-fallback] { opacity: 0; }
+  .details-title :global([data-stroke-svg]) { position: absolute; inset: 0; width: 100%; height: 100%; overflow: visible; pointer-events: none; }
 
   .details-body {
-    margin: 1.15rem auto 0;
-    max-width: 34rem;
-    font-size: 1.05rem;
+    margin: 1.75rem auto 0;
+    max-width: 37rem;
+    font-family: ui-sans-serif, system-ui, sans-serif;
+    font-size: clamp(0.98rem, 1.35vw, 1.125rem);
     line-height: 1.65;
-    color: var(--muted-foreground);
+    color: #b3bdce;
   }
 
   .details-actions {
     display: flex;
     flex-wrap: wrap;
     gap: 0.75rem;
-    margin-top: 1.75rem;
+    margin-top: 2.25rem;
     justify-content: center;
   }
 
   @media (max-width: 640px) {
-    .stage-spline-frame {
-      display: none;
-      pointer-events: none !important;
+    .second-screen .stage-spline-frame {
+      /* Blend the native scene's portrait frame edge away from the introduction copy. */
+      mask-image: linear-gradient(to bottom, transparent 50%, #000 85%);
     }
 
-    .stage-ambient {
-      opacity: 1;
-    }
-
+    .details-actions { gap: 0.65rem; }
+    .details-actions .btn { font-size: 0.82rem; padding-inline: 1rem; }
     .click-me {
-      display: grid;
+      opacity: 1;
       pointer-events: auto;
     }
 
     .click-me:focus-visible {
       outline-offset: 3px;
     }
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    .stage-spline-frame,
+    .stage-ambient {
+      transition: none;
+    }
+
+    .ambient-glow,
+    .ambient-ring,
+    .click-me-arrow {
+      animation: none;
+    }
+  }
+
+  @media (max-height: 600px) {
+    .second-screen { height: auto; min-height: 100svh; }
+    .stage-details-lead { min-height: 100svh; }
   }
 </style>
