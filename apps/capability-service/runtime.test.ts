@@ -7,6 +7,13 @@ const environment = {
   FRELY_STATIC_PROVIDER_ENDPOINT: "https://api.frely.cloud/v1/responses",
   FRELY_NETWORK_EXECUTION_URL: "http://127.0.0.1:13600/v1/responses",
   FRELY_SERVICE_API_KEY: "network-secret",
+  FRELY_X402_RESOURCE_URL: "http://127.0.0.1:13600/v1/responses",
+  FRELY_X402_AMOUNT_ATOMIC: "100000000",
+  FRELY_X402_PAY_TO: "0.0.10403579",
+  FRELY_X402_FEE_PAYER: "0.0.7162784",
+  FRELY_X402_FACILITATOR_URL: "https://api.testnet.blocky402.com",
+  FRELY_UPSTREAM_RELAY_URL: "https://api.frely.cloud/v1/responses",
+  FRELY_RELAY_API_KEY: "upstream-test-key",
 };
 
 test("composes the loopback static Network without Graph or RPC config", async () => {
@@ -47,4 +54,12 @@ test("rejects non-loopback listeners and drifted static provider config before s
     ...environment,
     FRELY_NETWORK_EXECUTION_URL: "http://127.0.0.1:13601/v1/responses",
   })).toThrow("STATIC_PROVIDER_NOT_CONFIGURED");
+  expect(() => createCapabilityServiceRuntime({
+    ...environment,
+    FRELY_X402_RESOURCE_URL: "http://localhost:13600/v1/responses",
+  })).toThrow("X402_NOT_CONFIGURED");
+  expect(() => createCapabilityServiceRuntime({
+    ...environment,
+    FRELY_UPSTREAM_RELAY_URL: "https://evil.example/v1/responses",
+  })).toThrow("UPSTREAM_NOT_CONFIGURED");
 });
