@@ -49,10 +49,10 @@ Source: 用户逐项确认的范围与当前本地代码
 | Host Agent | 调用 `find_capability` 或 `use_capability` | 不指定 Provider 地址，不接触钱包密钥 |
 | 本地 `frely-mcp` | 重查 Network、校验静态白名单、检查预算、用 Agent Wallet 签名、保存 payer journal、恢复和返回证据 | 不查询 Graph，不验证 ENS/ERC-8004，不直接调用 Relay |
 | 本地 Network | 在 `127.0.0.1:13600` 提供 `resolve` 和受 x402 保护的执行入口；报价、Blocky verify/settle、请求绑定、幂等占位、结算后调用 Relay | 不持有 payer 私钥，不暴露公网服务，不把未结算请求交给 Relay |
-| `api.frely.cloud` Relay | 作为唯一远程业务入口，用用户提供的 API Key 准入 `vision-basic`，在内部完成 Swarm/Provider 路由、计量并返回结果 | 不返回 402，不解析付款头，不调用 Blocky，不保存 x402 状态 |
+| `api.frely.cloud` Relay | 作为唯一远程业务入口，用用户提供的 API Key 准入 `gpt-5.6-luna`，在内部完成既有路由、计量并返回结果 | 不返回 402，不解析付款头，不调用 Blocky，不保存 x402 状态 |
 | Blocky | x402 v2 `exact` Facilitator，验证和结算 Hedera Testnet 付款 | 不选择 Provider，不保存 Frely 业务结果 |
-| Swarm | 作为 Relay 内部实现执行 `vision-basic` 工作流 | 不提供给本地 Network/MCP 的独立入口，不属于本轮部署或配置范围 |
-| 现有 Provider | 复用 `gpt-5.6-luna` 路由完成基础模型请求 | 不新增底层 Provider，不直接参与 x402 报价 |
+| Swarm | 作为 Relay 内部实现；本地链路不直接调用或验证 | 不提供给本地 Network/MCP 的独立入口，不属于本轮部署或配置范围 |
+| 现有 Provider | 复用 Relay 已开放的 `gpt-5.6-luna` 完成图片请求 | 不新增底层 Provider，不直接参与 x402 报价 |
 | Mirror Node | 核对原交易、共识时间和账户转账 | 不作为业务成功证据 |
 
 Network 与 MCP 都运行在用户本机，并且全部 x402 代码都位于 `frely-network`
@@ -72,8 +72,8 @@ Source: 用户给定地址、用户确认账户与 2026-09-12 设计前只读核
 | Relay API base | `https://api.frely.cloud/v1` |
 | Provider upstream | `https://api.frely.cloud/v1/responses` |
 | Network 执行入口与 x402 resource | `http://127.0.0.1:13600/v1/responses` |
-| 外部模型名 | `vision-basic` |
-| Relay 内部基础模型 | `gpt-5.6-luna`；不要求本地持有 Swarm 入口 |
+| 外部模型名 | `gpt-5.6-luna` |
+| Relay 内部路由 | 视为现有远程实现；不要求本地持有 Swarm 入口 |
 | x402 版本与方案 | v2、`exact` |
 | 付款网络 | `hedera:testnet` |
 | 资产 | HBAR，asset `0.0.0` |
@@ -88,8 +88,10 @@ Source: 用户给定地址、用户确认账户与 2026-09-12 设计前只读核
 设计前只读基线显示：`api.frely.cloud` 健康检查可达，版本为 `0.64.1`。远端 release
 和 source SHA 会随部署变化，执行验收时必须重新读取。用户提供的
 `https://api.frely.cloud/v1` 与现有 API Key 是本轮唯一 Relay 入口；此前一次
-`gpt-5.6-luna` 普通请求已返回 200，但该结果只证明 Relay 入口和普通模型路径可用，
-不证明本地 Network x402 或 HBAR 结算已接入。`vision-basic` 仍须单独 canary。
+`gpt-5.6-luna` 固定图片请求已返回 200 与精确文本 `FRELY X402 OK`，且未返回 x402
+付款要求。该结果只证明 Relay 入口和普通模型路径可用，不证明本地 Network x402
+或 HBAR 结算已接入。2026-09-12 用户确认可使用任一可用模型后，本 MVP 将该模型
+冻结为唯一实际调用模型；其余付款参数不变。
 
 设计前只读账户核对显示：payer 余额为 `672777702` tinybar，payTo 余额为
 `1000000` tinybar，两个账户均为活跃 ECDSA 账户且未要求收款签名。余额是时变
@@ -213,7 +215,7 @@ Source: 现有 stdio MCP 两工具与付款 journal 设计
 访问 Relay、不触发 402，也不使用“已验证身份”表述。
 
 `use_capability` 每次新请求都重新调用本地 Network，再校验本地白名单。它构造
-固定 `model: vision-basic`、`stream: false` 的 Responses 请求，并带唯一
+固定 `model: gpt-5.6-luna`、`stream: false` 的 Responses 请求，并带唯一
 `x-frely-request-id`。第一次请求只带本地 Network key，发往
 `http://127.0.0.1:13600/v1/responses`，不带 `PAYMENT-SIGNATURE`；Network 返回
 402 后才进入付款检查和本地签名。MCP 不构造、不读取也不转发 Relay caller key。
@@ -256,7 +258,7 @@ FRELY_X402_FACILITATOR_URL=https://api.testnet.blocky402.com
 FRELY_UPSTREAM_RELAY_URL=https://api.frely.cloud/v1/responses
 ```
 
-Network 必须先完成本地 API Key 准入、`vision-basic` 非流式模型检查和请求绑定，再发
+Network 必须先完成本地 API Key 准入、`gpt-5.6-luna` 非流式模型检查和请求绑定，再发
 标准 402。收到付款头后，Network 验证 x402 版本、quote、resource、requestId 与
 body hash，调用 Blocky verify 和 settle，并且只在结算成功后使用服务端保存的
 `FRELY_RELAY_API_KEY` 调用上游 Relay。
@@ -267,7 +269,7 @@ Network 专用 Relay caller key 与 trace/request ID。Relay 若返回 402，Net
 视为 `UPSTREAM_PAYMENT_UNEXPECTED`，不得把第二个付款要求传回 MCP。
 
 Relay 不加载 x402 SDK 或 Blocky 配置。它通过现有地址和用户提供的 API Key 接收
-`vision-basic`，并在远端内部完成 Swarm 与 `gpt-5.6-luna` Provider 路由。本地
+`gpt-5.6-luna`，并在远端内部完成既有路由。本地
 Network 不持有 Swarm endpoint、service token、Agent key 或 Provider credential，
 也不把这些内部字段列为本轮配置项或独立验收项。
 
@@ -299,7 +301,7 @@ sequenceDiagram
     M->>N: resolve v2 vision
     N-->>M: static_allowlist、Provider 元数据和本地执行地址
     Note over M: 校验本地白名单，不声称身份已验证
-    M->>N: POST responses，model vision-basic，无付款签名
+    M->>N: POST responses，model gpt-5.6-luna，无付款签名
     N-->>M: HTTP 402 和 PAYMENT-REQUIRED
     M->>B: 查询 supported
     B-->>M: exact 和 hedera:testnet
@@ -312,10 +314,10 @@ sequenceDiagram
     L-->>B: 共识结果
     B-->>N: settlement success
     Note over N: 只有 settled 后才能调用 Relay
-    N->>R: vision-basic 和 Network 专用 caller key
+    N->>R: gpt-5.6-luna 和 Network 专用 caller key
     Note over R,S: Relay 内部路由；本地不配置 Swarm 入口
-    R->>S: vision-basic 内部调度
-    S->>R: gpt-5.6-luna 和 Agent-scoped key
+    R->>S: 既有内部调度（不可见边界）
+    S->>R: 内部模型调用结果
     R->>P: 基础模型请求和 Provider credential
     P-->>R: 基础模型响应
     R-->>S: 基础模型响应
@@ -360,7 +362,7 @@ Source: 用户选择复用 `api.frely.cloud` 与 MVP 不过度设计原则
 部署或修改 Relay，也不查找、配置或部署 Swarm 入口。执行者只做以下动作：
 
 1. 只读记录 Relay 当前 health、release、source SHA 和模型列表；
-2. 使用现有 API Key 验证 `vision-basic` canary，确认 Relay 入口可用；
+2. 使用现有 API Key 验证 `gpt-5.6-luna` 图片 canary，确认 Relay 入口可用；
 3. 在本地 Network 启用 `/v1/responses` x402 Resource Server，并把唯一上游固定为
    `https://api.frely.cloud/v1/responses`；
 4. 完成无 HBAR 付款 gate 后，按已有单次授权执行一次 1 HBAR；
@@ -382,7 +384,7 @@ Source: 用户要求的真实全链路 spec 与证据边界
 | G0 Relay 入口基线 | 记录远端健康、release、source SHA、模型列表，并验证现有 API Key | 带时间戳的脱敏响应；不记录 key | 不开始本地付款 |
 | G1 本地静态 resolve | 启动真实 loopback Network，调用 v2 resolve | 精确 `static_allowlist` 响应；网络观察无 Graph/RPC 调用 | 不启动 MCP 付款 |
 | G2 endpoint 授权 | 对 Provider ID、上游 URL、本地执行 URL、redirect、Network origin 做正反例 | 只接受冻结的上游地址和 loopback 执行地址；篡改与重定向均拒绝 | `PROVIDER_NOT_AUTHORIZED` |
-| G3 Network 402 | MCP 请求本地 Network `vision-basic`，不带付款头 | Network 返回标准 402；network、asset、amount、payTo、fee payer、resource 全部精确；Relay 上游调用计数为零 | 不签名 |
+| G3 Network 402 | MCP 请求本地 Network `gpt-5.6-luna`，不带付款头 | Network 返回标准 402；network、asset、amount、payTo、fee payer、resource 全部精确；Relay 上游调用计数为零 | 不签名 |
 | G4 钱包与预算预检 | 实时核对 payer、公钥、余额、Blocky supported 和 1 HBAR 上限 | 公开账户快照、报价对比和不含密钥的检查结果 | `not_paid` |
 | G5 真实结算 | 获得单次授权后签名并提交原请求 | Blocky success；Mirror 确认原 transaction、Testnet、共识时间，payTo 净收 1 HBAR | `unknown` 或失败，绝不盲重试 |
 | G6 业务结果 | 追踪 Network settled 后的 Relay 调用 | Network 只在 settled 后调用一次 Relay；响应含 `PAYMENT-RESPONSE`，最终输出包含 `FRELY X402 OK`；Swarm/Provider 视为 Relay 内部实现，不要求独立入口证据 | 全链路失败，保留付款事实 |
@@ -453,8 +455,8 @@ Source: FXE2E-012 与用户确认的单次真实付款目标
 1. G0 至 G4 的所有无费用 gate 通过；
 2. 2026-09-12 的单次 1 HBAR Testnet 授权仍有效，且付款参数与授权记录完全一致；
 3. Mirror 确认唯一原交易从 payer 向 payTo 支付精确 1 HBAR；
-4. Network 只在 settled 后调用现有 Relay 入口；Relay 不参与 x402，并在内部完成
-   `vision-basic` 的 Swarm/Provider 路由；本地不依赖独立 Swarm 入口；
+4. Network 只在 settled 后调用现有 Relay 入口；Relay 不参与 x402，并接受
+   `gpt-5.6-luna` 业务请求；本地不依赖独立 Swarm 入口；
 5. 最终业务输出包含精确文本 `FRELY X402 OK`；
 6. 完全相同回放返回已保存结果，且没有第二次签名、结算、链上转账或业务调度；
 7. 既有健康检查、模型列表和至少一个普通模型请求没有回归；

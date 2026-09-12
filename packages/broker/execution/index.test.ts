@@ -16,7 +16,7 @@ test("maps request and uses only the local Network URL, with redirects disabled"
     expect(String(url)).toBe(provider.endpoint);
     expect(init?.redirect).toBe("error");
     expect((init?.headers as Record<string, string>).authorization).toBe("Bearer test-only");
-    expect(JSON.parse(String(init?.body))).toEqual({ model: "vision-basic", instructions: "Describe", input: [{ role: "user", content: [{ type: "input_image", image_url: "https://images.example/a.png" }] }], stream: false, store: false });
+    expect(JSON.parse(String(init?.body))).toEqual({ model: "gpt-5.6-luna", instructions: "Describe", input: [{ role: "user", content: [{ type: "input_image", image_url: "https://images.example/a.png" }] }], stream: false, store: false });
     return Response.json({ output_text: "A bicycle" });
   });
   expect(await execute(provider, request)).toEqual({ output_text: "A bicycle" });

@@ -23,10 +23,10 @@ mdq:
 
 | 范围 | 状态 | 当前证据 |
 | --- | --- | --- |
-| Task 1-5：契约、静态 Network、MCP payer、付款约束、Network x402 server | 已实现 | 集成基线 `3af3a90`；当前全仓 246 个测试、1082 个断言通过 |
-| Task 6：现有 Relay `vision-basic` canary | 阻塞 | health/API Key 正常；`vision-basic` 返回 `plan_subscription_required` |
-| Task 7：联合无 HBAR preflight | 已实现并执行，等待 G0 | G1-G4、G8-G12 通过；未签名、未付款 |
-| Task 8：唯一一次真实 1 HBAR 与同 requestId 回放 | 阻塞、未执行 | G0 未通过，付款门保持关闭 |
+| Task 1-5：契约、静态 Network、MCP payer、付款约束、Network x402 server | 已实现 | 集成基线 `3af3a90`；当前全仓 248 个测试、1088 个断言通过 |
+| Task 6：现有 Relay `gpt-5.6-luna` canary | 已通过 | 固定图片返回 200 与精确 `FRELY X402 OK`，无 x402 header |
+| Task 7：联合无 HBAR preflight | 已通过 | G0-G4、G8-G12 全绿；执行时 `paymentSent=false` |
+| Task 8：唯一一次真实 1 HBAR 与同 requestId 回放 | 已通过 | Mirror `SUCCESS`；精确 1 HBAR；业务成功；相同回放复用原 transaction |
 
 Task 1-5 下方的步骤保留为实现与复现说明；当前进度与最终验收状态以本表、Task 6-8
 和验证文档为准。代码已实现不等于真实付款全链路已完成。
@@ -36,21 +36,21 @@ Task 1-5 下方的步骤保留为实现与复现说明；当前进度与最终�
 - Task 1-5 的代码实施基线是 `frely-network` 的 `integration/frely-mcp-mvp-acceptance@3af3a90`，远程边界 Spec 修正基线是 `c699c78`。Relay 和 Swarm 仓库不进入本 MVP 的修改、部署或回滚范围。执行前重新核对工作树和 HEAD，不覆盖用户未提交改动。
 - `resolve v2` 只表示 `static_allowlist`，必须返回 `identityVerified: false`；不得填造 ENS、chain ID、registry 或 `verified: true`。
 - 本地 Network 只监听 `http://127.0.0.1:13600`；MCP 只接受该字面 origin，不接受 localhost、IPv6、局域网地址、其他端口或重定向。
-- 唯一 x402 resource 是 `http://127.0.0.1:13600/v1/responses`；唯一远程上游是 `https://api.frely.cloud/v1/responses`，唯一外部模型是 `vision-basic`。Host Agent 和 Network 响应均不能覆盖两个地址。
+- 唯一 x402 resource 是 `http://127.0.0.1:13600/v1/responses`；唯一远程上游是 `https://api.frely.cloud/v1/responses`，唯一外部模型是 `gpt-5.6-luna`。Host Agent 和 Network 响应均不能覆盖两个地址。逻辑 Provider ID 仍为 `frely-vision-basic`，不把该 ID 当成实际模型名。
 - 付款固定为 x402 v2 `exact`、`hedera:testnet`、HBAR `0.0.0`、`100000000` tinybar、payer `0.0.10386782`、payTo `0.0.10403579`、fee payer `0.0.7162784`、Blocky `https://api.testnet.blocky402.com`。
 - MCP → Network key 与 Network → Relay caller key 必须分离。当前已提供的 Relay API key 可用于本次 MVP canary，但只能由本地 Network 进程从本地 secret store 或受控环境读取，不得写入仓库、验证文档、证据 JSON 或日志；赛后轮换是建议，不是本次验收前置条件。Swarm 和 Provider 凭据由现有 Relay 内部管理，不进入本方案。
 - `find_capability` 不读取钱包、不调用 Relay；`frely-mcp check` 不签名、不付款、不调用 Relay；`use_capability` 只请求本地 Network，并且只有通过 resolve、白名单、报价、预算、余额和 signer 检查后才读取私钥。
 - MCP 保持本地 stdio；stdout 只输出 MCP 消息，诊断写 stderr。工具继续使用 `find_capability` 与 `use_capability` 两个既有名称，不为比赛改名或增加 resources、prompts、远程 MCP、分页和通用市场接口。
 - 全部 x402 client/server、Blocky、报价、结算、请求绑定和恢复代码位于 `frely-network`。Relay 不返回 402、不解析付款头、不调用 Blocky、不保存付款状态。
 - Network Resource Server 使用进程内付款占位；真实付款与回放期间不得重启 Network。跨 Network 重启服务端幂等不在 MVP 内，MCP payer journal 仍必须持久。
-- 用户已经明确授权在 `hedera:testnet` 上，从 payer `0.0.10386782` 向 payTo `0.0.10403579`，为 resource `http://127.0.0.1:13600/v1/responses` 执行唯一一次 `100000000` tinybar（1 HBAR）付款。只有 Task 7 全绿且 network、asset、amount、payer、payTo、fee payer、resource、upstream 和 model 与本计划逐项一致时，该授权才有效；任一字段漂移必须停止并请求新授权。未知结果只查询原 transaction，不重签、不重发。
+- 用户已经明确授权在 `hedera:testnet` 上，从 payer `0.0.10386782` 向 payTo `0.0.10403579`，为 resource `http://127.0.0.1:13600/v1/responses` 执行唯一一次 `100000000` tinybar（1 HBAR）付款；2026-09-12 又明确允许从当前可用模型中选择任一模型，并在本轮执行确认后冻结为 `gpt-5.6-luna`。只有 Task 7 全绿且 network、asset、amount、payer、payTo、fee payer、resource、upstream 和 model 与本计划逐项一致时，该授权才有效；任一字段漂移必须停止并请求新授权。未知结果只查询原 transaction，不重签、不重发。
 - 不执行 npm publish、git push、main merge、Mainnet、自动退款或自动重试；这些动作需要独立范围和授权。
 
 ---
 
 ## FXPLAN-001 — 文件结构、路径与并发关系
 
-Status: In progress
+Status: Completed
 Review level: L3
 Source: FXE2E-001 至 FXE2E-015；当前三个本地仓库
 
@@ -62,7 +62,7 @@ Source: FXE2E-001 至 FXE2E-015；当前三个本地仓库
 | 路径 A：MCP payer | `apps/frely-mcp/config.ts`、`network-client.ts`、`runtime.ts`、`server.ts`、`check.ts` | 静态 v2 client、MCP 工具和只调用 Network 的白名单门禁 | 3 |
 | 路径 A：MCP payer | `packages/payment/hedera-x402/*`、`packages/wallet/agent-wallet/read-ready.ts`、MCP fixtures | 精确金额、余额保留额、body hash、payer journal 和 synthetic 验收 | 4 |
 | 路径 B：Network 服务端 | `packages/gateway/x402/*`、`apps/capability-service/upstream.ts`、`service.ts`、`runtime.ts` | 官方 Resource Server、Blocky 结算、请求绑定和 settled-before-Relay | 5 |
-| 远端业务链 | 现有 `https://api.frely.cloud/v1` 与本地脱敏 canary 证据 | 验证 API key、`vision-basic` 和普通业务响应；不改 Relay/Swarm | 6 |
+| 远端业务链 | 现有 `https://api.frely.cloud/v1` 与本地脱敏 canary 证据 | 验证 API key、`gpt-5.6-luna` 和普通业务响应；不改 Relay/Swarm | 6 |
 | 联合验收 | `scripts/static-provider-e2e/*`、`docs/verification/2026-09-12-static-provider-x402-e2e.md` | G0 至 G12 无 HBAR 付款及真实付款证据 | 7、8 |
 
 Task 1 是两条路径的共享契约门。之后路径 A 执行 Task 3-4，路径 B 执行 Task 2、5，
@@ -877,7 +877,7 @@ const httpServer = new x402HTTPResourceServer(resourceServer, {
       extra: { feePayer: "0.0.7162784", paymentFlow: "upfront" },
     },
     resource: "http://127.0.0.1:13600/v1/responses",
-    description: "Frely Network vision-basic",
+    description: "Frely Network gpt-5.6-luna",
     mimeType: "application/json",
   },
 });
@@ -893,12 +893,12 @@ settle 顺序、settle 后进程内单调状态以及 unknown 占位。导出的
 `createRelayUpstream` 固定 URL 为 `https://api.frely.cloud/v1/responses`，只在内部读取
 `FRELY_RELAY_API_KEY`，使用 30 秒超时、2 MiB 响应上限和 `redirect: "error"`。请求
 只包含 `authorization`、`content-type`、`accept` 和 `x-frely-request-id`；body 固定
-`model: "vision-basic"`、`stream: false`。Relay 返回 402 时抛
+`model: "gpt-5.6-luna"`、`stream: false`。Relay 返回 402 时抛
 `UPSTREAM_PAYMENT_UNEXPECTED`，其他非 2xx 映射为 `UPSTREAM_FAILED`，不返回上游
 header 或正文。
 
 `service.ts` 对 `/v1/responses` 复用现有等长 Network Bearer 校验和 64 KiB body
-上限，拒绝非 `vision-basic`、truthy stream 和缺失 requestId。无付款头时直接返回
+上限，拒绝非 `gpt-5.6-luna`、truthy stream 和缺失 requestId。无付款头时直接返回
 Network gate 生成的标准 402；只有 `admission.kind === "settled"` 才调用 upstream，
 再用 `admission.finish(response)` 加入 `PAYMENT-RESPONSE`。任何未结算分支的 upstream
 调用次数必须为零。
@@ -919,9 +919,9 @@ git add packages/gateway/x402 apps/capability-service
 git commit -m "feat(network): settle x402 before Relay dispatch"
 ```
 
-## Task 6 — FXPLAN-007：验证现有 Relay 入口与 `vision-basic` canary
+## Task 6 — FXPLAN-007：验证现有 Relay 入口与 `gpt-5.6-luna` canary
 
-Status: Blocked
+Status: Completed
 Review level: L3
 Source: FXE2E-004、FXE2E-008、FXE2E-011、FXE2E-012 G0、G10-G11
 
@@ -936,30 +936,30 @@ Source: FXE2E-004、FXE2E-008、FXE2E-011、FXE2E-012 G0、G10-G11
 
 **Interfaces:**
 
-- Consumes: 现有 Relay base URL、现有 API key、`vision-basic`、`FRELY_ACCEPTANCE_IMAGE_URL`。
+- Consumes: 现有 Relay base URL、现有 API key、`gpt-5.6-luna`、`FRELY_ACCEPTANCE_IMAGE_URL`。
 - Produces: Relay health/model/auth/普通业务响应的脱敏 canary 证据。Swarm 与 Provider 只作为 Relay 内部实现，不要求独立入口或日志。
 
-- [ ] **Step 1: 固定 canary 输入和秘密边界。**
+- [x] **Step 1: 固定 canary 输入和秘密边界。**
 
 从本地 secret store 或当前受控 shell 读取 `FRELY_RELAY_API_KEY`，不得把值写入命令
 历史、仓库、文档或证据。把最终公开 HTTPS 图片写入 `FRELY_ACCEPTANCE_IMAGE_URL`；
 图片只包含高对比度文本 `FRELY X402 OK`。记录图片 URL、content type、字节数和
 SHA-256，不记录任何凭据。
 
-- [ ] **Step 2: 读取 Relay 当前状态。**
+- [x] **Step 2: 读取 Relay 当前状态。**
 
 只读访问 `GET https://api.frely.cloud/health` 和经过认证的
 `GET https://api.frely.cloud/v1/models`。记录时间、HTTP 状态、release/source 标识和
-`vision-basic` 可用性。健康失败、认证失败或模型缺失时，记录明确失败并停止；不尝试
+`gpt-5.6-luna` 可用性。健康失败、认证失败或模型缺失时，记录明确失败并停止；不尝试
 部署、修复 Relay 或探测 Swarm。
 
-- [ ] **Step 3: 直接执行一次普通 Relay canary。**
+- [x] **Step 3: 直接执行一次普通 Relay canary。**
 
 向 `POST https://api.frely.cloud/v1/responses` 发送固定请求：
 
 ```json
 {
-  "model": "vision-basic",
+  "model": "gpt-5.6-luna",
   "instructions": "Read the image and return the exact visible text.",
   "input": [
     {
@@ -978,20 +978,20 @@ SHA-256，不记录任何凭据。
 HTTP 200，业务输出包含精确文本 `FRELY X402 OK`，且响应不是 402、不含 x402 付款
 要求。该调用可能产生普通模型 usage，但不签名、不调用 Blocky、不产生 HBAR 交易。
 
-- [ ] **Step 4: 保存脱敏 canary 证据。**
+- [x] **Step 4: 保存脱敏 canary 证据。**
 
 `.local/acceptance/static-provider/relay-canary.json` 只保存时间、endpoint、model、图片
 hash、HTTP 状态、request/response 标识、输出断言、release/source 和
 `x402Requested:false`。不得保存 API key、Authorization header、cookie、完整内部
 拓扑或原始敏感日志。把公开摘要写入验证文档，原始 JSON 不提交。
 
-- [ ] **Step 5: 判断 Task 6 结果。**
+- [x] **Step 5: 判断 Task 6 结果。**
 
-只有 health、认证、`vision-basic` 和业务结果全部通过，Task 6 才通过。若 Relay 返回
+只有 health、认证、`gpt-5.6-luna` 和业务结果全部通过，Task 6 才通过。若 Relay 返回
 402，标记 `RELAY_PAYMENT_BOUNDARY_VIOLATION`；若业务失败，记录 Relay canary fail。
 两种情况都停止 Task 7/8，不做远程回滚，因为本任务没有改变远程状态。
 
-- [ ] **Step 6: 提交公开 canary 基线。**
+- [x] **Step 6: 提交公开 canary 基线。**
 
 ```bash
 git add docs/verification/2026-09-12-static-provider-x402-e2e.md
@@ -1000,7 +1000,7 @@ git commit -m "docs(verification): record Relay canary baseline"
 
 ## Task 7 — FXPLAN-008：联合无 HBAR 付款验收和证据门
 
-Status: Blocked
+Status: Completed
 Review level: L3
 Source: FXE2E-012 G0-G4、G8-G12；FXE2E-013
 
@@ -1019,7 +1019,7 @@ Source: FXE2E-012 G0-G4、G8-G12；FXE2E-013
 - Consumes: 路径 A 的 packaged MCP、路径 B 的本地 Network Resource Server、Task 6 的现有 Relay canary、Blocky `/supported`、Hedera Mirror Node。
 - Produces: `bun run acceptance:static-preflight`，只执行 G0-G4、G8-G12 的无 HBAR 付款部分并写脱敏 JSON 到 `.local/acceptance/static-provider/preflight.json`。
 
-- [ ] **Step 1: 写付款禁用和脱敏 RED 测试。**
+- [x] **Step 1: 写付款禁用和脱敏 RED 测试。**
 
 ```ts
 test("preflight never sends PAYMENT-SIGNATURE", async () => {
@@ -1041,7 +1041,7 @@ test("evidence redacts secrets, signatures and local secret paths", () => {
 });
 ```
 
-- [ ] **Step 2: 运行 preflight RED。**
+- [x] **Step 2: 运行 preflight RED。**
 
 Run: `bun test scripts/static-provider-e2e/preflight.test.ts`
 
@@ -1049,10 +1049,10 @@ Run: `bun test scripts/static-provider-e2e/live.test.ts`
 
 Expected: 两个测试都 FAIL，因为 runner 尚不存在。
 
-- [ ] **Step 3: 实现只读 runner。**
+- [x] **Step 3: 实现只读 runner。**
 
 `preflight.ts` 只允许以下动作：读取本地 Network v2、读取 Relay health/models、向
-本地 Network 发一次无付款头的 `vision-basic` 请求并验证 402、读取 Blocky
+本地 Network 发一次无付款头的 `gpt-5.6-luna` 请求并验证 402、读取 Blocky
 `/supported`、读取 payer/payTo Mirror 账户、读取本地 Ready wallet 公开身份、比较
 付款 policy 和 Task 6 的 Relay canary 证据。它不得调用 signer、settle、带付款头的
 请求或 `use_capability`，也不得调用或探测独立 Swarm 入口。
@@ -1116,14 +1116,14 @@ requestId 调用两次 `use_capability`，并在启动子进程前读取及验�
 `.local/acceptance/static-provider/live.json`。`live.test.ts` 必须证明确认值缺失或
 错误时，连 transport 都不会构造。
 
-- [ ] **Step 4: 复核 Task 6 固定的 OCR 图片。**
+- [x] **Step 4: 复核 Task 6 固定的 OCR 图片。**
 
 runner 读取 Task 6 使用的 `FRELY_ACCEPTANCE_IMAGE_URL`，先 GET 图片，拒绝重定向，
 限制 2 MiB，只接受 PNG 或 JPEG，重新计算 SHA-256，并与 Relay canary 证据一致。
 操作者目视确认图片只包含高对比度文本 `FRELY X402 OK`。URL、content type、字节数
 和 hash 可进入脱敏证据；图片获取失败或 hash 漂移则 G4 不通过。
 
-- [ ] **Step 5: 启动本地 Network 并运行无 HBAR 付款验收。**
+- [x] **Step 5: 启动本地 Network 并运行无 HBAR 付款验收。**
 
 启动 Network 时只设置：
 
@@ -1150,7 +1150,7 @@ Expected: G0-G4、G8 的测试双、G9 的模拟、G10、G11、G12 全部 PASS�
 `paymentAuthorizationRecorded=true`、`paymentSent=false`。任一 gate 失败都不进入
 Task 8。该字段只表示存在精确参数授权，不得触发签名或付款。
 
-- [ ] **Step 6: 运行全仓回归并建立验证记录。**
+- [x] **Step 6: 运行全仓回归并建立验证记录。**
 
 Run: `bun run check`
 
@@ -1160,7 +1160,7 @@ Expected: 类型检查与全部 Bun 测试零失败。
 写 `Not run — authorized but not executed in preflight`，不得写 pass。记录本地证据
 文件的 SHA-256，不提交含秘密的原始 JSON。
 
-- [ ] **Step 7: 提交无 HBAR 付款 runner 和验证状态。**
+- [x] **Step 7: 提交无 HBAR 付款 runner 和验证状态。**
 
 ```bash
 git add package.json scripts/static-provider-e2e docs/verification/2026-09-12-static-provider-x402-e2e.md
@@ -1169,7 +1169,7 @@ git commit -m "test(e2e): add static provider no-HBAR acceptance gate"
 
 ## Task 8 — FXPLAN-009：单次真实 1 HBAR、业务结果和零增量回放
 
-Status: Blocked
+Status: Completed
 Review level: L3
 Source: FXE2E-009、FXE2E-010、FXE2E-012 G5-G7、FXE2E-015
 
@@ -1187,14 +1187,14 @@ Source: FXE2E-009、FXE2E-010、FXE2E-012 G5-G7、FXE2E-015
 - Consumes: Task 7 的全绿 preflight、现有精确参数单次授权、packaged `frely-mcp`、本地 Network Resource Server 和 Task 6 的 Relay canary。
 - Produces: 一个 Mirror 已确认的 1 HBAR transaction、包含 `FRELY X402 OK` 的业务输出、相同 requestId 零额外付款和零额外调度证据。
 
-- [ ] **Step 1: 再次刷新全部时变事实。**
+- [x] **Step 1: 再次刷新全部时变事实。**
 
 重新读取 Relay health/release/source SHA、`/v1/models`、Blocky `/supported`、payer 与
 payTo 账户、payer signer 公钥绑定、余额、Network v2 和 Network 402 quote。核对
 Network 在真实付款与回放期间不会重启。任何字段变化都使 Task 7 证据失效，必须重新运行
 preflight。
 
-- [ ] **Step 2: 核对现有授权与最终参数。**
+- [x] **Step 2: 核对现有授权与最终参数。**
 
 授权摘要必须逐字包含：
 
@@ -1207,14 +1207,14 @@ PayTo: 0.0.10403579
 Fee payer: 0.0.7162784
 Resource: http://127.0.0.1:13600/v1/responses
 Upstream: https://api.frely.cloud/v1/responses
-Model: vision-basic
+Model: gpt-5.6-luna
 ```
 
 把最新运行参数与以上九项逐项比较。全部一致时，使用用户已经给出的单次授权继续
 Step 3，无需再次暂停；把 `authorizationMatched:true` 写入本地脱敏证据。任一字段
 不一致、授权已使用或无法证明未使用时，立即停止并请求新的精确授权。
 
-- [ ] **Step 3: 通过 packaged MCP 发一次真实调用。**
+- [x] **Step 3: 通过 packaged MCP 发一次真实调用。**
 
 Step 2 验证现有授权仍有效后，在仓库根目录构建并安装待验收包：
 
@@ -1243,7 +1243,7 @@ shell 中，并与 preflight 证据一致；否则 runner 必须在启动 MCP �
 transactionId，不创建新 requestId、不重新签名、不重发。只有结果明确
 `paymentStatus=settled` 且 `serviceStatus=succeeded` 才进入业务断言。
 
-- [ ] **Step 4: 核对结算与业务顺序。**
+- [x] **Step 4: 核对结算与业务顺序。**
 
 Mirror 必须确认原 transaction 在 `hedera:testnet` 成功、共识时间存在、payer 向
 payTo 转移精确 `100000000` tinybar，并且 transactionId 与 MCP evidence、Blocky
@@ -1255,7 +1255,7 @@ Network 唯一一次调用 Relay → Relay 返回普通业务响应。Relay 不�
 凭据、部署或日志。最终输出必须包含精确文本 `FRELY X402 OK`。结算成功但业务失败时
 保留 settled 事实，并把 G6 标为 fail。
 
-- [ ] **Step 5: 执行完全相同回放与冲突负例。**
+- [x] **Step 5: 执行完全相同回放与冲突负例。**
 
 第一次调用达到 `delivered` 后，以完全相同 requestId、body、图片、预算和 Provider
 再次调用 `use_capability`。返回值必须与保存输出相同；本地 sign、Network/Blocky
@@ -1265,7 +1265,7 @@ dispatch 计数。
 冲突负例只在测试双执行，不在真实链上使用同 requestId 改 body。真实链不为冲突
 测试承担第二笔付款风险。
 
-- [ ] **Step 6: 完成回归、秘密扫描和声明检查。**
+- [x] **Step 6: 完成回归、秘密扫描和声明检查。**
 
 再次检查 health、models 和至少一个现有模型调用。扫描 live evidence、日志摘录、
 配置和 package 清单，确认没有 API key、私钥、原始签名、可广播交易、本地秘密
@@ -1274,7 +1274,7 @@ dispatch 计数。
 验收结论只能写“静态 Provider 的真实付款全链路”；必须明确 The Graph、ENS 和
 ERC-8004 未参与。任一 G0-G12 未通过，父任务继续保持进行中。
 
-- [ ] **Step 7: 写回真实验证结果并提交公开摘要。**
+- [x] **Step 7: 写回真实验证结果并提交公开摘要。**
 
 更新验证文档的 G5-G12 状态、公开 transactionId、Mirror 链接、共识时间、输出
 摘要、回放零增量证据和最终 claim boundary。原始脱敏 JSON 留在 `.local`，只提交
@@ -1290,7 +1290,7 @@ git commit -m "docs(verification): record static provider x402 acceptance"
 
 ## FXPLAN-010 — 完成检查与停止条件
 
-Status: Blocked
+Status: Completed
 Review level: L3
 Source: FXE2E-010、FXE2E-012、FXE2E-014、FXE2E-015
 
@@ -1307,7 +1307,6 @@ Source: FXE2E-010、FXE2E-012、FXE2E-014、FXE2E-015
 
 ## Execution Handoff
 
-Task 1-5 已合并。剩余工作按 Task 6 Relay canary → Task 7 无付款 preflight → Task 8
-唯一一次真实付款顺序执行。Task 6/7 不得签名或支付；Task 8 只有在全部 gate 全绿、
-九项参数精确匹配且单次授权未使用时才可直接运行。任一条件不满足就停止，不用第二笔
-交易“重试”。
+Task 1-5 已合并，Task 6 Relay canary、Task 7 无付款 preflight 与 Task 8 唯一一次真实
+付款均已执行。真实交易由 Mirror 确认为 `SUCCESS`，业务输出为 `FRELY X402 OK`；
+完全相同回放返回同一保存结果和原 transactionId，没有触发第二笔付款。

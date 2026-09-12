@@ -74,12 +74,12 @@ function parseJson(text: string): unknown {
   }
 }
 
-function isVisionBasicBody(value: unknown): value is { model: "vision-basic"; stream: false } {
+function isApprovedModelBody(value: unknown): value is { model: "gpt-5.6-luna"; stream: false } {
   return Boolean(
     value
     && typeof value === "object"
     && !Array.isArray(value)
-    && (value as { model?: unknown }).model === "vision-basic"
+    && (value as { model?: unknown }).model === "gpt-5.6-luna"
     && (value as { stream?: unknown }).stream === false,
   );
 }
@@ -94,7 +94,7 @@ async function handleResponses(
 ): Promise<Response> {
   const body = await readBoundedText(request);
   const parsed = parseJson(body);
-  if (!isVisionBasicBody(parsed)) throw new Error("INVALID_REQUEST");
+  if (!isApprovedModelBody(parsed)) throw new Error("INVALID_REQUEST");
   const requestId = request.headers.get("x-frely-request-id")?.trim() ?? "";
   if (!requestId) throw new Error("INVALID_REQUEST");
   const admission = await options.x402Gate.admit(request, body);

@@ -120,7 +120,7 @@ function responsesRequest(init?: RequestInit): Request {
   });
 }
 
-const visionBody = JSON.stringify({ model: "vision-basic", stream: false });
+const visionBody = JSON.stringify({ model: "gpt-5.6-luna", stream: false });
 
 test("returns 402 from /v1/responses without calling upstream", async () => {
   let upstreamCalls = 0;
@@ -159,7 +159,7 @@ test("returns 402 from /v1/responses without calling upstream", async () => {
   expect(upstreamCalls).toBe(0);
 });
 
-test("rejects non-vision-basic, truthy stream, and missing requestId before the gate", async () => {
+test("rejects non-gpt-5.6-luna, truthy stream, and missing requestId before the gate", async () => {
   let admits = 0;
   let upstreamCalls = 0;
   const fetcher = createCapabilityServiceFetch({
@@ -184,9 +184,9 @@ test("rejects non-vision-basic, truthy stream, and missing requestId before the 
     "x-frely-request-id": "request-1",
   };
   for (const request of [
-    responsesRequest({ headers, body: JSON.stringify({ model: "gpt-5.6-luna", stream: false }) }),
-    responsesRequest({ headers, body: JSON.stringify({ model: "vision-basic", stream: true }) }),
-    responsesRequest({ headers, body: JSON.stringify({ model: "vision-basic", stream: "true" }) }),
+    responsesRequest({ headers, body: JSON.stringify({ model: "vision-basic", stream: false }) }),
+    responsesRequest({ headers, body: JSON.stringify({ model: "gpt-5.6-luna", stream: true }) }),
+    responsesRequest({ headers, body: JSON.stringify({ model: "gpt-5.6-luna", stream: "true" }) }),
     responsesRequest({
       headers: { authorization: headers.authorization, "content-type": "application/json" },
       body: visionBody,
@@ -223,7 +223,7 @@ test("calls upstream only after settled admission and attaches PAYMENT-RESPONSE"
     upstream: {
       invoke: async (body, requestId) => {
         upstreamCalls += 1;
-        expect(JSON.parse(body)).toEqual({ model: "vision-basic", stream: false });
+        expect(JSON.parse(body)).toEqual({ model: "gpt-5.6-luna", stream: false });
         expect(requestId).toBe("request-1");
         return Response.json({ output_text: "FRELY X402 OK" });
       },
@@ -283,4 +283,3 @@ test("maps Relay 402 after settlement to UPSTREAM_PAYMENT_UNEXPECTED", async () 
   expect(response.status).toBe(502);
   expect(await response.json()).toEqual({ code: "UPSTREAM_PAYMENT_UNEXPECTED" });
 });
-

@@ -21,7 +21,7 @@ export function createRelayUpstream(
   if (config.url !== RELAY_URL || !apiKey) throw new Error("UPSTREAM_NOT_CONFIGURED");
   return {
     async invoke(body: string, requestId: string): Promise<Response> {
-      assertVisionBasicBody(body);
+      assertApprovedModelBody(body);
       let response: Response;
       try {
         response = await fetcher(new Request(RELAY_URL, {
@@ -55,7 +55,7 @@ export function createRelayUpstream(
   };
 }
 
-function assertVisionBasicBody(body: string): void {
+function assertApprovedModelBody(body: string): void {
   let parsed: unknown;
   try {
     parsed = JSON.parse(body);
@@ -66,7 +66,7 @@ function assertVisionBasicBody(body: string): void {
     !parsed
     || typeof parsed !== "object"
     || Array.isArray(parsed)
-    || (parsed as { model?: unknown }).model !== "vision-basic"
+    || (parsed as { model?: unknown }).model !== "gpt-5.6-luna"
     || (parsed as { stream?: unknown }).stream !== false
   ) {
     throw new Error("UPSTREAM_FAILED");

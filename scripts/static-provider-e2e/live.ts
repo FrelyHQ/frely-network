@@ -33,6 +33,22 @@ function repoRoot(): string {
   return join(dirname(fileURLToPath(import.meta.url)), "../..");
 }
 
+export function resolveMcpSdkModules(root = repoRoot()): { client: string; stdio: string } {
+  const sdkRoot = join(root, "apps/frely-mcp/node_modules/@modelcontextprotocol/sdk/dist/esm");
+  return {
+    client: pathToFileURL(join(sdkRoot, "client/index.js")).href,
+    stdio: pathToFileURL(join(sdkRoot, "client/stdio.js")).href,
+  };
+}
+
+export function mcpServerEnvironment(
+  env: Record<string, string | undefined>,
+): Record<string, string> {
+  const networkKey = env.FRELY_NETWORK_API_KEY?.trim();
+  if (!networkKey) throw new Error("MCP_CONFIG_MISSING");
+  return { FRELY_NETWORK_API_KEY: networkKey };
+}
+
 type JsonRecord = Record<string, unknown>;
 
 async function assertPreflightGreen(
@@ -138,22 +154,28 @@ async function defaultCreateTransport(env: Record<string, string | undefined>): 
   const bin = env.FRELY_MCP_BIN?.trim();
   const configPath = env.FRELY_MCP_CONFIG_PATH?.trim();
   if (!bin || !configPath) throw new Error("MCP_CONFIG_MISSING");
-  const sdkRoot = join(repoRoot(), "apps/frely-mcp/node_modules/@modelcontextprotocol/sdk");
-  const { Client } = await import(pathToFileURL(join(sdkRoot, "client/index.js")).href) as {
+  const modules = resolveMcpSdkModules();
+  const { Client } = await import(modules.client) as {
     Client: new (info: { name: string; version: string }) => {
       connect(transport: unknown): Promise<void>;
       close(): Promise<void>;
       callTool(input: { name: string; arguments: Record<string, unknown> }): Promise<unknown>;
     };
   };
-  const { StdioClientTransport } = await import(pathToFileURL(join(sdkRoot, "client/stdio.js")).href) as {
-    StdioClientTransport: new (input: { command: string; args: string[]; stderr: "pipe" }) => {
+  const { StdioClientTransport } = await import(modules.stdio) as {
+    StdioClientTransport: new (input: {
+      command: string;
+      args: string[];
+      env: Record<string, string>;
+      stderr: "pipe";
+    }) => {
       close(): Promise<void>;
     };
   };
   const transport = new StdioClientTransport({
     command: bin,
     args: ["start", "--config", configPath],
+    env: mcpServerEnvironment(env),
     stderr: "pipe",
   });
   const client = new Client({ name: "static-provider-e2e", version: "0.0.0" });

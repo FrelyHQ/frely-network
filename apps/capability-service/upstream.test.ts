@@ -7,7 +7,7 @@ const config = {
   apiKey: "upstream-test-key",
 };
 const body = JSON.stringify({
-  model: "vision-basic",
+  model: "gpt-5.6-luna",
   stream: false,
   input: "ocr",
 });
@@ -40,7 +40,7 @@ test("forwards no x402 or local authorization headers to Relay", async () => {
     "PAYMENT-RESPONSE",
   ]) expect(capture.request.headers.has(name)).toBe(false);
   expect(await capture.request.json()).toEqual({
-    model: "vision-basic",
+    model: "gpt-5.6-luna",
     stream: false,
     input: "ocr",
   });

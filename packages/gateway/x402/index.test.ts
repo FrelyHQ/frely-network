@@ -52,7 +52,7 @@ function encodeSignature(body: string, options?: { omitBodySha256?: boolean }): 
     x402Version: 2,
     resource: {
       url: RESOURCE_URL,
-      description: "Frely Network vision-basic",
+      description: "Frely Network gpt-5.6-luna",
       mimeType: "application/json",
     },
     accepted: acceptedQuote(),
@@ -76,7 +76,7 @@ function paymentRequest(requestId: string, body: string, paymentSignature?: stri
 async function createNetworkX402Harness(options: HarnessOptions = {}) {
   const events: string[] = [];
   const requestId = options.requestId ?? REQUEST_ID;
-  const body = JSON.stringify({ model: "vision-basic", stream: false });
+  const body = JSON.stringify({ model: "gpt-5.6-luna", stream: false });
   const facilitator: FacilitatorClient = {
     getSupported: async () => ({
       kinds: [{
@@ -181,14 +181,14 @@ test("rejects uppercase or mismatched bodySha256 before Blocky", async () => {
   const h = await createNetworkX402Harness();
   const uppercase = encodePaymentSignatureHeader({
     x402Version: 2,
-    resource: { url: RESOURCE_URL, description: "Frely Network vision-basic", mimeType: "application/json" },
+    resource: { url: RESOURCE_URL, description: "Frely Network gpt-5.6-luna", mimeType: "application/json" },
     accepted: acceptedQuote(),
     payload: { transaction: "test-only" },
     extensions: { bodySha256: sha256Hex(h.body).toUpperCase() },
   });
   const mismatched = encodePaymentSignatureHeader({
     x402Version: 2,
-    resource: { url: RESOURCE_URL, description: "Frely Network vision-basic", mimeType: "application/json" },
+    resource: { url: RESOURCE_URL, description: "Frely Network gpt-5.6-luna", mimeType: "application/json" },
     accepted: acceptedQuote(),
     payload: { transaction: "test-only" },
     extensions: { bodySha256: sha256Hex("other-body") },

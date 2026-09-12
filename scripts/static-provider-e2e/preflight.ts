@@ -21,7 +21,7 @@ export const FROZEN_PAYMENT_INTENT = {
 export const FROZEN_AUTHORIZATION = {
   ...FROZEN_PAYMENT_INTENT,
   upstream: "https://api.frely.cloud/v1/responses",
-  model: "vision-basic",
+  model: "gpt-5.6-luna",
 } as const;
 
 const RELAY_BASE = "https://api.frely.cloud";
@@ -239,14 +239,14 @@ export function testPorts(seen: Request[]): PreflightPorts {
         });
       }
       if (url.href === `${RELAY_BASE}/v1/models`) {
-        return Response.json({ data: [{ id: "vision-basic" }, { id: "gpt-5.6-luna" }] });
+        return Response.json({ data: [{ id: "gpt-5.6-luna" }, { id: "gpt-5.6-terra" }] });
       }
       if (url.href === RELAY_RESPONSES && request.method === "POST") {
         const body = JSON.parse(await request.clone().text()) as { model?: string };
-        if (body.model === "vision-basic") {
+        if (body.model === "gpt-5.6-luna") {
           return Response.json({ output_text: "FRELY X402 OK" });
         }
-        if (body.model === "gpt-5.6-luna") {
+        if (body.model === "gpt-5.6-terra") {
           return Response.json({ output_text: "ok" });
         }
         return new Response(null, { status: 400 });
@@ -434,7 +434,7 @@ export async function runPreflight(ports: PreflightPorts): Promise<{
       }, 1024 * 1024)
       : undefined;
     const modelIds = models ? modelsFrom(JSON.parse(models.body.toString("utf8"))) : [];
-    const vision = modelIds.includes("vision-basic");
+    const modelAvailable = modelIds.includes("gpt-5.6-luna");
     let canaryText = "";
     let canaryStatus: number | null = null;
     let canaryCode: string | null = null;
@@ -449,7 +449,7 @@ export async function runPreflight(ports: PreflightPorts): Promise<{
           accept: "application/json",
         },
         body: JSON.stringify({
-          model: "vision-basic",
+          model: "gpt-5.6-luna",
           instructions: TASK_TEXT,
           input: [{ role: "user", content: [{ type: "input_image", image_url: imageUrl }] }],
           store: false,
@@ -473,17 +473,18 @@ export async function runPreflight(ports: PreflightPorts): Promise<{
     }
     const canaryOk = Boolean(relayKey)
       && got.status === 200
-      && vision
+      && modelAvailable
       && canaryStatus === 200
       && canaryText.includes("FRELY X402 OK")
       && !x402Requested;
     gates.G0 = gate(canaryOk ? "pass" : "fail", canaryOk
-      ? "Relay health, vision-basic and OCR canary passed"
+      ? "Relay health, gpt-5.6-luna and OCR canary passed"
       : relayKey
         ? "Relay canary failed"
         : "FRELY_RELAY_API_KEY_MISSING", {
       healthStatus: got.status,
-      visionBasicAvailable: vision,
+      model: "gpt-5.6-luna",
+      modelAvailable,
       canaryStatus,
       canaryCode,
       outputContainsExactText: canaryText.includes("FRELY X402 OK"),
@@ -565,7 +566,7 @@ export async function runPreflight(ports: PreflightPorts): Promise<{
         "x-frely-request-id": "preflight-unsigned",
       },
       body: JSON.stringify({
-        model: "vision-basic",
+        model: "gpt-5.6-luna",
         instructions: TASK_TEXT,
         input: [{ role: "user", content: [{ type: "input_image", image_url: imageUrl }] }],
         store: false,
@@ -677,7 +678,7 @@ export async function runPreflight(ports: PreflightPorts): Promise<{
         "content-type": "application/json",
       },
       body: JSON.stringify({
-        model: "gpt-5.6-luna",
+        model: "gpt-5.6-terra",
         input: "ping",
         store: false,
         stream: false,
@@ -686,7 +687,7 @@ export async function runPreflight(ports: PreflightPorts): Promise<{
     const x402 = regression.status === 402 || regression.headers.has("PAYMENT-REQUIRED");
     const ok = regression.status === 200 && !x402;
     gates.G10 = gate(ok ? "pass" : "fail", ok ? "existing model still returns 200" : "existing model regression", {
-      model: "gpt-5.6-luna",
+      model: "gpt-5.6-terra",
       httpStatus: regression.status,
     });
   } catch (error) {

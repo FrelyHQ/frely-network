@@ -105,7 +105,8 @@ test("G9 unknown recovery double only queries the original transaction", () => {
 });
 
 test("preflight records authorization without sending payment", async () => {
-  const ports = testPorts([]);
+  const seen: Request[] = [];
+  const ports = testPorts(seen);
   const evidence = await runPreflight(ports);
   expect(evidence.paymentAuthorizationRecorded).toBe(true);
   expect(evidence.paymentSent).toBe(false);
@@ -114,6 +115,11 @@ test("preflight records authorization without sending payment", async () => {
   expect(evidence.gates.G7.result).toBe("Not run — authorized but not executed in preflight");
   const recorded = JSON.parse(await readFile(join(ports.evidenceDir!, "preflight.json"), "utf8"));
   expect(recorded.approvedRunParameters).toEqual(FROZEN_AUTHORIZATION);
+  expect(recorded.approvedRunParameters.model).toBe("gpt-5.6-luna");
+  const responseModels = await Promise.all(seen
+    .filter((request) => request.method === "POST" && request.url.endsWith("/v1/responses"))
+    .map(async (request) => (JSON.parse(await request.clone().text()) as { model?: string }).model));
+  expect(responseModels).toContain("gpt-5.6-luna");
 });
 
 test("G11 scan rejects secret-bearing evidence", async () => {
@@ -145,7 +151,7 @@ test("G12 claim boundary forbids Graph ENS and ERC-8004 completion claims", asyn
 test("mocked G10 records an existing-model regression result", async () => {
   const evidence = await runPreflight(testPorts([]));
   expect(evidence.gates.G10.status).toBe("pass");
-  expect(evidence.gates.G10.model).toBe("gpt-5.6-luna");
+  expect(evidence.gates.G10.model).toBe("gpt-5.6-terra");
   expect(evidence.gates.G10.httpStatus).toBe(200);
 });
 
@@ -159,7 +165,7 @@ test("G0 records a business subscription 402 without treating it as x402", async
         return Response.json({ data: [{ id: "gpt-5.6-luna" }] });
       }
       if (request.url === "https://api.frely.cloud/v1/responses"
-        && JSON.parse(await request.clone().text()).model === "vision-basic") {
+        && JSON.parse(await request.clone().text()).model === "gpt-5.6-luna") {
         return Response.json({ error: { code: "plan_subscription_required" } }, { status: 402 });
       }
       return base.fetch(request);

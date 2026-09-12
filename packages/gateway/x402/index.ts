@@ -154,7 +154,7 @@ export async function createNetworkX402Gate(config: NetworkX402GateConfig): Prom
         extra: { feePayer: FROZEN.feePayer, paymentFlow: "upfront" },
       },
       resource: FROZEN.resourceUrl,
-      description: "Frely Network vision-basic",
+      description: "Frely Network gpt-5.6-luna",
       mimeType: "application/json",
     },
   });

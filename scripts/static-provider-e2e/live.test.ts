@@ -2,13 +2,37 @@ import { expect, test } from "bun:test";
 import { mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { assertLiveAuthorization, runLive } from "./live.ts";
+import {
+  assertLiveAuthorization,
+  mcpServerEnvironment,
+  resolveMcpSdkModules,
+  runLive,
+} from "./live.ts";
 import { FROZEN_PAYMENT_INTENT } from "./preflight.ts";
 
 const IMAGE_URL = "https://images.example/frely-x402.png";
 const IMAGE_BYTES = new Uint8Array([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]);
 const IMAGE_SHA256 = "4c4b6a3be1314ab86138bef4314dde022e600960d8689a2c8f8631802d20dab6";
 const REQUIRED_GATES = ["G0", "G1", "G2", "G3", "G4", "G8", "G9", "G10", "G11", "G12"];
+
+test("resolves the MCP client from the SDK published ESM directory", async () => {
+  const modules = resolveMcpSdkModules();
+  const [client, stdio] = await Promise.all([
+    import(modules.client),
+    import(modules.stdio),
+  ]);
+  expect(typeof client.Client).toBe("function");
+  expect(typeof stdio.StdioClientTransport).toBe("function");
+});
+
+test("passes only the local Network key to the packaged MCP child", () => {
+  expect(mcpServerEnvironment({
+    FRELY_NETWORK_API_KEY: "network-test-only",
+    FRELY_RELAY_API_KEY: "relay-must-stay-in-network",
+    X402_PRIVATE_KEY: "wallet-must-not-enter-transport",
+  })).toEqual({ FRELY_NETWORK_API_KEY: "network-test-only" });
+  expect(() => mcpServerEnvironment({})).toThrow("MCP_CONFIG_MISSING");
+});
 
 function successfulToolResult() {
   const structuredContent = {
@@ -63,7 +87,7 @@ async function withPreflight(
     approvedRunParameters: {
       ...FROZEN_PAYMENT_INTENT,
       upstream: "https://api.frely.cloud/v1/responses",
-      model: "vision-basic",
+      model: "gpt-5.6-luna",
     },
     image: {
       url: IMAGE_URL,

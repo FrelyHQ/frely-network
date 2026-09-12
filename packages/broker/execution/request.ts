@@ -52,7 +52,7 @@ export function prepareFrelyRequest(config: ExecutionConfig, provider: ResolvedP
       "content-type": "application/json",
       ...(request.payment?.requestId ? { "x-frely-request-id": request.payment.requestId } : {}),
     },
-    body: JSON.stringify({ model: "vision-basic", instructions: request.task, input: [{ role: "user", content: [{ type: "input_image", image_url: input.image_url }] }], stream: false, store: false }),
+    body: JSON.stringify({ model: "gpt-5.6-luna", instructions: request.task, input: [{ role: "user", content: [{ type: "input_image", image_url: input.image_url }] }], stream: false, store: false }),
     providerId: provider.id,
     payment: request.payment as PreparedRequest["payment"],
   };
