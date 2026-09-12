@@ -24,7 +24,9 @@
     "payment:check": "bun scripts/payment-spike/index.ts",
     "typecheck": "tsc --project tsconfig.json",
     "test": "bun test",
-    "check": "bun run typecheck && bun test"
+    "check": "bun run typecheck && bun test",
+    "acceptance:static-preflight": "bun scripts/static-provider-e2e/preflight.ts",
+    "acceptance:static-live": "bun scripts/static-provider-e2e/live.ts"
   },
   "devDependencies": {
     "bun-types": "^1.4.2",
