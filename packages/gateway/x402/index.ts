@@ -18,6 +18,9 @@ export interface GatewayVerification {
   payer?: string;
   invalidReason?: string;
 }
+export { FileX402AttemptStore, UpfrontX402Gateway } from "./upfront.ts";
+export type { UpfrontAdmission, UpfrontX402GatewayConfig, X402AttemptStore } from "./upfront.ts";
+
 export interface GatewaySettlement {
   success: boolean;
   network: string;
