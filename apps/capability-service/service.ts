@@ -1,12 +1,15 @@
 import { timingSafeEqual } from "node:crypto";
 import {
-  parseResolveCapabilitiesRequest,
+  parseStaticResolveCapabilitiesRequest,
   type ResolvedCapability,
-  type ResolveCapabilitiesRequest,
+  type StaticResolvedCapability,
+  type StaticResolveCapabilitiesRequest,
 } from "@frely-network/capability-resolution";
 
 export type CapabilityResolver = {
-  resolve(request: ResolveCapabilitiesRequest): Promise<ResolvedCapability>;
+  resolve(
+    request: StaticResolveCapabilitiesRequest,
+  ): Promise<StaticResolvedCapability | ResolvedCapability>;
 };
 
 const maxRequestBytes = 64 * 1024;
@@ -41,10 +44,13 @@ function errorResponse(error: unknown): Response {
   if (message === "CAPABILITY_NOT_SUPPORTED") {
     return response({ code: "CAPABILITY_NOT_SUPPORTED" }, 422);
   }
+  if (message === "STATIC_PROVIDER_NOT_CONFIGURED") {
+    return response({ code: "STATIC_PROVIDER_NOT_CONFIGURED" }, 503);
+  }
   return response({ code: "INTERNAL_ERROR" }, 500);
 }
 
-async function parseRequest(request: Request): Promise<ResolveCapabilitiesRequest> {
+async function parseRequest(request: Request): Promise<StaticResolveCapabilitiesRequest> {
   const contentType = request.headers.get("content-type")?.split(";", 1)[0]?.trim().toLowerCase();
   if (contentType !== "application/json") throw new Error("INVALID_REQUEST");
   const bytes = await request.arrayBuffer();
@@ -55,7 +61,7 @@ async function parseRequest(request: Request): Promise<ResolveCapabilitiesReques
   } catch {
     throw new Error("INVALID_REQUEST");
   }
-  return parseResolveCapabilitiesRequest(body);
+  return parseStaticResolveCapabilitiesRequest(body);
 }
 
 export function createCapabilityServiceFetch(options: {
