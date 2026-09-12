@@ -2,7 +2,7 @@ import { expect, test } from "bun:test";
 import { mkdir, stat } from "node:fs/promises";
 import { join } from "node:path";
 import { PayerJournal } from "./journal.ts";
-import { examplePolicy, withTempDir } from "./test-support.ts";
+import { examplePolicy, exampleRequirement, withTempDir } from "./test-support.ts";
 
 test("admits a request once and rejects a fingerprint conflict", async () => {
   await withTempDir(async (directory) => {
@@ -28,7 +28,7 @@ test("survives reopen and keeps paid dispatch evidence", async () => {
     const policy = examplePolicy();
     const journal = new PayerJournal(path);
     journal.admit("req-2", "c".repeat(64), policy);
-    journal.beforePaidDispatch("req-2", "c".repeat(64), {
+    journal.beforePaidDispatch("req-2", "c".repeat(64), exampleRequirement(), {
       paymentHeader: "header",
       transactionId: "0.0.1@1.1",
       payloadDigest: "d".repeat(64),
@@ -41,6 +41,7 @@ test("survives reopen and keeps paid dispatch evidence", async () => {
       expect(record?.phase).toBe("paid_dispatch_started");
       expect(record?.transactionId).toBe("0.0.1@1.1");
       expect(record?.payloadDigest).toBe("d".repeat(64));
+      expect(JSON.parse(record?.quoteJson ?? "null")).toEqual(exampleRequirement());
       expect(JSON.stringify(record)).not.toContain("header");
     } finally {
       reopened.close();
@@ -80,7 +81,7 @@ test("does not persist private keys, payment headers, or API keys", async () => 
     const path = join(directory, "journal.sqlite");
     const journal = new PayerJournal(path);
     journal.admit("req-5", "a".repeat(64), examplePolicy());
-    journal.beforePaidDispatch("req-5", "a".repeat(64), {
+    journal.beforePaidDispatch("req-5", "a".repeat(64), exampleRequirement(), {
       paymentHeader: "PAYMENT-SECRET-HEADER",
       transactionId: "0.0.1@1.1",
       payloadDigest: "ab".repeat(32),

@@ -188,7 +188,7 @@ export class PayerSession {
         bodySha256,
       });
       journal.update(input.requestId, fingerprint, { phase: "signed" });
-      journal.beforePaidDispatch(input.requestId, fingerprint, signed);
+      journal.beforePaidDispatch(input.requestId, fingerprint, quote, signed);
 
       let paid: Response;
       try {

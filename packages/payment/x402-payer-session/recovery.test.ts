@@ -17,11 +17,12 @@ test("recovery does not sign or fetch after an unknown dispatch", async () => {
     const recovered = await recoverPayerRequest({
       requestId: "req-1",
       journalPath: policy.journalPath,
-      policy,
-      verifyOriginal: async ({ transactionId, payloadDigest }) => {
+      policy: { ...policy, amountAtomic: "2", maxAmountAtomic: "2" },
+      verifyOriginal: async ({ transactionId, payloadDigest, requirement }) => {
         expect(unknown.transactionId).toBeDefined();
         expect(transactionId).toBe(unknown.transactionId!);
         expect(payloadDigest).toMatch(/^[a-f0-9]{64}$/);
+        expect(requirement.amount).toBe("1");
         fetched += 1;
         return "settled";
       },

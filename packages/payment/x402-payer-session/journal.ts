@@ -1,6 +1,7 @@
 import { Database } from "bun:sqlite";
 import { chmodSync, existsSync, lstatSync, mkdirSync } from "node:fs";
 import { dirname } from "node:path";
+import type { PaymentRequirement } from "@frely-network/hedera-x402";
 import type {
   JournalPhase,
   JournalRecord,
@@ -29,6 +30,23 @@ function nowIso(now: () => number): string {
   return new Date(now()).toISOString();
 }
 
+function quoteSnapshot(requirement: PaymentRequirement): string {
+  const extra = requirement.extra && typeof requirement.extra === "object" && !Array.isArray(requirement.extra)
+    ? requirement.extra as Record<string, unknown>
+    : undefined;
+  return JSON.stringify({
+    scheme: requirement.scheme,
+    network: requirement.network,
+    ...(requirement.amount === undefined ? {} : { amount: requirement.amount }),
+    ...(requirement.maxAmountRequired === undefined ? {} : { maxAmountRequired: requirement.maxAmountRequired }),
+    ...(requirement.asset === undefined ? {} : { asset: requirement.asset }),
+    ...(requirement.payTo === undefined ? {} : { payTo: requirement.payTo }),
+    ...(requirement.maxTimeoutSeconds === undefined ? {} : { maxTimeoutSeconds: requirement.maxTimeoutSeconds }),
+    ...(typeof extra?.feePayer === "string" ? { extra: { feePayer: extra.feePayer } } : {}),
+    ...(requirement.resource === undefined ? {} : { resource: requirement.resource }),
+  });
+}
+
 function rowToRecord(row: {
   request_id: string;
   fingerprint: string;
@@ -40,6 +58,7 @@ function rowToRecord(row: {
   service_status: string;
   response_digest: string | null;
   output_json: string | null;
+  quote_json: string | null;
   created_at: string;
   updated_at: string;
 }): JournalRecord {
@@ -54,7 +73,7 @@ function rowToRecord(row: {
     serviceStatus: row.service_status as ServiceStatus,
     responseDigest: row.response_digest,
     outputJson: row.output_json,
-    quoteJson: null,
+    quoteJson: row.quote_json,
     createdAt: row.created_at,
     updatedAt: row.updated_at,
   };
@@ -134,10 +153,15 @@ export class PayerJournal {
           service_status TEXT NOT NULL,
           response_digest TEXT,
           output_json TEXT,
+          quote_json TEXT,
           created_at TEXT NOT NULL,
           updated_at TEXT NOT NULL
         );
       `);
+      const columns = this.db.query("PRAGMA table_info(payment_requests)").all() as Array<{ name: string }>;
+      if (!columns.some((column) => column.name === "quote_json")) {
+        this.db.exec("ALTER TABLE payment_requests ADD COLUMN quote_json TEXT;");
+      }
       applyFilePermissions(path);
     } catch {
       throw failure("JOURNAL_UNAVAILABLE");
@@ -180,6 +204,7 @@ export class PayerJournal {
   beforePaidDispatch(
     requestId: string,
     fingerprint: string,
+    requirement: PaymentRequirement,
     signed: SignedPayment,
   ): JournalRecord {
     this.assertOpen();
@@ -192,13 +217,14 @@ export class PayerJournal {
       serviceStatus: "unknown",
       transactionId: signed.transactionId,
       payloadDigest: signed.payloadDigest,
+      quoteJson: quoteSnapshot(requirement),
     });
   }
 
   update(
     requestId: string,
     fingerprint: string,
-    patch: Partial<Pick<JournalRecord, "phase" | "paymentStatus" | "serviceStatus" | "transactionId" | "payloadDigest" | "responseDigest" | "outputJson">>,
+    patch: Partial<Pick<JournalRecord, "phase" | "paymentStatus" | "serviceStatus" | "transactionId" | "payloadDigest" | "responseDigest" | "outputJson" | "quoteJson">>,
   ): JournalRecord {
     this.assertOpen();
     try {
@@ -216,6 +242,7 @@ export class PayerJournal {
           payloadDigest: patch.payloadDigest ?? existing.payloadDigest,
           responseDigest: patch.responseDigest ?? existing.responseDigest,
           outputJson: patch.outputJson === undefined ? existing.outputJson : patch.outputJson,
+          quoteJson: patch.quoteJson === undefined ? existing.quoteJson : patch.quoteJson,
           updatedAt: nowIso(this.now),
         };
         if (existing.paymentStatus === "settled") next.paymentStatus = "settled";
@@ -225,7 +252,7 @@ export class PayerJournal {
           .query(
             `UPDATE payment_requests SET
               phase = ?, payment_status = ?, service_status = ?, transaction_id = ?,
-              payload_digest = ?, response_digest = ?, output_json = ?, updated_at = ?
+              payload_digest = ?, response_digest = ?, output_json = ?, quote_json = ?, updated_at = ?
              WHERE request_id = ?`,
           )
           .run(
@@ -236,6 +263,7 @@ export class PayerJournal {
             next.payloadDigest,
             next.responseDigest,
             next.outputJson,
+            next.quoteJson,
             next.updatedAt,
             requestId,
           );
@@ -269,7 +297,7 @@ export class PayerJournal {
     const row = this.db
       .query(
         `SELECT request_id, fingerprint, phase, policy_json, transaction_id, payload_digest,
-                payment_status, service_status, response_digest, output_json, created_at, updated_at
+                payment_status, service_status, response_digest, output_json, quote_json, created_at, updated_at
          FROM payment_requests WHERE request_id = ?`,
       )
       .get(requestId) as Parameters<typeof rowToRecord>[0] | null;
