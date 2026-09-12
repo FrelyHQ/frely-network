@@ -1,0 +1,72 @@
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Frely ENS Provider Registry</title>
+    <link rel="stylesheet" href="/assets/main.css" />
+    <link rel="icon" href="data:," />
+  </head>
+  <body>
+    <main class="shell">
+      <header class="topbar">
+        <div>
+          <p class="brand">FRELY NETWORK</p>
+          <h1>Provider Registry</h1>
+        </div>
+        <div class="network-pill"><span class="dot"></span> Ethereum Sepolia</div>
+      </header>
+
+      <section class="intro">
+        <div>
+          <p class="eyebrow">ENSv2 / DEMO NAMESPACE</p>
+          <h2>Manage capabilities under <span>frely.eth</span></h2>
+          <p class="subhead">Register a test capability with your connected owner wallet. Every write is shown and confirmed by the wallet.</p>
+        </div>
+        <button id="connect" class="button primary">Connect wallet</button>
+      </section>
+
+      <section class="workspace" aria-label="ENS provider registration">
+        <div class="panel form-panel">
+          <div class="panel-heading">
+            <div><p class="kicker">1 / CONFIGURE</p><h3>Provider identity</h3></div>
+            <span class="status neutral" id="wallet-status">Wallet not connected</span>
+          </div>
+          <label for="label">Capability name</label>
+          <select id="label" disabled>
+            <option value="vision-basic">vision-basic.frely.eth</option>
+            <option value="vision-ocr">vision-ocr.frely.eth</option>
+          </select>
+          <div class="readonly-row"><span>Parent namespace</span><strong>frely.eth</strong></div>
+          <div class="readonly-row"><span>Registry</span><code>0x3F74...bc91</code></div>
+          <button id="prepare" class="button secondary" disabled>Check availability</button>
+        </div>
+
+        <div class="panel result-panel">
+          <div class="panel-heading"><div><p class="kicker">2 / VERIFY</p><h3>Transaction preview</h3></div><span class="status neutral" id="chain-status">Awaiting wallet</span></div>
+          <div id="preview" class="preview empty">Connect your wallet to inspect the current ENS state.</div>
+          <button id="register" class="button primary full" disabled>Register capability</button>
+          <button id="release" class="button danger full" disabled>Release selected subname</button>
+        </div>
+      </section>
+
+      <section class="activity panel" aria-label="ENS 与 ERC-8004 绑定">
+        <div class="panel-heading"><div><p class="kicker">3 / LINK IDENTITY</p><h3>绑定已注册的 Agent</h3></div><span class="status neutral" id="binding-status" aria-live="polite">读取链上记录中</span></div>
+        <p class="binding-note">将 Provider endpoint 和 ERC-8004 身份关联写入 ENS。以下名称来自本次注册配置，不随上方子名选择改变。每笔交易由钱包单独确认，仅花费 Sepolia gas。</p>
+        <div id="binding-preview" class="binding-preview">正在读取已确认的注册交易…</div>
+        <div class="binding-actions">
+          <button id="binding-refresh" class="button secondary">刷新记录</button>
+          <button id="binding-write" class="button primary" disabled>写入下一条记录</button>
+          <button id="binding-verify" class="button secondary" disabled>回验 ENS / ERC-8004 绑定</button>
+        </div>
+        <p id="binding-message" class="binding-note" aria-live="polite"></p>
+      </section>
+
+      <section class="activity panel">
+        <div class="panel-heading"><div><p class="kicker">ACTIVITY</p><h3>Execution log</h3></div><button id="clear-log" class="text-button">Clear</button></div>
+        <div id="log" class="log" aria-live="polite"><p class="log-empty">No wallet actions yet.</p></div>
+      </section>
+    </main>
+    <script type="module" src="/assets/main.js"></script>
+  </body>
+</html>

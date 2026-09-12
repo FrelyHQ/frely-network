@@ -2,5 +2,13 @@
   "name": "@frely-network/explorer",
   "version": "0.0.0",
   "private": true,
-  "type": "module"
+  "type": "module",
+  "scripts": {
+    "build": "bun build ./src/main.ts --outdir ./dist --target browser --minify",
+    "dev": "bun run build && bun ./server.ts"
+  },
+  "dependencies": {
+    "@frely-network/ens": "workspace:*",
+    "viem": "^2.21.0"
+  }
 }

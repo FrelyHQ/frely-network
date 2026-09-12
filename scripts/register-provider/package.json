@@ -4,6 +4,9 @@
   "private": true,
   "type": "module",
   "dependencies": {
+    "viem": "^2.21.0",
+    "@frely-network/ens": "workspace:*",
+    "@frely-network/erc8004": "workspace:*",
     "@frely-network/protocol-manifest": "workspace:*"
   }
 }

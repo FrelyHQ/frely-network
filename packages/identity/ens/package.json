@@ -3,7 +3,10 @@
   "version": "0.0.0",
   "private": true,
   "type": "module",
-  "exports": "./index.ts",
+  "exports": {
+    ".": "./index.ts",
+    "./subnames": "./subnames.ts"
+  },
   "types": "./index.ts",
   "dependencies": {
     "@frely-network/shared-types": "workspace:*",

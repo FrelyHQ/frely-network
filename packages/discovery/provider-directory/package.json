@@ -1,0 +1,15 @@
+{
+  "name": "@frely-network/provider-directory",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "exports": "./index.ts",
+  "types": "./index.ts",
+  "dependencies": {
+    "@frely-network/the-graph": "workspace:*",
+    "@frely-network/ens": "workspace:*",
+    "@frely-network/erc8004": "workspace:*",
+    "@frely-network/shared-types": "workspace:*",
+    "viem": "^2.21.0"
+  }
+}

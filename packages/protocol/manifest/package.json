@@ -6,6 +6,6 @@
   "exports": "./index.ts",
   "types": "./index.ts",
   "dependencies": {
-    "@frely-network/shared-types": "workspace:*"
+    "viem": "^2.21.0"
   }
 }
