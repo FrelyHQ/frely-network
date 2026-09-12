@@ -1,7 +1,7 @@
 #!/usr/bin/env bun
 import { execFileSync } from "node:child_process";
 import { createHash } from "node:crypto";
-import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
+import { closeSync, existsSync, mkdirSync, openSync, readFileSync, renameSync, rmSync, writeFileSync } from "node:fs";
 import { dirname, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 
@@ -68,21 +68,57 @@ function build(options) {
   const imageId = run("docker", ["image", "inspect", "--format", "{{.Id}}", tag]).trim();
   if (!DIGEST.test(imageId)) fail("release_image_identity_invalid");
   const manifest = { ...plan, image: { tag, digest: imageId, platform: plan.platform }, created_at: new Date().toISOString() };
-  const output = resolve(options.manifest ?? CONFIG.host.release_state_root, `${plan.release_id}.json`);
+  const output = options.manifest
+    ? resolve(options.manifest)
+    : resolve(CONFIG.host.release_state_root, `${plan.release_id}.json`);
   mkdirSync(dirname(output), { recursive: true, mode: 0o755 });
-  writeFileSync(output, `${JSON.stringify(manifest, null, 2)}\n`, { mode: 0o644 });
+  writeManifestOnce(output, manifest);
   process.stdout.write(`${JSON.stringify({ schema: "frely-network.release-build-result.v1", status: "completed", manifest: output, manifest_digest: manifestDigest(manifest), release_id: plan.release_id })}\n`);
   return { manifest: output, digest: manifestDigest(manifest) };
+}
+
+export function writeManifestOnce(path, value) {
+  mkdirSync(dirname(path), { recursive: true, mode: 0o755 });
+  const content = `${JSON.stringify(value, null, 2)}\n`;
+  try {
+    const fd = openSync(path, "wx", 0o644);
+    try { writeFileSync(fd, content); } finally { closeSync(fd); }
+  } catch (error) {
+    if (error?.code !== "EEXIST") throw error;
+    let existing;
+    try { existing = JSON.parse(readFileSync(path, "utf8")); } catch { fail("release_manifest_collision"); }
+    if (manifestDigest(existing) !== manifestDigest(value)) fail("release_manifest_collision");
+  }
 }
 
 function deploy(options) {
   const manifest = readManifest(options);
   assertHost();
+  const lock = resolve(CONFIG.host.release_state_root, ".deploy.lock");
+  try { mkdirSync(lock); } catch (error) { if (error?.code === "EEXIST") fail("release_deploy_locked"); throw error; }
+  try {
   const compose = resolve(ROOT, CONFIG.target.compose_file);
-  run("docker", ["compose", "--project-name", CONFIG.target.compose_project, "-f", compose, "--env-file", CONFIG.host.environment_file, "up", "-d", "--no-build", "--wait"], {
-    env: { FRELY_NETWORK_IMAGE: manifest.image.tag },
+  run("docker", ["compose", "-p", CONFIG.target.compose_project, "-f", compose, "--env-file", CONFIG.host.environment_file, "up", "-d", "--no-build", "--no-deps", "--pull", "never", "--wait", "--wait-timeout", "120", "broker-mcp"], {
+    env: { FRELY_NETWORK_IMAGE: manifest.image.digest },
   });
+  updateReleasePointers(manifest);
   process.stdout.write(`${JSON.stringify({ schema: "frely-network.release-deploy-result.v1", status: "completed", release_id: manifest.release_id, target: manifest.target, host: manifest.host })}\n`);
+  } finally { rmSync(lock, { recursive: true, force: true }); }
+}
+
+export function updateReleasePointers(manifest, root = CONFIG.host.release_state_root) {
+  const stateRoot = resolve(root);
+  mkdirSync(stateRoot, { recursive: true, mode: 0o755 });
+  const current = resolve(stateRoot, "current.json");
+  const previous = resolve(stateRoot, "previous.json");
+  if (existsSync(current)) {
+    const old = readFileSync(current);
+    writeFileSync(`${previous}.tmp-${process.pid}`, old, { mode: 0o644 });
+    renameSync(`${previous}.tmp-${process.pid}`, previous);
+  }
+  const temp = `${current}.tmp-${process.pid}`;
+  writeFileSync(temp, `${JSON.stringify(manifest, null, 2)}\n`, { mode: 0o644 });
+  renameSync(temp, current);
 }
 
 function verify(options) {

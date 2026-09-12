@@ -1,5 +1,8 @@
 import { describe, expect, test } from "bun:test";
-import { manifestDigest, parseReleaseArguments, releasePlan } from "./release.mjs";
+import { manifestDigest, parseReleaseArguments, releasePlan, writeManifestOnce } from "./release.mjs";
+import { mkdtempSync, readFileSync } from "node:fs";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
 
 const sourceSha = "a".repeat(40);
 
@@ -34,5 +37,14 @@ describe("frely-network release contract", () => {
 
   test("produces a stable manifest digest", () => {
     expect(manifestDigest({ b: 2, a: 1 })).toBe(manifestDigest({ a: 1, b: 2 }));
+  });
+
+  test("does not overwrite an existing manifest with different content", () => {
+    const path = join(mkdtempSync(join(tmpdir(), "frely-network-release-")), "manifest.json");
+    const first = { release_id: "one" };
+    writeManifestOnce(path, first);
+    writeManifestOnce(path, first);
+    expect(() => writeManifestOnce(path, { release_id: "two" })).toThrow();
+    expect(JSON.parse(readFileSync(path, "utf8"))).toEqual(first);
   });
 });

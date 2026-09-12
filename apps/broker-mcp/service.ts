@@ -20,6 +20,8 @@ export interface BrokerService {
 export interface BrokerRuntime {
   broker?: BrokerService;
   ready: boolean;
+  /** Payment verifier was constructed successfully for the live process. */
+  paymentReady?: boolean;
 }
 
 const defaultRuntime: BrokerRuntime = { ready: false };
@@ -168,7 +170,7 @@ export function createBrokerMcpFetch(
       return json({ service: SERVICE, status: "ok" });
     }
     if (request.method === "GET" && url.pathname === "/readyz") {
-      return runtime.ready && runtime.broker
+      return runtime.ready && runtime.broker && runtime.paymentReady
         ? json({ service: SERVICE, status: "ready" })
         : json({ service: SERVICE, status: "not_ready", code: "BROKER_NOT_READY" }, 503);
     }
