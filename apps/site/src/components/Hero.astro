@@ -1,11 +1,11 @@
 ---
 /**
  * Full-viewport Spline stage.
- * Splash: brand + scene Click Me (page owns hit layer).
- * Reveal: product copy; Spline fades; splash is removed from layout (no ghost black scroll).
+ * Splash → Engaged (keep Spline post-click scene + brand overlays) → Details (wheel to #flow).
  */
 const GITHUB = "https://github.com/FrelyHQ/frely-network";
-const tags = ["ENS", "ERC-8004", "The Graph", "Hedera", "x402"];
+/** Replace when a real supported-agent count is available. */
+const AGENT_COUNT_PLACEHOLDER = "—";
 const DEFAULT_SPLINE_PUBLIC =
   "https://my.spline.design/aidatamodelinteraction-yXFK4f6oAzDsrDztvyJ1dXk4/";
 const splineScene = import.meta.env.PUBLIC_SPLINE_SCENE as string | undefined;
@@ -15,7 +15,6 @@ const useViewer = Boolean(splineScene);
 ---
 
 <section id="top" class="stage" data-testid="stage" data-state="splash">
-  <!-- Ambient stage + Spline. No full-bleed poster — that read as a giant photo flash. -->
   <div class="stage-spline" data-testid="spline-layer" aria-hidden="true">
     <div class="stage-ambient" data-testid="spline-ambient">
       <div class="ambient-glow"></div>
@@ -49,31 +48,42 @@ const useViewer = Boolean(splineScene);
     }
   </div>
 
-  <!-- Absolute overlay — must NOT consume document height after reveal -->
-  <div class="stage-splash" data-testid="splash">
-    <p class="stage-brand" data-testid="splash-brand">Frely Network</p>
-    <button
-      type="button"
-      class="click-me"
-      data-testid="click-me"
-      aria-label="Enter Frely Network"
-    >
-      <span class="click-me-label">
-        <span>Click Me</span>
-        <span class="click-me-arrow" aria-hidden="true">↓</span>
-      </span>
-    </button>
+  <div class="stage-viewport" data-testid="stage-viewport">
+    <div class="stage-chrome" data-testid="splash">
+      <a class="stage-logo" href="/" aria-label="Frely Network" data-testid="splash-logo">
+        <img src="/logo.png" alt="" width="168" height="44" class="stage-logo-img" />
+      </a>
+
+      <button
+        type="button"
+        class="click-me"
+        data-testid="click-me"
+        aria-label="Enter Frely Network scene"
+      >
+        <span class="click-me-label">
+          <span>Click Me</span>
+          <span class="click-me-arrow" aria-hidden="true">↓</span>
+        </span>
+      </button>
+
+      <div class="scene-brand" data-testid="scene-brand" hidden>
+        <p class="scene-brand-title" data-testid="scene-title">Frely Network</p>
+        <p class="scene-brand-count" data-testid="agent-count">{AGENT_COUNT_PLACEHOLDER}</p>
+        <p class="scene-brand-caption" data-testid="agent-count-label">Supported agents</p>
+        <p class="scene-brand-hint" data-testid="scroll-hint">Scroll for project details</p>
+      </div>
+    </div>
   </div>
 
-  <div class="stage-reveal" data-testid="reveal" hidden>
-    <div class="reveal-panel animate-rise">
-      <p class="reveal-eyebrow" data-testid="hero-brand">Frely Network</p>
-      <h1 class="reveal-title" data-testid="reveal-title">Open agent capability network</h1>
-      <p class="reveal-body" data-testid="reveal-body">
+  <div id="details" class="stage-details-lead" data-testid="details-lead" hidden>
+    <div class="details-lead-panel animate-rise">
+      <p class="details-eyebrow" data-testid="hero-brand">Frely Network</p>
+      <h1 class="details-title" data-testid="reveal-title">Open agent capability network</h1>
+      <p class="details-body" data-testid="reveal-body">
         Let an agent discover, verify, pay for, and use capabilities it does not have — Graph
         discovery, ENS / ERC-8004 identity, Hedera x402 settlement.
       </p>
-      <div class="reveal-actions">
+      <div class="details-actions">
         <a
           href={GITHUB}
           target="_blank"
@@ -85,49 +95,87 @@ const useViewer = Boolean(splineScene);
         </a>
         <a href="#flow" class="btn btn-ghost btn-lg" data-testid="cta-flow">See the path</a>
       </div>
-      <ul class="reveal-tags" data-testid="hero-tags">
-        {
-          tags.map((tag) => (
-            <li>{tag}</li>
-          ))
-        }
-      </ul>
-      <p class="reveal-note">Dual plane · EVM identity & discovery · Hedera payment</p>
     </div>
   </div>
 </section>
 
 <script>
+  const AGENT_PLACEHOLDER = "—";
   const stage = document.getElementById("top");
   const clickMe = document.querySelector("[data-testid='click-me']");
-  const reveal = document.querySelector("[data-testid='reveal']");
+  const sceneBrand = document.querySelector("[data-testid='scene-brand']");
+  const detailsLead = document.querySelector("[data-testid='details-lead']");
   const after = document.querySelector("[data-testid='after-reveal']");
+  const agentCount = document.querySelector("[data-testid='agent-count']");
+  const iframe = document.querySelector("[data-testid='spline-iframe']");
 
-  const goReveal = () => {
-    if (!stage || stage.dataset.state === "revealed") return;
-    stage.dataset.state = "revealed";
+  if (agentCount instanceof HTMLElement && !agentCount.textContent?.trim()) {
+    agentCount.textContent = AGENT_PLACEHOLDER;
+  }
+
+  const goEngaged = () => {
+    if (!stage || stage.dataset.state === "engaged" || stage.dataset.state === "details") return;
+    stage.dataset.state = "engaged";
+    document.documentElement.dataset.landing = "engaged";
+    if (sceneBrand instanceof HTMLElement) sceneBrand.hidden = false;
+    if (clickMe instanceof HTMLElement) clickMe.setAttribute("aria-hidden", "true");
+  };
+
+  const goDetails = () => {
+    if (!stage || stage.dataset.state === "details") return;
+    if (stage.dataset.state === "splash") goEngaged();
+    stage.dataset.state = "details";
     document.documentElement.dataset.landing = "revealed";
-    if (reveal instanceof HTMLElement) reveal.hidden = false;
+    document.body.classList.add("is-revealed");
+    if (detailsLead instanceof HTMLElement) detailsLead.hidden = false;
     if (after instanceof HTMLElement) {
       after.hidden = false;
       after.setAttribute("aria-hidden", "false");
     }
-    document.body.classList.add("is-revealed");
-    // Stay at top of reveal — do not leave a ghost splash region above the copy
     window.requestAnimationFrame(() => {
-      window.scrollTo({ top: 0, behavior: "auto" });
+      const details = document.getElementById("details");
+      if (details) {
+        details.scrollIntoView({ behavior: "smooth", block: "start" });
+      } else {
+        window.scrollTo({ top: Math.max(window.innerHeight * 0.85, 1), behavior: "smooth" });
+      }
     });
   };
 
-  clickMe?.addEventListener("click", goReveal);
+  clickMe?.addEventListener("click", (e) => {
+    e.preventDefault();
+    goEngaged();
+  });
   clickMe?.addEventListener("keydown", (e) => {
     if (e instanceof KeyboardEvent && (e.key === "Enter" || e.key === " ")) {
       e.preventDefault();
-      goReveal();
+      goEngaged();
     }
   });
 
-  const iframe = document.querySelector("[data-testid='spline-iframe']");
+  // Cross-origin iframe clicks do not bubble; blur ≈ user interacted with the scene.
+  window.addEventListener("blur", () => {
+    window.requestAnimationFrame(() => {
+      if (iframe instanceof HTMLIFrameElement && document.activeElement === iframe) {
+        goEngaged();
+      }
+    });
+  });
+
+  let wheelLocked = false;
+  window.addEventListener(
+    "wheel",
+    (e) => {
+      if (document.body.classList.contains("is-revealed")) return;
+      if (e.deltaY <= 0) return;
+      e.preventDefault();
+      if (wheelLocked) return;
+      wheelLocked = true;
+      goDetails();
+    },
+    { passive: false },
+  );
+
   if (iframe instanceof HTMLIFrameElement) {
     const markReady = () => stage?.classList.add("is-spline-ready");
     iframe.addEventListener("load", markReady);
@@ -136,6 +184,9 @@ const useViewer = Boolean(splineScene);
     } catch {
       // cross-origin
     }
+  } else {
+    // Viewer / mobile ambient path
+    window.setTimeout(() => stage?.classList.add("is-spline-ready"), 400);
   }
 </script>
 
@@ -145,7 +196,9 @@ const useViewer = Boolean(splineScene);
     isolation: isolate;
   }
 
-  .stage[data-state="splash"] {
+  .stage-viewport {
+    position: relative;
+    z-index: 1;
     min-height: 100svh;
   }
 
@@ -238,38 +291,42 @@ const useViewer = Boolean(splineScene);
 
   .stage.is-spline-ready .stage-spline-frame {
     opacity: 1;
+    pointer-events: auto;
   }
 
   .stage.is-spline-ready .stage-ambient {
     opacity: 0;
   }
 
-  .stage[data-state="revealed"] .stage-spline {
-    opacity: 0;
-    visibility: hidden;
+  /* Keep Spline through engaged; only ease back on details */
+  .stage[data-state="details"] .stage-spline {
+    opacity: 0.22;
     pointer-events: none;
   }
 
-  /* Overlay only — never adds a second 100svh to the document */
-  .stage-splash {
+  .stage-chrome {
     position: absolute;
     inset: 0;
     z-index: 2;
     pointer-events: none;
   }
 
-  .stage-brand {
+  .stage-logo {
+    pointer-events: auto;
     position: absolute;
-    top: 1.35rem;
-    left: 1.5rem;
-    z-index: 2;
-    margin: 0;
-    font-size: 0.8rem;
-    font-weight: 700;
-    letter-spacing: 0.22em;
-    text-transform: uppercase;
-    color: var(--primary);
-    pointer-events: none;
+    top: 1.15rem;
+    left: 1.25rem;
+    z-index: 3;
+    display: inline-flex;
+    align-items: center;
+    text-decoration: none;
+  }
+
+  .stage-logo-img {
+    height: 2.25rem;
+    width: auto;
+    object-fit: contain;
+    filter: drop-shadow(0 2px 12px rgba(0, 0, 0, 0.45));
   }
 
   .click-me {
@@ -288,6 +345,11 @@ const useViewer = Boolean(splineScene);
     cursor: pointer;
     appearance: none;
     font: inherit;
+  }
+
+  /* Once Spline is ready, let the scene receive the click so its post-click UI plays */
+  .stage.is-spline-ready .click-me {
+    pointer-events: none;
   }
 
   .click-me-label {
@@ -326,16 +388,69 @@ const useViewer = Boolean(splineScene);
     background: transparent;
   }
 
+  .stage[data-state="engaged"] .click-me,
+  .stage[data-state="details"] .click-me {
+    display: none;
+  }
+
   .click-me:focus-visible {
     outline: 2px solid var(--ring);
     outline-offset: -6px;
   }
 
-  .stage[data-state="revealed"] .stage-splash {
-    display: none;
+  .scene-brand {
+    position: absolute;
+    inset: 0;
+    display: grid;
+    place-content: center;
+    justify-items: center;
+    gap: 0.35rem;
+    padding: 1.5rem;
+    text-align: center;
+    pointer-events: none;
+    animation: rise 0.7s cubic-bezier(0.22, 1, 0.36, 1) both;
   }
 
-  .stage-reveal {
+  .scene-brand-title {
+    margin: 0;
+    font-size: clamp(1.65rem, 3.6vw, 2.6rem);
+    font-weight: 800;
+    letter-spacing: -0.02em;
+    color: #f4f7fb;
+    text-shadow: 0 8px 40px rgba(0, 0, 0, 0.65);
+  }
+
+  .scene-brand-count {
+    margin: 0.35rem 0 0;
+    font-size: clamp(2.8rem, 8vw, 5.2rem);
+    font-weight: 800;
+    line-height: 1;
+    letter-spacing: -0.04em;
+    color: #fff;
+    text-shadow: 0 10px 48px rgba(0, 0, 0, 0.7);
+  }
+
+  .scene-brand-caption {
+    margin: 0.15rem 0 0;
+    font-size: 0.72rem;
+    font-weight: 600;
+    letter-spacing: 0.18em;
+    text-transform: uppercase;
+    color: rgba(226, 232, 240, 0.78);
+  }
+
+  .scene-brand-hint {
+    margin: 1.4rem 0 0;
+    font-size: 0.8rem;
+    color: rgba(148, 163, 184, 0.9);
+  }
+
+  .stage[data-state="details"] .stage-chrome {
+    opacity: 0;
+    visibility: hidden;
+  }
+
+  .stage-details-lead {
     position: relative;
     z-index: 3;
     min-height: 100svh;
@@ -345,17 +460,18 @@ const useViewer = Boolean(splineScene);
     background: var(--background);
   }
 
-  .stage[data-state="splash"] .stage-reveal {
+  .stage[data-state="splash"] .stage-details-lead,
+  .stage[data-state="engaged"] .stage-details-lead {
     display: none;
   }
 
-  .reveal-panel {
+  .details-lead-panel {
     width: min(42rem, 100%);
     margin-inline: auto;
     text-align: center;
   }
 
-  .reveal-eyebrow {
+  .details-eyebrow {
     margin: 0;
     font-size: 0.8rem;
     font-weight: 700;
@@ -364,7 +480,7 @@ const useViewer = Boolean(splineScene);
     color: var(--primary);
   }
 
-  .reveal-title {
+  .details-title {
     margin: 1rem 0 0;
     font-size: clamp(2.1rem, 4.5vw, 3.35rem);
     font-weight: 800;
@@ -372,7 +488,7 @@ const useViewer = Boolean(splineScene);
     letter-spacing: -0.02em;
   }
 
-  .reveal-body {
+  .details-body {
     margin: 1.15rem auto 0;
     max-width: 34rem;
     font-size: 1.05rem;
@@ -380,7 +496,7 @@ const useViewer = Boolean(splineScene);
     color: var(--muted-foreground);
   }
 
-  .reveal-actions {
+  .details-actions {
     display: flex;
     flex-wrap: wrap;
     gap: 0.75rem;
@@ -388,39 +504,18 @@ const useViewer = Boolean(splineScene);
     justify-content: center;
   }
 
-  .reveal-tags {
-    display: flex;
-    flex-wrap: wrap;
-    gap: 0.5rem;
-    margin: 1.5rem 0 0;
-    padding: 0;
-    list-style: none;
-    justify-content: center;
-  }
-
-  .reveal-tags li {
-    border: 1px solid var(--border);
-    border-radius: 999px;
-    padding: 0.3rem 0.75rem;
-    font-size: 0.75rem;
-    font-weight: 500;
-    color: var(--muted-foreground);
-    background: rgba(255, 255, 255, 0.03);
-  }
-
-  .reveal-note {
-    margin: 1.1rem 0 0;
-    font-size: 0.75rem;
-    color: var(--muted-foreground);
-  }
-
   @media (max-width: 640px) {
     .stage-spline-frame {
       display: none;
+      pointer-events: none !important;
     }
 
     .stage-ambient {
       opacity: 1;
+    }
+
+    .stage.is-spline-ready .click-me {
+      pointer-events: auto;
     }
 
     .stage.is-spline-ready .click-me-label {

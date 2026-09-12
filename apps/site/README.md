@@ -2,12 +2,11 @@
 
 Static Astro showcase. Interaction:
 
-1. **Splash** — full-viewport Spline + corner brand. Soft ambient loader (no giant poster flash). One visual **Click Me** from the scene; page owns an invisible hit layer.
-2. **Reveal** (same page) — product copy; Spline fades; splash overlay is removed from layout so scrolling up never hits a blank black region.
+1. **Splash** — full-viewport Spline + transparent logo. Scene receives the click so its post-click animation can play.
+2. **Engaged** — same Spline frame stays visible; HTML overlays show **Frely Network** + supported-agent placeholder (`—`).
+3. **Details** — first downward wheel on the first screen smooth-scrolls to the project intro (`#details`) and unlocks the rest of the page (How it works).
 
 On narrow screens the iframe is skipped; ambient + page Click Me remain.
-
-No return to splash. No evidence console on this branch.
 
 ## Spline
 
@@ -22,7 +21,7 @@ PUBLIC_SPLINE_PUBLIC=https://my.spline.design/your-scene/
 PUBLIC_SPLINE_SCENE=https://prod.spline.design/YOUR_ID/scene.splinecode
 ```
 
-Mobile uses the community poster fallback instead of the heavy iframe.
+Brand mark: `public/logo.png` (transparent). Agent count is a placeholder until product data exists.
 
 ## Scripts
 
