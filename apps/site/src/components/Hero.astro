@@ -5,9 +5,9 @@
  * Brand title lives in the published Spline scene; page only adds logo + scroll hint.
  */
 const GITHUB = "https://github.com/FrelyHQ/frely-network";
-/** Same public file; query busts CDN cache after scene edits (FRELY NETWORK, etc.). */
+/** Same public file; bump `v` after each Spline Publish so the iframe is not stuck on CDN cache. */
 const DEFAULT_SPLINE_PUBLIC =
-  "https://my.spline.design/aidatamodelinteraction-yXFK4f6oAzDsrDztvyJ1dXk4/?v=frely-20260912";
+  "https://my.spline.design/aidatamodelinteraction-yXFK4f6oAzDsrDztvyJ1dXk4/?v=frely-20260912-1133";
 const splineScene = import.meta.env.PUBLIC_SPLINE_SCENE as string | undefined;
 const splinePublic =
   (import.meta.env.PUBLIC_SPLINE_PUBLIC as string | undefined) || DEFAULT_SPLINE_PUBLIC;
@@ -51,7 +51,13 @@ const useViewer = Boolean(splineScene);
   <div class="stage-viewport" data-testid="stage-viewport">
     <div class="stage-chrome" data-testid="splash">
       <a class="stage-logo" href="/" aria-label="Frely Network" data-testid="splash-logo">
-        <img src="/logo.png" alt="" width="168" height="44" class="stage-logo-img" />
+        <img
+          src="/logo.png?v=blue-1133"
+          alt=""
+          width="168"
+          height="44"
+          class="stage-logo-img"
+        />
       </a>
 
       <button
@@ -66,7 +72,10 @@ const useViewer = Boolean(splineScene);
         </span>
       </button>
 
-      <p class="scroll-hint" data-testid="scroll-hint" hidden>Scroll for project details</p>
+      <!-- Captures wheel on first screen; iframe would otherwise swallow wheel events. -->
+      <div class="wheel-catch" data-testid="wheel-catch" aria-hidden="true"></div>
+
+      <p class="scroll-hint" data-testid="scroll-hint">Scroll for project details</p>
     </div>
   </div>
 
@@ -97,16 +106,15 @@ const useViewer = Boolean(splineScene);
 <script>
   const stage = document.getElementById("top");
   const clickMe = document.querySelector("[data-testid='click-me']");
-  const scrollHint = document.querySelector("[data-testid='scroll-hint']");
   const detailsLead = document.querySelector("[data-testid='details-lead']");
   const after = document.querySelector("[data-testid='after-reveal']");
   const iframe = document.querySelector("[data-testid='spline-iframe']");
+  const wheelCatch = document.querySelector("[data-testid='wheel-catch']");
 
   const goEngaged = () => {
     if (!stage || stage.dataset.state === "engaged" || stage.dataset.state === "details") return;
     stage.dataset.state = "engaged";
     document.documentElement.dataset.landing = "engaged";
-    if (scrollHint instanceof HTMLElement) scrollHint.hidden = false;
     if (clickMe instanceof HTMLElement) {
       clickMe.hidden = true;
       clickMe.setAttribute("aria-hidden", "true");
@@ -123,13 +131,15 @@ const useViewer = Boolean(splineScene);
       after.hidden = false;
       after.setAttribute("aria-hidden", "false");
     }
+    // Two frames so #details is laid out, then one quick smooth jump to screen 2.
     window.requestAnimationFrame(() => {
-      const details = document.getElementById("details");
-      if (details) {
-        details.scrollIntoView({ behavior: "smooth", block: "start" });
-      } else {
-        window.scrollTo({ top: Math.max(window.innerHeight * 0.85, 1), behavior: "smooth" });
-      }
+      window.requestAnimationFrame(() => {
+        const details = document.getElementById("details");
+        const top = details
+          ? details.getBoundingClientRect().top + window.scrollY
+          : Math.max(window.innerHeight, 1);
+        window.scrollTo({ top, behavior: "smooth" });
+      });
     });
   };
 
@@ -153,19 +163,20 @@ const useViewer = Boolean(splineScene);
   });
 
   let wheelLocked = false;
-  window.addEventListener(
-    "wheel",
-    (e) => {
-      if (document.body.classList.contains("is-revealed")) return;
-      if (e.deltaY <= 0) return;
-      if (e.deltaY < 40) return;
-      e.preventDefault();
-      if (wheelLocked) return;
-      wheelLocked = true;
-      goDetails();
-    },
-    { passive: false },
-  );
+  const onFirstScreenWheel = (e) => {
+    if (!(e instanceof WheelEvent)) return;
+    if (document.body.classList.contains("is-revealed")) return;
+    if (e.deltaY <= 0) return;
+    if (e.deltaY < 24) return;
+    e.preventDefault();
+    if (wheelLocked) return;
+    wheelLocked = true;
+    goDetails();
+  };
+
+  // Window listener covers chrome/logo areas; catch strip covers lower viewport over the iframe.
+  window.addEventListener("wheel", onFirstScreenWheel, { passive: false });
+  wheelCatch?.addEventListener("wheel", onFirstScreenWheel, { passive: false });
 
   if (iframe instanceof HTMLIFrameElement) {
     const markReady = () => stage?.classList.add("is-spline-ready");
@@ -373,13 +384,24 @@ const useViewer = Boolean(splineScene);
     position: absolute;
     left: 50%;
     bottom: 1.75rem;
+    z-index: 6;
     transform: translateX(-50%);
     margin: 0;
     font-size: 0.78rem;
     letter-spacing: 0.04em;
     color: rgba(148, 163, 184, 0.92);
     text-shadow: 0 2px 12px rgba(0, 0, 0, 0.65);
-    animation: rise 0.7s cubic-bezier(0.22, 1, 0.36, 1) both;
+  }
+
+  /* Lower band receives wheel so iframe does not swallow the colleague scroll-to-details gesture */
+  .wheel-catch {
+    pointer-events: auto;
+    position: absolute;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    z-index: 5;
+    height: min(28vh, 220px);
   }
 
   .stage[data-state="details"] .stage-chrome {
