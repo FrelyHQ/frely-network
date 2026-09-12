@@ -15,7 +15,8 @@ export interface EnsWriteResult {
   transactionId?: string;
 }
 
-/** Chain writes are injected until ENSv2/ERC-8004 write ABIs are confirmed. */
+/** Signer-based integrations may inject these ports. For wallet-confirmed
+ * registration using official ABIs, use provider:identity (identity-cli.ts). */
 export interface ProviderRegistrationAdapter {
   registerErc8004(input: {
     manifest: P0CapabilityProviderManifest;
