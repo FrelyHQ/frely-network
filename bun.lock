@@ -27,6 +27,7 @@
         "@frely-network/ens": "workspace:*",
         "@frely-network/erc8004": "workspace:*",
         "@frely-network/the-graph": "workspace:*",
+        "@frely-network/x402-gateway": "workspace:*",
       },
     },
     "apps/explorer": {
@@ -83,6 +84,10 @@
     "packages/gateway/x402": {
       "name": "@frely-network/x402-gateway",
       "version": "0.0.0",
+      "dependencies": {
+        "@x402/core": "2.25.0",
+        "@x402/hedera": "2.25.0",
+      },
     },
     "packages/identity/ens": {
       "name": "@frely-network/ens",

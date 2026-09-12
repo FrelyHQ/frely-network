@@ -5,6 +5,8 @@ import {
   type StaticResolvedCapability,
   type StaticResolveCapabilitiesRequest,
 } from "@frely-network/capability-resolution";
+import type { NetworkX402Gate } from "@frely-network/x402-gateway";
+import type { RelayUpstream } from "./upstream.ts";
 
 export type CapabilityResolver = {
   resolve(
@@ -47,31 +49,84 @@ function errorResponse(error: unknown): Response {
   if (message === "STATIC_PROVIDER_NOT_CONFIGURED") {
     return response({ code: "STATIC_PROVIDER_NOT_CONFIGURED" }, 503);
   }
+  if (message === "UPSTREAM_PAYMENT_UNEXPECTED") {
+    return response({ code: "UPSTREAM_PAYMENT_UNEXPECTED" }, 502);
+  }
+  if (message === "UPSTREAM_FAILED") {
+    return response({ code: "UPSTREAM_FAILED" }, 502);
+  }
   return response({ code: "INTERNAL_ERROR" }, 500);
 }
 
-async function parseRequest(request: Request): Promise<StaticResolveCapabilitiesRequest> {
+async function readBoundedText(request: Request): Promise<string> {
   const contentType = request.headers.get("content-type")?.split(";", 1)[0]?.trim().toLowerCase();
   if (contentType !== "application/json") throw new Error("INVALID_REQUEST");
   const bytes = await request.arrayBuffer();
   if (bytes.byteLength > maxRequestBytes) throw new Error("INVALID_REQUEST");
-  let body: unknown;
+  return new TextDecoder().decode(bytes);
+}
+
+function parseJson(text: string): unknown {
   try {
-    body = JSON.parse(new TextDecoder().decode(bytes));
+    return JSON.parse(text);
   } catch {
     throw new Error("INVALID_REQUEST");
   }
-  return parseStaticResolveCapabilitiesRequest(body);
+}
+
+function isVisionBasicBody(value: unknown): value is { model: "vision-basic"; stream: false } {
+  return Boolean(
+    value
+    && typeof value === "object"
+    && !Array.isArray(value)
+    && (value as { model?: unknown }).model === "vision-basic"
+    && (value as { stream?: unknown }).stream === false,
+  );
+}
+
+async function parseResolveRequest(request: Request): Promise<StaticResolveCapabilitiesRequest> {
+  return parseStaticResolveCapabilitiesRequest(parseJson(await readBoundedText(request)));
+}
+
+async function handleResponses(
+  request: Request,
+  options: { x402Gate: NetworkX402Gate; upstream: RelayUpstream },
+): Promise<Response> {
+  const body = await readBoundedText(request);
+  const parsed = parseJson(body);
+  if (!isVisionBasicBody(parsed)) throw new Error("INVALID_REQUEST");
+  const requestId = request.headers.get("x-frely-request-id")?.trim() ?? "";
+  if (!requestId) throw new Error("INVALID_REQUEST");
+  const admission = await options.x402Gate.admit(request, body);
+  if (admission.kind !== "settled") return admission.response;
+  const upstreamResponse = await options.upstream.invoke(body, requestId);
+  return admission.finish(upstreamResponse);
 }
 
 export function createCapabilityServiceFetch(options: {
   apiKey: string;
   resolver: CapabilityResolver;
+  x402Gate?: NetworkX402Gate;
+  upstream?: RelayUpstream;
 }): (request: Request) => Promise<Response> {
   return async (request) => {
     const path = new URL(request.url).pathname;
     if (request.method === "GET" && (path === "/healthz" || path === "/readyz")) {
       return response({ status: "ok" });
+    }
+    if (request.method === "POST" && path === "/v1/responses") {
+      if (!options.x402Gate || !options.upstream) return emptyResponse(404);
+      if (!authorized(request.headers.get("authorization"), options.apiKey)) {
+        return response({ code: "UNAUTHORIZED" }, 401);
+      }
+      try {
+        return await handleResponses(request, {
+          x402Gate: options.x402Gate,
+          upstream: options.upstream,
+        });
+      } catch (error) {
+        return errorResponse(error);
+      }
     }
     if (request.method !== "POST" || path !== "/v1/capabilities/resolve") {
       return emptyResponse(404);
@@ -80,7 +135,7 @@ export function createCapabilityServiceFetch(options: {
       return response({ code: "UNAUTHORIZED" }, 401);
     }
     try {
-      const parsed = await parseRequest(request);
+      const parsed = await parseResolveRequest(request);
       return response(await options.resolver.resolve(parsed));
     } catch (error) {
       return errorResponse(error);

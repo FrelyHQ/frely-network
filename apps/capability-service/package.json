@@ -7,6 +7,7 @@
     "@frely-network/capability-resolution": "workspace:*",
     "@frely-network/the-graph": "workspace:*",
     "@frely-network/ens": "workspace:*",
-    "@frely-network/erc8004": "workspace:*"
+    "@frely-network/erc8004": "workspace:*",
+    "@frely-network/x402-gateway": "workspace:*"
   }
 }
