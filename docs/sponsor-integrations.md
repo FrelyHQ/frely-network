@@ -11,13 +11,14 @@ runtime ownership into this repository.
 
 ## The-Graph-1 — The Graph
 
-Status: Planned
+Status: Implemented
 Review level: L9
-Source: Existing sponsor integration requirement
+Source: Current repository implementation (`packages/discovery/the-graph/index.ts`)
 
-The Graph is the discovery and eligibility-indexing layer. The Broker should
-retrieve candidate Provider manifests through an adapter, normalize the
-response, and apply the configured eligibility rules before selection.
+The Graph adapter queries a configured HTTPS endpoint, retrieves registration
+metadata, normalizes the P0 manifest, and returns capability-filtered Provider
+candidates. It validates the Sepolia registry and payment network, ENS
+identity, x402 support, and registration consistency before selection.
 
 The final Provider must not be hardcoded in the Broker as a substitute for live
 discovery. A review-mode fixture may provide deterministic discovery data, but
@@ -25,13 +26,16 @@ it must be explicitly labelled as a fixture.
 
 ## ENS-1 — ENS
 
-Status: Planned
+Status: Implemented
 Review level: L9
-Source: Existing sponsor integration requirement
+Source: Current repository implementation (`packages/identity/ens/index.ts`)
 
-ENS supplies Provider namespace, identity records, endpoint resolution, and the
-association used by the identity verification stage. ENS data is evidence for
-selection; it is not a permission to bypass the Provider or Gateway boundary.
+The ENS reader resolves the canonical Universal Resolver on Sepolia, pins all
+reads to one block, validates the ENSIP-25 registration key and
+`agent-endpoint[a2a]`, and accepts only normalized HTTPS public endpoints. It
+returns resolver, endpoint, protocol, and registration evidence for identity
+verification. ENS data is evidence for selection; it is not a permission to
+bypass the Provider or Gateway boundary.
 
 ## ERC-8004-1 — ERC-8004
 
@@ -45,14 +49,15 @@ identity separately from the application request and payment identifiers.
 
 ## Hedera-x402-1 — Hedera x402
 
-Status: Planned
+Status: Implemented
 Review level: L9
-Source: Existing sponsor integration requirement
+Source: Current repository implementation (`packages/payment/hedera-x402/index.ts`)
 
-Hedera x402 is the pay-per-call settlement path for the P0 flow, using the
-Hedera testnet in real integration mode and a deterministic payment fixture in
-review mode. The payment adapter must return an accepted result before the
-Broker invokes a paid capability.
+The Hedera x402 adapter implements Hedera testnet exact-payment signing and
+HTTP challenge/retry for v1 and v2 payloads. It also provides Network-side
+verification, replay protection, the official facilitator integration,
+settlement, and an injected refund path. The payment adapter must return an
+accepted result before the Broker invokes a paid capability.
 
 The EVM identity network and Hedera payment network are coordinated by the
 Broker. The P0 design does not require a token bridge.
@@ -83,7 +88,9 @@ Status: Current limitation
 Review level: L3
 Source: Current repository checkout
 
-The integration package directories are currently a scaffold. The presence of
-these sponsor sections documents the intended contracts and verification order;
-it does not claim that live The Graph, ENS, ERC-8004, or Hedera calls are
-already wired into a runnable end-to-end service.
+The Graph, ENS, and Hedera x402 sponsor adapters have concrete implementations
+in the mainline packages identified above. Live upstream calls are selected
+through configuration and injected clients or facilitators; tests and
+deterministic fixtures remain separate review aids. A clean checkout still
+requires operator-supplied endpoints, credentials, and cross-project runtime
+setup, so this document does not claim a seeded end-to-end deployment.
