@@ -386,6 +386,11 @@ const GITHUB = "https://github.com/FrelyHQ/frely-network";
       pointer-events: auto;
     }
 
+    /* Keep the first-screen WebGL canvas visible — older iframe builds hid it on mobile. */
+    .first-screen .stage-spline-frame {
+      display: block;
+    }
+
     .click-me:focus-visible {
       outline-offset: 3px;
     }

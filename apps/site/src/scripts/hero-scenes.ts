@@ -37,6 +37,9 @@ function enterScene() {
   if (first.dataset.sceneLoad !== "ready" || stage.dataset.state === "engaged") return;
   // Trigger Spline's authored transition; a DOM state change alone cannot switch the model.
   firstApp?.emitEvent("mouseDown", ENTER_LABEL);
+  // HTML Click Me (mobile) should still advance UI chrome even if the runtime
+  // does not re-emit mouseDown to our listener for synthetic events.
+  markEngaged();
 }
 
 clickMe.addEventListener("click", enterScene);
@@ -45,12 +48,18 @@ function screenTop(screen: HTMLElement) {
   return window.scrollY + screen.getBoundingClientRect().top;
 }
 
-function drawFrame(app: Application) {
+function drawFrame(app: Application, timeoutMs = 2500) {
   return new Promise<void>((resolve) => {
-    const onRendered = () => {
+    let settled = false;
+    const finish = () => {
+      if (settled) return;
+      settled = true;
       app.removeEventListener("rendered", onRendered);
+      window.clearTimeout(timer);
       resolve();
     };
+    const onRendered = () => finish();
+    const timer = window.setTimeout(finish, timeoutMs);
     app.addEventListener("rendered", onRendered);
     app.requestRender();
   });
@@ -89,48 +98,82 @@ async function scrollToScreen(screen: HTMLElement) {
   requestAnimationFrame(frame);
 }
 
-window.addEventListener("wheel", (event) => {
-  if (event.ctrlKey || event.deltaY === 0 || Math.abs(event.deltaX) >= Math.abs(event.deltaY)) return;
+function handleHeroScrollIntent(deltaY: number, timeStamp: number) {
+  if (deltaY === 0) return false;
 
   const now = performance.now();
   // Use input timestamps so a busy 3D render cannot turn queued inertia into a new gesture.
-  if (event.timeStamp - lastWheelAt > GESTURE_IDLE_MS) gestureUsed = false;
-  lastWheelAt = event.timeStamp;
+  if (timeStamp - lastWheelAt > GESTURE_IDLE_MS) gestureUsed = false;
+  lastWheelAt = timeStamp;
 
   const y = window.scrollY;
   const secondTop = screenTop(second);
   const inFirst = y < secondTop - 2;
   const inSecond = y >= secondTop - 2 && y < secondTop + second.offsetHeight - 2;
 
-  // Consume the rest of a wheel/touchpad gesture, including inertia after an animation ends.
-  if (scrolling || (gestureUsed && (inFirst || inSecond))) {
-    event.preventDefault();
-    return;
+  // Consume the rest of a wheel/touchpad/touch gesture, including inertia after an animation ends.
+  if (scrolling || (gestureUsed && (inFirst || inSecond))) return true;
+
+  if (inFirst && deltaY > 0) {
+    gestureUsed = true;
+    if (first.dataset.sceneLoad === "loading" || now < sceneLockedUntil) return true;
+    if (stage.dataset.state === "splash" && first.dataset.sceneLoad === "ready") enterScene();
+    else void scrollToScreen(second);
+    return true;
   }
 
-  if (inFirst && event.deltaY > 0) {
-    event.preventDefault();
-    gestureUsed = true;
-    if (first.dataset.sceneLoad === "loading" || now < sceneLockedUntil) return;
-    if (stage.dataset.state === "splash" && first.dataset.sceneLoad === "ready") enterScene();
-    else scrollToScreen(second);
-  } else if (event.deltaY < 0) {
+  if (deltaY < 0) {
     if (y > secondTop + 2) {
-      const unit = event.deltaMode === WheelEvent.DOM_DELTA_PAGE ? window.innerHeight
-        : event.deltaMode === WheelEvent.DOM_DELTA_LINE ? 16 : 1;
       // Finish returning to screen two before a new gesture can enter screen one.
-      if (y + event.deltaY * unit <= secondTop) {
-        event.preventDefault();
+      if (y + deltaY <= secondTop) {
         gestureUsed = true;
-        scrollToScreen(second);
+        void scrollToScreen(second);
+        return true;
       }
     } else if (y > 2) {
-      event.preventDefault();
       gestureUsed = true;
-      scrollToScreen(first);
+      void scrollToScreen(first);
+      return true;
     }
   }
+
+  return false;
+}
+
+window.addEventListener("wheel", (event) => {
+  if (event.ctrlKey || event.deltaY === 0 || Math.abs(event.deltaX) >= Math.abs(event.deltaY)) return;
+
+  const unit = event.deltaMode === WheelEvent.DOM_DELTA_PAGE ? window.innerHeight
+    : event.deltaMode === WheelEvent.DOM_DELTA_LINE ? 16 : 1;
+  if (handleHeroScrollIntent(event.deltaY * unit, event.timeStamp)) event.preventDefault();
 }, { passive: false, capture: true });
+
+// Phones rarely emit wheel; map a vertical swipe onto the same first→second scene intent.
+let touchStartY: number | null = null;
+window.addEventListener("touchstart", (event) => {
+  if (event.touches.length !== 1) {
+    touchStartY = null;
+    return;
+  }
+  touchStartY = event.touches[0]?.clientY ?? null;
+}, { capture: true, passive: true });
+
+window.addEventListener("touchend", (event) => {
+  if (touchStartY == null || event.changedTouches.length !== 1) {
+    touchStartY = null;
+    return;
+  }
+  const endY = event.changedTouches[0]?.clientY;
+  const startY = touchStartY;
+  touchStartY = null;
+  if (endY == null) return;
+  const deltaY = startY - endY;
+  if (Math.abs(deltaY) < 48) return;
+  if (handleHeroScrollIntent(deltaY, event.timeStamp)) {
+    // Prevent the browser from also performing native page scroll for this swipe.
+    event.preventDefault();
+  }
+}, { capture: true, passive: false });
 
 async function loadScenes() {
   const { Application } = await import("@splinetool/runtime");
@@ -154,16 +197,18 @@ async function loadScenes() {
       // Use the same synchronous renderer for both exports so a rendered event
       // represents a complete frame, without WebGPU's asynchronous shader warmup.
       app = new Application(canvas, { renderMode: "manual", renderer: "webgl" });
-      await app.load(`/scenes/${scene}.splinecode`);
+      await Promise.race([
+        app.load(`/scenes/${scene}.splinecode`),
+        new Promise((_, reject) => {
+          window.setTimeout(() => reject(new Error(`Timed out loading ${scene}`)), 45_000);
+        }),
+      ]);
       if (screen === second) {
         const particles = app.findObjectById(SECOND_SCENE_GROUP);
         if (!particles) throw new Error("The second scene is missing its particle group.");
         // Apply the authored final state immediately, completing its Start transition.
         // Particle motion continues; the group no longer slides in from below the screen.
         particles.state = SECOND_SCENE_READY_STATE;
-        // Manual mode leaves the old canvas pixels intact after a state change.
-        // Draw the final background offscreen before allowing the canvas to appear.
-        await drawFrame(app);
         secondApp = app;
       }
       app.addEventListener("rendered", () => {
@@ -180,12 +225,21 @@ async function loadScenes() {
         app.addEventListener("mouseDown", ({ target }) => {
           if (target.id === ENTER_LABEL || target.id === ENTER_ROBOT) markEngaged();
         });
-        clickMe.disabled = false;
-        hint.textContent = "Click the robot or scroll to begin";
       }
+      // Draw at least one complete frame before fading the ambient placeholder out.
+      // On mobile the IntersectionObserver callback can lag; revealing an empty canvas
+      // looks like "no first-screen animation".
+      await drawFrame(app);
       apps.set(screen, app);
       screen.dataset.sceneLoad = "ready";
       visibility.observe(screen);
+      if (screen === first) {
+        // First screen is in view on load — start the manual render loop now.
+        visibleScreens.add(screen);
+        app.requestRender();
+        clickMe.disabled = false;
+        hint.textContent = "Click the robot or scroll to begin";
+      }
     } catch (error) {
       app?.dispose();
       screen.dataset.sceneLoad = "error";
