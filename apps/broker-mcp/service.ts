@@ -13,6 +13,7 @@ const X402_RESOURCE_NOT_CONFIGURED = "X402_RESOURCE_NOT_CONFIGURED";
 
 export interface BrokerMcpServiceOptions {
   readonly x402Responses?: (request: Request) => Response | Promise<Response>;
+  readonly x402A2A?: (request: Request) => Response | Promise<Response>;
   readonly requireX402Responses?: boolean;
   readonly staticRoot?: string;
   readonly consumerGateway?: ConsumerGateway;
@@ -212,6 +213,11 @@ export function createBrokerMcpFetch(
         ? Promise.resolve(options.x402Responses(request))
         : Promise.resolve(json({ code: X402_RESOURCE_NOT_CONFIGURED }, 503));
     }
+    if (pathname === "/x402/frely/a2a") {
+      return options.x402A2A
+        ? Promise.resolve(options.x402A2A(request))
+        : Promise.resolve(json({ code: X402_RESOURCE_NOT_CONFIGURED }, 503));
+    }
     const url = new URL(request.url);
     if (request.method === "GET" && url.pathname === "/healthz") {
       return json({ service: SERVICE, status: "ok" });
@@ -229,7 +235,6 @@ export function createBrokerMcpFetch(
     return json({ code: "NOT_FOUND" }, 404);
   };
 }
-
 function isBrokerRuntime(value: BrokerRuntime | BrokerMcpServiceOptions): value is BrokerRuntime {
   return Object.hasOwn(value, "ready") || Object.hasOwn(value, "broker");
 }

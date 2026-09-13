@@ -22,5 +22,8 @@
     "examples/**/*.ts",
     "packages/**/*.ts",
     "scripts/**/*.ts"
+  ],
+  "exclude": [
+    "apps/site/**/*"
   ]
 }

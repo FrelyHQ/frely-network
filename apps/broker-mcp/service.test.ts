@@ -54,23 +54,34 @@ describe("Broker MCP deployment boundary", () => {
     expect(listBody.result.tools.map((tool) => tool.name)).toEqual(["find_capability", "use_capability"]);
   });
 
-  test("routes the Network-owned paid Frely resource and fails closed when unconfigured", async () => {
-    let called = 0;
+  test("routes the Network-owned paid Frely resources and fails closed when unconfigured", async () => {
+    let responsesCalled = 0;
+    let a2aCalled = 0;
     const configured = createBrokerMcpFetch({
       x402Responses: async (request) => {
-        called += 1;
+        responsesCalled += 1;
         expect(new URL(request.url).pathname).toBe("/x402/frely/responses");
         return Response.json({ ok: true });
       },
+      x402A2A: async (request) => {
+        a2aCalled += 1;
+        expect(new URL(request.url).pathname).toBe("/x402/frely/a2a");
+        return Response.json({ ok: true });
+      },
     });
-    const paidResource = await configured(new Request("https://network.frely.cloud/x402/frely/responses", { method: "POST" }));
-    expect(paidResource.status).toBe(200);
-    expect(called).toBe(1);
+    const paidResponses = await configured(new Request("https://network.frely.cloud/x402/frely/responses", { method: "POST" }));
+    expect(paidResponses.status).toBe(200);
+    const paidA2A = await configured(new Request("https://network.frely.cloud/x402/frely/a2a", { method: "POST" }));
+    expect(paidA2A.status).toBe(200);
+    expect(responsesCalled).toBe(1);
+    expect(a2aCalled).toBe(1);
 
     const unconfigured = createBrokerMcpFetch({});
-    const unavailable = await unconfigured(new Request("https://network.frely.cloud/x402/frely/responses", { method: "POST" }));
-    expect(unavailable.status).toBe(503);
-    expect(await unavailable.json()).toEqual({ code: "X402_RESOURCE_NOT_CONFIGURED" });
+    for (const path of ["/x402/frely/responses", "/x402/frely/a2a"]) {
+      const unavailable = await unconfigured(new Request(`https://network.frely.cloud${path}`, { method: "POST" }));
+      expect(unavailable.status).toBe(503);
+      expect(await unavailable.json()).toEqual({ code: "X402_RESOURCE_NOT_CONFIGURED" });
+    }
   });
 
   test("does not require the optional Web3 resource for production readiness", async () => {
