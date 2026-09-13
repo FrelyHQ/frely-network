@@ -91,7 +91,7 @@ async function connectWallet() {
   }
   const addresses = await provider.request({ method: "eth_requestAccounts" }) as string[];
   const connected = getAddress(addresses[0]);
-  if (!isAddressEqual(connected, OPERATOR)) throw new Error(`Connected wallet ${short(connected)} does not own frely.eth`);
+  if (!isAddressEqual(connected, OPERATOR)) throw new Error(`Connected wallet ${short(connected)} does not own the Sepolia test name frely.eth`);
   account = connected;
   const transport = custom(provider);
   publicClient = createPublicClient({ chain: sepolia, transport });
@@ -113,7 +113,7 @@ async function inspect() {
   prepared = action;
   renderPreview(action);
   setStatus(chainStatus, action.action === "no_change" ? "Already registered" : "Available to register", action.action === "no_change" ? "neutral" : "success");
-  logEvent(`${labelInput.value}.frely.eth is ${action.action === "no_change" ? "already registered" : "available"}`);
+  logEvent(`${labelInput.value}.frely.eth is ${action.action === "no_change" ? "already registered on Sepolia" : "available on Sepolia"}`);
 }
 
 async function register() {
@@ -138,7 +138,7 @@ async function release() {
   const hash = await walletClient.sendTransaction({ account, chain: sepolia, to: REGISTRY, data, value: 0n });
   logEvent(`Submitted release transaction ${short(hash)}`);
   await publicClient!.waitForTransactionReceipt({ hash });
-  logEvent(`Released ${label}.frely.eth for reuse`, "success");
+  logEvent(`Released Sepolia test name ${label}.frely.eth for reuse`, "success");
   await inspect();
 }
 

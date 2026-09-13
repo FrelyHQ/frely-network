@@ -2,9 +2,9 @@
 
 ## web3-safety
 
-`web3-safety.json` defines the ETHOnline demo Provider:
+`web3-safety.json` defines the ETHOnline demo Provider. `web3-safety.frely.eth` is an ENSv2 name on Ethereum Sepolia. It is a testnet identity, not an Ethereum Mainnet ENS asset, and the project does not claim a mainnet ENS purchase.
 
-- ENS: `web3-safety.frely.eth`
+- ENSv2 Sepolia test name: `web3-safety.frely.eth`
 - capabilities: `web3.address-risk`, `web3.url-risk`
 - protocol: A2A
 - execution endpoint: `https://api.frely.cloud/a2a`
