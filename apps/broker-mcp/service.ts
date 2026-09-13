@@ -3,6 +3,7 @@ import type { ConsumerGateway } from "./consumer/service.ts";
 import {
   BrokerError,
   type CapabilityRequest,
+  type ProviderCandidate,
 } from "@frely-network/shared-types";
 import { join, normalize, posix } from "node:path";
 
@@ -27,6 +28,7 @@ export interface BrokerService {
 
 export interface BrokerRuntime {
   broker?: BrokerService;
+  underlyingAgents?: { findProviders(capabilities: string[]): Promise<ProviderCandidate[]> };
   ready: boolean;
 }
 

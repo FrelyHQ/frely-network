@@ -130,6 +130,7 @@ function normalizeMetadata(
   let hasA2AService = false;
   const capabilityClaims: string[][] = [];
   const paymentClaims: Array<Record<string, unknown>> = [];
+  const offeringClaims: unknown[] = [];
   const oasfSkills: string[] = [];
 
   for (const source of sources) {
@@ -157,6 +158,8 @@ function normalizeMetadata(
       capabilityClaims.push(capabilities);
     }
     if (source.payment !== undefined) paymentClaims.push(record(source.payment));
+    if (source.payment !== undefined) paymentClaims.push(record(source.payment));
+    if (source.offerings !== undefined) offeringClaims.push(source.offerings);
     if (source.interfaces !== undefined) {
       if (!Array.isArray(source.interfaces) || !source.interfaces.length) return invalid();
       if (protocol === "a2a" && source.interfaces.length !== 1) return invalid();
@@ -201,6 +204,10 @@ function normalizeMetadata(
   if (!paymentClaims.length || paymentClaims.some((payment) =>
       payment.protocol !== "x402" || payment.network !== "hedera:testnet")) return invalid();
   // This synchronous profile requires an explicit execution claim before the
+  if (offeringClaims.length > 1) {
+    const canonical = JSON.stringify(offeringClaims[0]);
+    if (offeringClaims.some((claim) => JSON.stringify(claim) !== canonical)) return invalid();
+  }
   // resolver cross-checks ENS and fetches the Card; it never guesses a URL.
   if (protocol === "a2a" && !hasA2AInterface) throw new Error("A2A_EXECUTION_ENDPOINT_REQUIRED");
   if (protocol === "a2a" && isRegistration && !hasA2AService) return invalid();
@@ -216,6 +223,7 @@ function normalizeMetadata(
       ...(protocol === "a2a" ? { agentCardUrl: agree(cardUrls) } : {}),
     }],
     payment: { ...paymentClaims[0] },
+    ...(offeringClaims.length ? { offerings: offeringClaims[0] } : {}),
   };
   if (protocol === "responses") return validateLegacyManifest(manifest);
   return { ...validateManifest(manifest), x402Support: file.x402Support as boolean };

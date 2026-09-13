@@ -15,7 +15,7 @@
       "dependencies": {
         "@frely-network/broker": "workspace:*",
         "@frely-network/ens": "workspace:*",
-        "@frely-network/erc8004": "workspace:*",
+        "@frely-network/frely-discovery": "workspace:*",
         "@frely-network/hedera-x402": "workspace:*",
         "@frely-network/shared-types": "workspace:*",
         "@frely-network/the-graph": "workspace:*",
@@ -73,6 +73,13 @@
       "version": "0.0.0",
       "dependencies": {
         "@frely-network/hedera-x402": "workspace:*",
+        "@frely-network/shared-types": "workspace:*",
+      },
+    },
+    "packages/discovery/frely": {
+      "name": "@frely-network/frely-discovery",
+      "version": "0.0.0",
+      "dependencies": {
         "@frely-network/shared-types": "workspace:*",
       },
     },
@@ -149,7 +156,15 @@
       "name": "@frely-network/protocol-manifest",
       "version": "0.0.0",
       "dependencies": {
+        "@frely-network/offering": "workspace:*",
         "viem": "^2.21.0",
+      },
+    },
+    "packages/protocol/offering": {
+      "name": "@frely-network/offering",
+      "version": "0.0.0",
+      "dependencies": {
+        "@frely-network/shared-types": "workspace:*",
       },
     },
     "packages/protocol/shared-types": {
@@ -238,7 +253,11 @@
 
     "@frely-network/explorer": ["@frely-network/explorer@workspace:apps/explorer"],
 
+    "@frely-network/frely-discovery": ["@frely-network/frely-discovery@workspace:packages/discovery/frely"],
+
     "@frely-network/hedera-x402": ["@frely-network/hedera-x402@workspace:packages/payment/hedera-x402"],
+
+    "@frely-network/offering": ["@frely-network/offering@workspace:packages/protocol/offering"],
 
     "@frely-network/protocol-manifest": ["@frely-network/protocol-manifest@workspace:packages/protocol/manifest"],
 

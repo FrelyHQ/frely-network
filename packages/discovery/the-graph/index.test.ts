@@ -76,6 +76,40 @@ describe("The Graph discovery", () => {
     expect((await discovery.findProviders(["vision"]))[0]?.id).toBe("7");
   });
 
+
+  test("discovers Alice Offerings and retains Bob's underlying Frely Agent reference", async () => {
+    const offering = {
+      id: "off_alice_vision",
+      publisherId: "alice",
+      publisherEnsName: "vision.example.eth",
+      underlyingAgent: {
+        platform: "frely",
+        agentId: "vm-0123456789abcdef0123456789abcdef",
+        model: "user/vm-0123456789abcdef0123456789abcdef/v1",
+        ownerRef: "user:bob",
+      },
+      capabilities: ["vision"],
+      price: {
+        network: "hedera:testnet",
+        asset: "HBAR",
+        amountAtomic: "1000000",
+        publisherPayTo: "0.0.1234",
+        networkFeeBps: 500,
+      },
+      status: "published",
+    } as const;
+    const { discovery } = fixtureDiscovery({ ...manifest, offerings: [offering] });
+    expect(await discovery.findProviders(["vision"])).toEqual([{
+      id: "7",
+      ensName: "vision.example.eth",
+      capabilities: ["vision"],
+      supportsX402: true,
+      source: "the_graph",
+      model: offering.underlyingAgent.model,
+      underlyingAgent: offering.underlyingAgent,
+      offering,
+    }]);
+  });
   test("discovers native x402Support=false while preserving its explicit declaration", async () => {
     for (const metadata of [manifest, registration]) {
       const { discovery, calls } = fixtureDiscovery({ ...metadata, x402Support: false }, [{

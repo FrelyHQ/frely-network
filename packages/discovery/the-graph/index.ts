@@ -177,6 +177,25 @@ export class TheGraphDiscovery {
           (payment.network !== undefined && payment.network !== manifest.payment.network))) continue;
       } catch { continue; }
       const rowCaps = asCapabilities(manifest.capabilities);
+      if (manifest.offerings !== undefined) {
+        const published = manifest.offerings.filter((offering) =>
+          offering.status === "published" && wanted.every((capability) => offering.capabilities.includes(capability)),
+        );
+        for (const offering of published) {
+          result.push({
+            id: agentId,
+            ensName,
+            capabilities: [...offering.capabilities],
+            supportsX402: manifest.x402Support,
+            source: "the_graph",
+            model: offering.underlyingAgent.model,
+            underlyingAgent: offering.underlyingAgent,
+            offering,
+            ...(typeof row.reputation === "number" && Number.isFinite(row.reputation) ? { reputation: row.reputation } : {}),
+          });
+        }
+        continue;
+      }
       if (!wanted.every((capability) => rowCaps.includes(capability))) continue;
       result.push({ id: agentId, ensName, capabilities: rowCaps, supportsX402: manifest.x402Support, ...(typeof row.reputation === "number" && Number.isFinite(row.reputation) ? { reputation: row.reputation } : {}) });
     }

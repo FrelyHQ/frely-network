@@ -64,6 +64,10 @@ export class Broker {
         capabilities: [...candidate.capabilities],
         protocol: provider.protocol,
         verified: true as const,
+        ...(provider.model === undefined ? {} : { model: provider.model }),
+        ...(provider.source === undefined ? {} : { source: provider.source }),
+        ...(provider.underlyingAgent === undefined ? {} : { underlyingAgent: provider.underlyingAgent }),
+        ...(provider.offering === undefined ? {} : { offering: provider.offering }),
       }));
   }
 
@@ -93,6 +97,10 @@ export class Broker {
         ...(selected.provider.ensName ? { ensName: selected.provider.ensName } : {}),
         capabilities: [...selected.candidate.capabilities],
         protocol: selected.provider.protocol,
+        ...(selected.provider.model === undefined ? {} : { model: selected.provider.model }),
+        ...(selected.provider.source === undefined ? {} : { source: selected.provider.source }),
+        ...(selected.provider.underlyingAgent === undefined ? {} : { underlyingAgent: selected.provider.underlyingAgent }),
+        ...(selected.provider.offering === undefined ? {} : { offering: selected.provider.offering }),
       },
       ...(invocation.payment ? { payment: invocation.payment } : { billing: { mode: "frely_account" as const } }),
       ...(this.config.discoverySource ? { evidence: {

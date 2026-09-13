@@ -1,10 +1,40 @@
 export type ProviderProtocol = "responses" | "a2a" | "mcp" | "http";
+export type ProviderDiscoverySource = "the_graph" | "frely";
+
+/** A Web2 Agent that supplies execution for a Network Offering. */
+export interface UnderlyingAgentReference {
+  platform: "frely";
+  agentId: string;
+  model: string;
+  ownerRef?: string;
+}
+export interface OfferingPriceReference {
+  network: string;
+  asset: string;
+  amountAtomic: string;
+  publisherPayTo: string;
+  networkFeeBps: number;
+}
+
+/** Public commercial relationship attached to Alice's Web3 Agent identity. */
+export interface OfferingReference {
+  id: string;
+  publisherId: string;
+  publisherEnsName?: string;
+  underlyingAgent: UnderlyingAgentReference;
+  price?: OfferingPriceReference;
+}
 
 /** A provider returned by live discovery before identity resolution. */
 export interface ProviderCandidate {
   id: string;
   ensName?: string;
   protocol?: ProviderProtocol;
+  endpoint?: string;
+  model?: string;
+  source?: ProviderDiscoverySource;
+  underlyingAgent?: UnderlyingAgentReference;
+  offering?: OfferingReference;
   capabilities: string[];
   supportsX402: boolean;
   reputation?: number;
@@ -17,6 +47,10 @@ export interface ResolvedProvider {
   endpoint: string;
   protocol: ProviderProtocol;
   verified: boolean;
+  model?: string;
+  source?: ProviderDiscoverySource;
+  underlyingAgent?: UnderlyingAgentReference;
+  offering?: OfferingReference;
   /** Optional identity metadata populated by ERC-8004/A2A resolution. */
   agentCardUrl?: string;
   a2aProtocolVersion?: "0.3.0" | "1.0";
@@ -52,6 +86,10 @@ export interface CapabilityResult {
     ensName?: string;
     capabilities: string[];
     protocol: ProviderProtocol;
+    model?: string;
+    source?: ProviderDiscoverySource;
+    underlyingAgent?: UnderlyingAgentReference;
+    offering?: OfferingReference;
   };
   payment?: PaymentEvidence;
   billing?: { mode: "frely_account" };
@@ -60,13 +98,17 @@ export interface CapabilityResult {
   correlationId: string;
 }
 
-/** Public result for discovery; endpoint URLs remain Broker-internal. */
+/** Public result for discovery; execution endpoints and credentials remain Broker-internal. */
 export interface CapabilityDescriptor {
   id: string;
   ensName?: string;
   capabilities: string[];
   protocol: ProviderProtocol;
   verified: true;
+  model?: string;
+  source?: ProviderDiscoverySource;
+  underlyingAgent?: UnderlyingAgentReference;
+  offering?: OfferingReference;
 }
 
 /** Stable error categories exposed at the MCP boundary. */

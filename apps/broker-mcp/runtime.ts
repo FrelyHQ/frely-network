@@ -1,5 +1,6 @@
 import { A2AServiceInvocation, Broker, ProtocolInvocation, ResponsesInvocation } from "@frely-network/broker";
 import { TheGraphDiscovery } from "@frely-network/the-graph";
+import { FrelyAgentDiscovery, FrelyOfferingResolver } from "@frely-network/frely-discovery";
 import { ViemEnsReader } from "@frely-network/ens";
 import { ProviderIdentityResolver, ViemErc8004Reader } from "@frely-network/erc8004";
 import { BrokerError, type ResolvedProvider, type CapabilityRequest, isSafePublicHttpUrl } from "@frely-network/shared-types";
@@ -50,16 +51,18 @@ export function createBrokerRuntimeFromEnv(environment: RuntimeEnvironment = pro
     if (!isSafePublicHttpUrl(frelyOrigin, { requireHttps: true }) || new URL(frelyOrigin).pathname !== "/" || new URL(frelyOrigin).search || new URL(frelyOrigin).hash) return { ready: false };
     const invocation = {
       invoke(provider: ResolvedProvider, request: CapabilityRequest, correlationId: string) {
-        // A verified publisher must not be able to redirect the platform credential to another origin.
+        // A verified publisher must not redirect the platform credential to another origin.
         const endpoint = new URL(provider.endpoint);
         if (endpoint.origin !== new URL(frelyOrigin).origin || endpoint.username || endpoint.password || endpoint.hash) throw new BrokerError("IDENTITY_VERIFICATION_FAILED");
         return transportInvocation.invoke(provider, request, correlationId);
       },
     };
-    const identity = new ProviderIdentityResolver(
+    const underlyingAgents = new FrelyAgentDiscovery({ origin: frelyOrigin, apiKey: frelyApiKey });
+    const web3Identity = new ProviderIdentityResolver(
       new ViemEnsReader({ rpcUrl: ensRpcUrl }),
       new ViemErc8004Reader({ rpcUrl: ensRpcUrl, registryAddress: registry }),
     );
+    const identity = new FrelyOfferingResolver(web3Identity, underlyingAgents);
     const broker = new Broker({
       discovery: new TheGraphDiscovery({
         endpoint: graphEndpoint,
@@ -70,7 +73,7 @@ export function createBrokerRuntimeFromEnv(environment: RuntimeEnvironment = pro
       identity,
       invocation,
     }, { billingMode: "frely_account", discoverySource: "the_graph", registryChainId: "11155111" });
-    return { ready: true, broker };
+    return { ready: true, broker, underlyingAgents };
   } catch {
     return { ready: false };
   }

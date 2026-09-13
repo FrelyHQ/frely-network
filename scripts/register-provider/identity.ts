@@ -138,6 +138,7 @@ function buildRegistrationMetadata(value: unknown, legacy: boolean) {
       x402Support: input.x402Support,
       capabilities: manifest.capabilities,
       payment: { protocol: manifest.payment.protocol, network: manifest.payment.network },
+      ...(manifest.offerings === undefined ? {} : { offerings: manifest.offerings }),
       ...(service.protocol === "a2a" ? { interfaces: [{ ...service }] } : {}),
     };
     // Reuse strict identity/endpoint validation without inventing availability.

@@ -126,6 +126,15 @@ export class ProviderIdentityResolver {
       if (!candidate.capabilities.every((capability) => manifest.capabilities.includes(capability))) {
         throw new Error("CAPABILITY_NOT_SUPPORTED");
       }
+      if (candidate.offering !== undefined) {
+        const offering = manifest.offerings?.find((item) => item.id === candidate.offering!.id);
+        if (!offering || offering.status !== "published" || JSON.stringify(offering) !== JSON.stringify(candidate.offering) ||
+            candidate.model !== offering.underlyingAgent.model ||
+            candidate.underlyingAgent?.agentId !== offering.underlyingAgent.agentId ||
+            !candidate.capabilities.every((capability) => offering.capabilities.includes(capability))) {
+          throw new Error("IDENTITY_VERIFICATION_FAILED");
+        }
+      }
       const ens = await this.ens.resolve(manifest.identity.ens, {
         registryAddress, agentId, blockNumber: identity.blockNumber,
       });
@@ -140,7 +149,17 @@ export class ProviderIdentityResolver {
       const endpoint = normalizeHttpsUrl(ens.endpoint);
       if (endpoint !== providerInterface.endpoint) throw new Error("ENS_ENDPOINT_MISMATCH");
       const card = await inspectAgentCard(providerInterface.agentCardUrl, endpoint, this.cardOptions);
-      return { id: agentId, ensName: manifest.identity.ens, ...card, protocol: "a2a", verified: true };
+      return {
+        id: agentId,
+        ensName: manifest.identity.ens,
+        ...card,
+        protocol: "a2a",
+        verified: true,
+        ...(candidate.source === undefined ? {} : { source: candidate.source }),
+        ...(candidate.model === undefined ? {} : { model: candidate.model }),
+        ...(candidate.underlyingAgent === undefined ? {} : { underlyingAgent: candidate.underlyingAgent }),
+        ...(candidate.offering === undefined ? {} : { offering: candidate.offering }),
+      };
     } catch (error) { throw verificationError(error); }
   }
 }

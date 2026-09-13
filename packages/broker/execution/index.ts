@@ -82,7 +82,7 @@ export class ResponsesInvocation implements CapabilityInvocationPort {
     let body: Uint8Array;
     try {
       body = new TextEncoder().encode(JSON.stringify({
-        model: request.model ?? this.defaultModel,
+        model: request.model ?? provider.model ?? this.defaultModel,
         input: request.input ?? request.task,
       }));
     } catch {
@@ -156,7 +156,7 @@ export class A2AServiceInvocation implements CapabilityInvocationPort {
 
     const endpoint = a2aEndpoint(provider.endpoint);
     const idempotency = idempotencyKey(correlationId);
-    const body = encodeA2AJsonRpcRequest(request, this.defaultModel, correlationId, idempotency, this.maxRequestBytes);
+    const body = encodeA2AJsonRpcRequest(request, provider.model ?? this.defaultModel, correlationId, idempotency, this.maxRequestBytes);
     const headers = cleanFrelyHeaders(this.config.headers);
     headers.set("accept", "application/json");
     headers.set("content-type", "application/json");

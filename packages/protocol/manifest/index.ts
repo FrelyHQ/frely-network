@@ -1,3 +1,5 @@
+import { validateOfferings, type NetworkOffering } from "@frely-network/offering";
+
 /** The Network integration payment profile; it does not claim native proof acceptance. */
 export const P0_PAYMENT_NETWORK = "hedera:testnet" as const;
 
@@ -35,6 +37,7 @@ export interface CapabilityProviderManifest {
     protocol: "x402";
     network: string;
   };
+  offerings?: NetworkOffering[];
 }
 
 export interface P0CapabilityProviderManifest {
@@ -50,8 +53,8 @@ export interface P0CapabilityProviderManifest {
     protocol: "x402";
     network: P0PaymentNetwork;
   };
+  offerings?: NetworkOffering[];
 }
-
 /** For management and historical audits only; never accepted by the P0 runtime. */
 export interface LegacyResponsesManifest extends Omit<P0CapabilityProviderManifest, "interfaces"> {
   interfaces: [ResponsesProviderInterface, ...ResponsesProviderInterface[]];
@@ -190,6 +193,31 @@ function validateProviderManifest(
     }
     if (value.payment.network !== P0_PAYMENT_NETWORK) {
       issues.push({ path: "payment.network", message: `must be "${P0_PAYMENT_NETWORK}" for P0` });
+    }
+  }
+
+  if (issues.length > 0) throw new ManifestValidationError(issues);
+  if (hasOwn(value, "offerings")) {
+    try {
+      const offerings = validateOfferings(value.offerings);
+      const manifestCapabilities = Array.isArray(value.capabilities)
+        ? value.capabilities.filter((capability): capability is string => typeof capability === "string")
+        : [];
+      const ensName = isRecord(value.identity) && typeof value.identity.ens === "string"
+        ? value.identity.ens.toLowerCase()
+        : undefined;
+      for (const offering of offerings) {
+        if (!offering.capabilities.every((capability) => manifestCapabilities.includes(capability))) {
+          issues.push({ path: "offerings", message: "capabilities must be a subset of manifest capabilities" });
+          break;
+        }
+        if (offering.publisherEnsName !== undefined && ensName !== offering.publisherEnsName) {
+          issues.push({ path: "offerings", message: "publisher ENS must match the Web3 Agent identity" });
+          break;
+        }
+      }
+    } catch {
+      issues.push({ path: "offerings", message: "must contain valid Network Offerings" });
     }
   }
 
