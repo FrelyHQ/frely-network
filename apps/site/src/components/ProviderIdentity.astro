@@ -1,0 +1,45 @@
+---
+const steps = [
+  { id: 'manifest', title: 'Describe the capability', tech: 'Provider Manifest', body: 'Declare the capabilities, service protocol and endpoint. Network validates the manifest before registration.' },
+  { id: 'registration', title: 'Register an identity', tech: 'ERC-8004', body: 'Connect an Agent ID to registration metadata that describes the provider and references its public service information.' },
+  { id: 'ens', title: 'Give it a readable name', tech: 'ENS', body: 'Bind a readable name to the service endpoint and agent registration. Cross-check the endpoint against the public Agent Card.' },
+  { id: 'discovery', title: 'Make it discoverable', tech: 'The Graph', body: 'Index registration information so clients can find candidate providers by capability, without scanning the chain.' },
+];
+---
+
+<section id="identity" class="story-section identity" aria-labelledby="identity-heading" data-testid="provider-identity">
+  <div class="story-heading-row" data-reveal>
+    <h2 id="identity-heading" class="story-heading">Give every capability<br /><span>a verifiable identity.</span></h2>
+    <p class="story-intro">A readable name. A registered identity. A service that can be found and cross-checked before a request is sent.</p>
+  </div>
+  <div class="identity-layout">
+    <ol class="identity-steps" aria-label="Provider registration steps">
+      {steps.map((step, index) => (
+        <li><button type="button" class="identity-step" data-identity-step={step.id} aria-pressed={index === 0 ? 'true' : 'false'} aria-controls="provider-record">
+          <span class="step-number">0{index + 1}</span>
+          <span><strong>{step.title}</strong><span class="identity-step-body">{step.body}</span><span class="identity-tech">{step.tech}</span></span>
+          <svg class="step-arrow" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" aria-hidden="true"><path d="M5 12h14m-6-6 6 6-6 6" /></svg>
+        </button></li>
+      ))}
+    </ol>
+    <div class="provider-tilt" data-provider-tilt>
+    <figure id="provider-record" class="provider-record" data-identity-active="manifest">
+      <figcaption><span>Provider identity</span><span>Illustrative example</span></figcaption>
+      <div class="provider-name"><img src="/favicon.png" width="38" height="38" alt="" /><h3>vision-basic<span>.frely.eth</span></h3></div>
+      <p class="provider-description">An image understanding capability, connected to the network.</p>
+      <dl class="provider-fields">
+        <div data-record-field="manifest"><dt>Manifest</dt><dd>Vision capability<span>A2A service protocol</span></dd></div>
+        <div data-record-field="registration"><dt>ERC-8004</dt><dd>Agent ID<span>Registration metadata reference</span></dd></div>
+        <div data-record-field="ens"><dt>ENS Resolver</dt><dd>HTTPS execution endpoint<span>Linked agent registration</span></dd></div>
+        <div data-record-field="discovery"><dt>The Graph</dt><dd>Indexed registration<span>Capability-based discovery</span></dd></div>
+      </dl>
+      <div class="agent-card-note"><span>Public Agent Card</span><p>Describes the supported protocol, input types and calling instructions. Network checks that it points to the same service.</p></div>
+    </figure>
+    </div>
+  </div>
+  <p class="identity-principle" data-reveal>The Graph finds candidates. <span>ENS, ERC-8004 and the Agent Card establish a consistent service identity.</span></p>
+</section>
+
+<script>
+  import "../scripts/identity-cards";
+</script>

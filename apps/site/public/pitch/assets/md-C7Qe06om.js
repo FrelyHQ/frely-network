@@ -1,0 +1,9 @@
+import{L as e,T as t,Y as n,_ as r,b as i,g as a,gt as o,mt as s,x as c}from"./modules/shiki-C2X_BFw-.js";import{nt as l,rt as u}from"./index-BYN2Bgyp.js";import{t as d}from"./slidev/CodeBlockWrapper-BKbKEXRN.js";import{t as f}from"./slidev/default-BjvFNN4O.js";var p={class:`slide-frame`},m={class:`slide-body`},h={__name:`slides.md__slidev_5`,setup(h){let{$slidev:g,$nav:_,$clicksContext:v,$clicks:y,$page:b,$renderContext:x,$frontmatter:S}=u();return v.setup(),(u,h)=>{let g=d;return e(),r(f,o(t(s(l)(s(S),4))),{default:n(()=>[a(`div`,p,[h[2]||=a(`div`,{class:`slide-head`},[a(`h1`,null,`How do Agents pay?`),a(`h3`,null,`Pay only when you use it.`)],-1),a(`div`,m,[c(g,{title:``,ranges:[]},{default:n(()=>[...h[0]||=[a(`pre`,{class:`shiki shiki-themes vitesse-dark vitesse-light slidev-code`,style:{"--shiki-dark":`#dbd7caee`,"--shiki-light":`#393a34`,"--shiki-dark-bg":`#121212`,"--shiki-light-bg":`#ffffff`}},[a(`code`,{class:`language-text`},[a(`span`,{class:`line`},[a(`span`,null,`Request`)]),i(`
+`),a(`span`,{class:`line`},[a(`span`,null,` ↓`)]),i(`
+`),a(`span`,{class:`line`},[a(`span`,null,`402 Payment Required`)]),i(`
+`),a(`span`,{class:`line`},[a(`span`,null,` ↓`)]),i(`
+`),a(`span`,{class:`line`},[a(`span`,null,`Quote`)]),i(`
+`),a(`span`,{class:`line`},[a(`span`,null,` ↓`)]),i(`
+`),a(`span`,{class:`line`},[a(`span`,null,`Hedera Payment`)]),i(`
+`),a(`span`,{class:`line`},[a(`span`,null,` ↓`)]),i(`
+`),a(`span`,{class:`line`},[a(`span`,null,`Execute`)])])],-1)]]),_:1}),h[1]||=a(`div`,{class:`kw-row mt-8`},[a(`span`,null,`Pay-per-call`),a(`span`,null,`No API Key`),a(`span`,null,`No Subscription`)],-1)]),h[3]||=a(`div`,{class:`slide-foot`},[a(`div`,{class:`tagline`},`Autonomous agents can purchase services without human-managed accounts.`),a(`div`,{class:`text-sm opacity-60 mt-2`},`Demo network: Hedera testnet`)],-1)])]),_:1},16)}}};export{h as default};
