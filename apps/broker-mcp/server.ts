@@ -1,5 +1,5 @@
 import { createBrokerRuntimeFromEnv } from "./runtime.ts";
-import { createFrelyX402ResponsesHandlerFromEnv } from "./frely-x402-resource.ts";
+import { createFrelyX402A2AHandlerFromEnv, createFrelyX402ResponsesHandlerFromEnv } from "./frely-x402-resource.ts";
 import { createBrokerMcpFetch } from "./service.ts";
 
 function port(value: string | undefined): number {
@@ -12,11 +12,12 @@ function port(value: string | undefined): number {
 
 const hostname = process.env.HOST?.trim() || "127.0.0.1";
 const runtime = createBrokerRuntimeFromEnv();
-const x402Responses = process.env.ENABLE_INBOUND_X402 === "true"
-  ? createFrelyX402ResponsesHandlerFromEnv()
-  : undefined;
+const x402Enabled = process.env.ENABLE_INBOUND_X402 === "true";
+const x402Responses = x402Enabled ? createFrelyX402ResponsesHandlerFromEnv() : undefined;
+const x402A2A = x402Enabled ? createFrelyX402A2AHandlerFromEnv() : undefined;
 const brokerMcpFetch = createBrokerMcpFetch(runtime, {
   ...(x402Responses === undefined ? {} : { x402Responses }),
+  ...(x402A2A === undefined ? {} : { x402A2A }),
   requireX402Responses: false,
   staticRoot: process.env.FRELY_NETWORK_SITE_ROOT || "/app/site",
 });
@@ -31,4 +32,5 @@ console.log(JSON.stringify({
   hostname: server.hostname,
   port: server.port,
   x402Responses: x402Responses === undefined ? "not_configured" : "configured",
+  x402A2A: x402A2A === undefined ? "not_configured" : "configured",
 }));

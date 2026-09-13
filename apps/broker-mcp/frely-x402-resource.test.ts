@@ -2,10 +2,12 @@ import { describe, expect, test } from "bun:test";
 
 import { X402Gateway, type X402ReplayStore } from "@frely-network/x402-gateway";
 import type { PaymentRequired } from "@frely-network/hedera-x402";
-import { createFrelyX402ResponsesHandler } from "./frely-x402-resource.ts";
+import { createFrelyX402A2AHandler, createFrelyX402ResponsesHandler } from "./frely-x402-resource.ts";
 
 const RESOURCE = "https://network.frely.cloud/x402/frely/responses";
 const UPSTREAM = "https://api.frely.cloud/v1/responses";
+const A2A_RESOURCE = "https://network.frely.cloud/x402/frely/a2a";
+const A2A_UPSTREAM = "https://api.frely.cloud/a2a";
 const requirement = {
   scheme: "exact",
   network: "hedera:testnet",
@@ -140,6 +142,75 @@ describe("Network-owned Frely x402 Responses resource", () => {
     expect(replay.status).toBe(402);
     expect((await replay.json()) as Record<string, unknown>).toMatchObject({ error: "PAYMENT_REPLAYED" });
     expect(upstreamCalls).toBe(1);
+  });
+});
+
+describe("Network-owned Frely x402 A2A resource", () => {
+  test("uses x402 at Network and a normal Frely API key upstream", async () => {
+    const a2aRequirement = { ...requirement };
+    const a2aRequirements: PaymentRequired = {
+      x402Version: 2,
+      resource: { url: A2A_RESOURCE },
+      accepts: [a2aRequirement],
+    };
+    const a2aPayment = {
+      x402Version: 2,
+      resource: { url: A2A_RESOURCE },
+      accepted: a2aRequirement,
+      payload: { transaction: "signed-a2a-in-test" },
+    };
+    let captured: { url: string; headers: Headers; body: string } | undefined;
+    const gateway = new X402Gateway({
+      network: "hedera:testnet",
+      verifier: { verify: async () => ({ isValid: true, payer: "0.0.77" }) },
+      settler: { settle: async () => ({ success: true, network: "hedera:testnet", transaction: "0.0.901@1.000000000" }) },
+      replayStore: replayStore(),
+      now: () => Date.parse("2026-09-11T10:00:00.000Z"),
+    });
+    const handler = createFrelyX402A2AHandler({
+      resourceUrl: A2A_RESOURCE,
+      upstreamUrl: A2A_UPSTREAM,
+      apiKey: "frely-api-key",
+      requirements: a2aRequirements,
+      gateway,
+      fetcher: async (input, init) => {
+        captured = { url: String(input), headers: new Headers(init.headers), body: String(init.body ?? "") };
+        return Response.json({ jsonrpc: "2.0", id: "demo-1", result: { kind: "task", id: "task-1", status: { state: "completed" }, artifacts: [] } }, {
+          headers: { "x-request-id": "req-a2a-1" },
+        });
+      },
+    });
+    const body = {
+      jsonrpc: "2.0",
+      id: "demo-1",
+      method: "message/send",
+      params: { message: { kind: "message", role: "user", messageId: "msg-1", parts: [{ kind: "text", text: "hello" }] } },
+    };
+    const response = await handler(new Request(A2A_RESOURCE, {
+      method: "POST",
+      headers: {
+        "content-type": "application/json",
+        "payment-signature": encode(a2aPayment),
+        "payment-required": "must-not-cross",
+        "x-payment": "must-not-cross",
+        authorization: "Bearer untrusted-client-value",
+        "idempotency-key": "demo-1",
+        "x-a2a-agent-id": "consumer-agent",
+      },
+      body: JSON.stringify(body),
+    }));
+
+    expect(response.status).toBe(200);
+    expect(response.headers.get("payment-response")).toBeTruthy();
+    expect(response.headers.get("x-request-id")).toBe("req-a2a-1");
+    expect(captured?.url).toBe(A2A_UPSTREAM);
+    expect(captured?.headers.get("authorization")).toBe("Bearer frely-api-key");
+    expect(captured?.headers.get("idempotency-key")).toBe("demo-1");
+    expect(captured?.headers.get("x-a2a-agent-id")).toBe("consumer-agent");
+    expect(captured?.headers.get("payment-signature")).toBeNull();
+    expect(captured?.headers.get("payment-required")).toBeNull();
+    expect(captured?.headers.get("x-payment")).toBeNull();
+    expect(JSON.parse(captured?.body ?? "{}")).toEqual(body);
   });
 });
 
