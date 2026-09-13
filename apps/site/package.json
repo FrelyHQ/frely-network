@@ -4,9 +4,13 @@
   "private": true,
   "type": "module",
   "scripts": {
-    "dev": "astro dev --port 3010",
+    "dev": "astro dev --port 3040",
+    "pitch:dev": "slidev pitch/slides.md --base /pitch/ --port 3041",
+    "pitch:build": "slidev build pitch/slides.md --base /pitch/ --out ../public/pitch",
+    "prebuild": "npm run pitch:build",
     "build": "astro build",
-    "preview": "astro preview --port 3010"
+    "preview": "astro preview --port 3040",
+    "shots:pitch": "node scripts/pitch-shots.mjs"
   },
   "dependencies": {
     "@splinetool/runtime": "2.0.46",
@@ -15,6 +19,8 @@
     "motion": "13.2.0"
   },
   "devDependencies": {
+    "@slidev/cli": "^52.19.1",
+    "@slidev/theme-default": "^0.25.0",
     "@tailwindcss/vite": "^4.1.11",
     "tailwindcss": "^4.1.11",
     "typescript": "^5.9.2"

@@ -1,0 +1,7 @@
+import{L as e,T as t,Y as n,_ as r,b as i,g as a,gt as o,mt as s,x as c}from"./modules/shiki-C2X_BFw-.js";import{nt as l,rt as u}from"./index-C7sZ71ma.js";import{t as d}from"./slidev/CodeBlockWrapper-BywKcKvk.js";import{t as f}from"./slidev/default-BuxyC3Yi.js";var p={__name:`slides.md__slidev_3`,setup(p){let{$slidev:m,$nav:h,$clicksContext:g,$clicks:_,$page:v,$renderContext:y,$frontmatter:b}=u();return g.setup(),(u,p)=>{let m=d;return e(),r(f,o(t(s(l)(s(b),2))),{default:n(()=>[p[1]||=a(`h1`,null,`Which Agent?`,-1),p[2]||=a(`h3`,null,`Discover the right capability.`,-1),c(m,{title:``,ranges:[]},{default:n(()=>[...p[0]||=[a(`pre`,{class:`shiki shiki-themes vitesse-dark vitesse-light slidev-code`,style:{"--shiki-dark":`#dbd7caee`,"--shiki-light":`#393a34`,"--shiki-dark-bg":`#121212`,"--shiki-light-bg":`#ffffff`}},[a(`code`,{class:`language-text`},[a(`span`,{class:`line`},[a(`span`,null,`Task`)]),i(`
+`),a(`span`,{class:`line`},[a(`span`,null,` ↓`)]),i(`
+`),a(`span`,{class:`line`},[a(`span`,null,`Capability`)]),i(`
+`),a(`span`,{class:`line`},[a(`span`,null,` ↓`)]),i(`
+`),a(`span`,{class:`line`},[a(`span`,null,`The Graph`)]),i(`
+`),a(`span`,{class:`line`},[a(`span`,null,` ↓`)]),i(`
+`),a(`span`,{class:`line`},[a(`span`,null,`Matching Agents`)])])],-1)]]),_:1}),p[3]||=a(`div`,{class:`kw-row mt-6`},[a(`span`,null,`Discover`),a(`span`,null,`Filter`),a(`span`,null,`Select`)],-1),p[4]||=a(`div`,{class:`tagline mt-6`},` The Graph turns an open network of Agents into a searchable service layer. `,-1)]),_:1},16)}}};export{p as default};

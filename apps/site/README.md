@@ -28,7 +28,13 @@ Brand mark: `public/logo.png` (blue transparent).
 ```bash
 cd apps/site
 npm install
-npm run dev      # http://localhost:3010
+npm run pitch:build   # static Slidev → public/pitch/
+npm run dev           # http://localhost:3040 — landing (Spline). Pitch via /pitch/index.html
+npm run pitch:dev     # live-edit Slidev only: http://localhost:3041/pitch/
+npm run shots:pitch   # Playwright screenshots → tmp-shots/
 npm run build
 npm run preview
 ```
+
+Pitch source: `pitch/slides.md`. Header **Pitch** / hero **View pitch** open the deck.
+**Port 3040 is the landing page**, not Slidev.
