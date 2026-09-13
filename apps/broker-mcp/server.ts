@@ -1,3 +1,4 @@
+import { createConsumerGatewayFromEnv } from "./consumer/service.ts";
 import { createBrokerRuntimeFromEnv } from "./runtime.ts";
 import { createFrelyX402ResponsesHandlerFromEnv } from "./frely-x402-resource.ts";
 import { createBrokerMcpFetch } from "./service.ts";
@@ -18,6 +19,8 @@ const x402Responses = process.env.ENABLE_INBOUND_X402 === "true"
 const brokerMcpFetch = createBrokerMcpFetch(runtime, {
   ...(x402Responses === undefined ? {} : { x402Responses }),
   requireX402Responses: false,
+  consumerGateway: createConsumerGatewayFromEnv(runtime),
+  requireConsumerAuthorization: true,
   staticRoot: process.env.FRELY_NETWORK_SITE_ROOT || "/app/site",
 });
 const server = Bun.serve({

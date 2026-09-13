@@ -2,7 +2,7 @@ import { A2AServiceInvocation, Broker, ProtocolInvocation, ResponsesInvocation }
 import { TheGraphDiscovery } from "@frely-network/the-graph";
 import { ViemEnsReader } from "@frely-network/ens";
 import { ProviderIdentityResolver, ViemErc8004Reader } from "@frely-network/erc8004";
-import { isSafePublicHttpUrl } from "@frely-network/shared-types";
+import { BrokerError, type ResolvedProvider, type CapabilityRequest, isSafePublicHttpUrl } from "@frely-network/shared-types";
 import type { Address } from "viem";
 import type { BrokerRuntime } from "./service.ts";
 import { FrelyAccountBillingClient } from "./frely-account-billing.ts";
@@ -45,7 +45,17 @@ export function createBrokerRuntimeFromEnv(environment: RuntimeEnvironment = pro
       ...(required(environment, "FRELY_NETWORK_A2A_AGENT_ID") ? { agentId: required(environment, "FRELY_NETWORK_A2A_AGENT_ID") } : {}),
       defaultModel: required(environment, "FRELY_A2A_DEFAULT_MODEL"),
     });
-    const invocation = new ProtocolInvocation({ responses, a2a });
+    const transportInvocation = new ProtocolInvocation({ responses, a2a });
+    const frelyOrigin = required(environment, "FRELY_API_ORIGIN") ?? "https://api.frely.cloud";
+    if (!isSafePublicHttpUrl(frelyOrigin, { requireHttps: true }) || new URL(frelyOrigin).pathname !== "/" || new URL(frelyOrigin).search || new URL(frelyOrigin).hash) return { ready: false };
+    const invocation = {
+      invoke(provider: ResolvedProvider, request: CapabilityRequest, correlationId: string) {
+        // A verified publisher must not be able to redirect the platform credential to another origin.
+        const endpoint = new URL(provider.endpoint);
+        if (endpoint.origin !== new URL(frelyOrigin).origin || endpoint.username || endpoint.password || endpoint.hash) throw new BrokerError("IDENTITY_VERIFICATION_FAILED");
+        return transportInvocation.invoke(provider, request, correlationId);
+      },
+    };
     const identity = new ProviderIdentityResolver(
       new ViemEnsReader({ rpcUrl: ensRpcUrl }),
       new ViemErc8004Reader({ rpcUrl: ensRpcUrl, registryAddress: registry }),
@@ -59,7 +69,7 @@ export function createBrokerRuntimeFromEnv(environment: RuntimeEnvironment = pro
       }),
       identity,
       invocation,
-    });
+    }, { billingMode: "frely_account", discoverySource: "the_graph", registryChainId: "11155111" });
     return { ready: true, broker };
   } catch {
     return { ready: false };

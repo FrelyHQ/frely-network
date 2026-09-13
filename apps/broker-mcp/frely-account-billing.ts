@@ -18,6 +18,8 @@ export class FrelyAccountBillingClient {
     headers.delete("x-payment-proof");
     const response = await this.fetcher(request.url, {
       method: request.method,
+      redirect: "error",
+      signal: AbortSignal.timeout(30_000),
       headers,
       body: request.body ? request.body as unknown as BodyInit : undefined,
     });

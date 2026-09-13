@@ -21,6 +21,9 @@ export interface BrokerDependencies {
 export interface BrokerConfig {
   idFactory?: () => string;
   maxTaskLength?: number;
+  billingMode?: "x402" | "frely_account";
+  discoverySource?: string;
+  registryChainId?: string;
 }
 
 function validateRequest(request: CapabilityRequest): CapabilityRequest {
@@ -44,7 +47,7 @@ export class Broker {
 
   constructor(
     private readonly dependencies: BrokerDependencies,
-    config: BrokerConfig = {},
+    private readonly config: BrokerConfig = {},
   ) {
     this.idFactory = config.idFactory ?? (() => crypto.randomUUID());
     this.maxTaskLength = config.maxTaskLength ?? 16_384;
@@ -52,7 +55,7 @@ export class Broker {
   }
 
   async findCapability(capabilities: unknown): Promise<CapabilityDescriptor[]> {
-    const discovered = await discoverVerified(this.dependencies.discovery, this.dependencies.identity, capabilities);
+    const discovered = await discoverVerified(this.dependencies.discovery, this.dependencies.identity, capabilities, { requireX402: this.config.billingMode !== "frely_account" });
     return discovered.candidates
       .sort((left, right) => left.provider.id.localeCompare(right.provider.id))
       .map(({ provider, candidate }) => ({
@@ -71,8 +74,10 @@ export class Broker {
       this.dependencies.discovery,
       this.dependencies.identity,
       validated.capabilities,
+      { requireX402: this.config.billingMode !== "frely_account" },
     );
-    const selected = selectVerifiedCandidate(discovered.candidates, discovered.capabilities);
+    const discoveryTimestamp = new Date().toISOString();
+    const selected = selectVerifiedCandidate(discovered.candidates, discovered.capabilities, { requireX402: this.config.billingMode !== "frely_account" });
     const correlationId = this.idFactory();
     let invocation;
     try {
@@ -81,7 +86,7 @@ export class Broker {
       if (error instanceof BrokerError) throw error;
       throw new BrokerError("PROVIDER_REQUEST_FAILED");
     }
-    if (!invocation.payment) throw new BrokerError("PAYMENT_REQUIRED");
+    if (!invocation.payment && this.config.billingMode !== "frely_account") throw new BrokerError("PAYMENT_REQUIRED");
     return {
       provider: {
         id: selected.provider.id,
@@ -89,7 +94,12 @@ export class Broker {
         capabilities: [...selected.candidate.capabilities],
         protocol: selected.provider.protocol,
       },
-      payment: invocation.payment,
+      ...(invocation.payment ? { payment: invocation.payment } : { billing: { mode: "frely_account" as const } }),
+      ...(this.config.discoverySource ? { evidence: {
+        discoverySource: this.config.discoverySource,
+        ...(this.config.registryChainId ? { registryChainId: this.config.registryChainId } : {}),
+        discoveryTimestamp, identityVerified: true as const,
+      } } : {}),
       output: invocation.output,
       correlationId,
     };

@@ -1,3 +1,5 @@
+import { ConsumerError } from "./consumer/store.ts";
+import type { ConsumerGateway } from "./consumer/service.ts";
 import {
   BrokerError,
   type CapabilityRequest,
@@ -13,6 +15,8 @@ export interface BrokerMcpServiceOptions {
   readonly x402Responses?: (request: Request) => Response | Promise<Response>;
   readonly requireX402Responses?: boolean;
   readonly staticRoot?: string;
+  readonly consumerGateway?: ConsumerGateway;
+  readonly requireConsumerAuthorization?: boolean;
 }
 
 export interface BrokerService {
@@ -51,7 +55,7 @@ function rpcError(id: string | number | null, code: number, message: string, sta
   return json({ jsonrpc: "2.0", id, error: { code, message } }, status);
 }
 
-function tools(): unknown[] {
+function tools(consumerMode = false): unknown[] {
   return [
     {
       name: "find_capability",
@@ -65,17 +69,17 @@ function tools(): unknown[] {
     },
     {
       name: "use_capability",
-      description: "Pay for and invoke a verified Responses or Frely A2A capability.",
+      description: "Invoke a verified capability. Consumer calls use platform demo quota, not wallet spending. Retain requestId when retrying.",
       inputSchema: {
         type: "object",
         properties: {
           capabilities: { type: "array", items: { type: "string" }, minItems: 1 },
           task: { type: "string", minLength: 1 },
+          ...(consumerMode ? { requestId: { type: "string", format: "uuid" } } : {}),
           input: {},
-          model: { type: "string" },
-          maxAmount: { type: "string", pattern: "^[0-9]+$" },
+          ...(!consumerMode ? { model: { type: "string" }, maxAmount: { type: "string", pattern: "^[0-9]+$" } } : {}),
         },
-        required: ["capabilities", "task"],
+        required: consumerMode ? ["capabilities", "task", "input", "requestId"] : ["capabilities", "task"],
         additionalProperties: false,
       },
     },
@@ -101,7 +105,7 @@ function capabilityRequest(args: Record<string, unknown>): CapabilityRequest {
   };
 }
 
-async function handleMcp(request: Request, runtime: BrokerRuntime): Promise<Response> {
+async function handleMcp(request: Request, runtime: BrokerRuntime, options: BrokerMcpServiceOptions): Promise<Response> {
   const raw = await request.text();
   if (new TextEncoder().encode(raw).byteLength > MAX_MCP_BODY_BYTES) return rpcError(null, -32600, "INVALID_REQUEST", 413);
   let message: Record<string, unknown>;
@@ -129,7 +133,7 @@ async function handleMcp(request: Request, runtime: BrokerRuntime): Promise<Resp
     });
   }
   if (message.method === "ping") return rpcResult(id, {});
-  if (message.method === "tools/list") return rpcResult(id, { tools: tools() });
+  if (message.method === "tools/list") return rpcResult(id, { tools: tools(Boolean(options.consumerGateway || options.requireConsumerAuthorization)) });
   if (message.method !== "tools/call") return rpcError(id, -32601, "METHOD_NOT_FOUND");
   if (!runtime.ready || !runtime.broker) return rpcError(id, -32004, "BROKER_NOT_READY", 503);
 
@@ -139,10 +143,13 @@ async function handleMcp(request: Request, runtime: BrokerRuntime): Promise<Resp
       : {};
     const name = params.name;
     const args = parseToolArguments(params.arguments ?? {});
+    if (options.consumerGateway) return rpcResult(id, toolText(await options.consumerGateway.mcp(request, name, args)));
+    if (options.requireConsumerAuthorization) throw new ConsumerError("NETWORK_ONBOARDING_NOT_CONFIGURED", 503);
     if (name === "find_capability") return rpcResult(id, toolText(await runtime.broker.findCapability(args.capabilities)));
     if (name === "use_capability") return rpcResult(id, toolText(await runtime.broker.useCapability(capabilityRequest(args))));
     return rpcError(id, -32602, "INVALID_REQUEST");
   } catch (error) {
+    if (error instanceof ConsumerError) return rpcError(id, -32001, error.code, error.status);
     if (error instanceof BrokerError) return rpcError(id, -32001, error.code);
     return rpcError(id, -32001, "BROKER_REQUEST_FAILED");
   }
@@ -165,9 +172,18 @@ async function serveStatic(request: Request, root: string | undefined): Promise<
   }
   const file = Bun.file(join(root, normalized));
   if (!(await file.exists())) return undefined;
-  return new Response(file, {
-    headers: { "cache-control": "public, max-age=3600" },
-  });
+  const headers = new Headers({ "cache-control": "public, max-age=3600", "x-content-type-options": "nosniff" });
+  if (pathname === "/SKILL.md") {
+    headers.set("content-type", "text/markdown; charset=utf-8");
+    headers.set("cache-control", "public, max-age=300");
+  }
+  if (pathname.startsWith("/connect")) {
+    headers.set("cache-control", "no-store");
+    headers.set("referrer-policy", "no-referrer");
+    headers.set("x-frame-options", "DENY");
+    headers.set("content-security-policy", "default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data:; connect-src 'self'; frame-ancestors 'none'; base-uri 'none'; object-src 'none'; form-action 'self'");
+  }
+  return new Response(request.method === "HEAD" ? null : file, { headers });
 }
 
 export async function brokerMcpFetch(request: Request): Promise<Response> {
@@ -183,6 +199,14 @@ export function createBrokerMcpFetch(
   const options = isBrokerRuntime(input) ? suppliedOptions : input;
   return async (request) => {
     const pathname = new URL(request.url).pathname;
+    if (pathname.startsWith("/api/network/")) {
+      return options.consumerGateway
+        ? (await options.consumerGateway.handle(request)) ?? json({ code: "NOT_FOUND" }, 404)
+        : json({ code: "NETWORK_ONBOARDING_NOT_CONFIGURED" }, 503);
+    }
+    if (request.method === "GET" && (pathname === "/connect" || pathname === "/onboarding")) {
+      return new Response(null, { status: 308, headers: { location: `${pathname}/`, "cache-control": "no-store" } });
+    }
     if (pathname === "/x402/frely/responses") {
       return options.x402Responses
         ? Promise.resolve(options.x402Responses(request))
@@ -199,7 +223,7 @@ export function createBrokerMcpFetch(
       }
       return json({ service: SERVICE, status: "ready" });
     }
-    if (request.method === "POST" && url.pathname === "/mcp") return handleMcp(request, runtime);
+    if (request.method === "POST" && url.pathname === "/mcp") return handleMcp(request, runtime, options);
     const staticResponse = await serveStatic(request, options.staticRoot);
     if (staticResponse) return staticResponse;
     return json({ code: "NOT_FOUND" }, 404);

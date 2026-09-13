@@ -1,0 +1,37 @@
+---
+const prompt = "Fetch https://network.frely.cloud/SKILL.md and follow the setup instructions.";
+---
+<section class="agent-connect" id="connect-agent" aria-labelledby="connect-agent-title">
+  <div class="agent-connect-inner">
+    <p class="eyebrow">CONNECT YOUR AGENT</p>
+    <h2 id="connect-agent-title">One prompt.<br />An open network of capabilities.</h2>
+    <p class="intro">Paste this prompt into your agent. It will prepare the client and give you a link to connect your wallet.</p>
+    <label for="network-install-prompt">Installation prompt</label>
+    <div class="prompt-card">
+      <textarea id="network-install-prompt" readonly rows="3" spellcheck="false" aria-label="Frely Network installation prompt">{prompt}</textarea>
+      <button type="button" data-copy-prompt data-testid="copy-network-prompt">Copy prompt</button>
+    </div>
+    <p class="copy-status" data-copy-status role="status" aria-live="polite"></p>
+    <p class="requirements">A shell or a connected FrelyMCP is required. ChatGPT uses its existing bridge; Claude Code and OpenCode can use their terminal tools. Node.js 22 or newer is required.</p>
+    <a href="/SKILL.md">Read the setup instructions</a>
+  </div>
+</section>
+<script>
+  import "../scripts/copy-network-prompt";
+</script>
+<style>
+  .agent-connect { padding: 7rem 1.5rem; background: #070b15; color: #edf2ff; scroll-margin-top: 5rem; }
+  .agent-connect-inner { max-width: 780px; margin: auto; }
+  .eyebrow { color: #87aaff; letter-spacing: .14em; font: 600 .75rem/1.5 system-ui; }
+  h2 { margin: 1rem 0; font: 600 clamp(2rem, 5vw, 3.4rem)/1.12 system-ui; letter-spacing: -.04em; }
+  .intro { max-width: 620px; color: #bdc9df; font: 400 1.05rem/1.7 system-ui; margin-bottom: 2rem; }
+  label { display: block; font: 500 .82rem/1.5 system-ui; color: #bdc9df; margin-bottom: .7rem; }
+  .prompt-card { border: 1px solid #344363; border-radius: 16px; padding: 1.1rem; background: #0d1425; }
+  textarea { display: block; width: 100%; background: transparent; border: 0; padding: 0; resize: none; color: #f4f7ff; font: .93rem/1.65 ui-monospace, monospace; }
+  textarea:focus-visible { outline: 2px solid #87aaff; outline-offset: 4px; }
+  button { margin-top: .8rem; border: 0; border-radius: 9px; background: #537dff; color: white; padding: .75rem 1.1rem; font: 600 .9rem system-ui; cursor: pointer; }
+  button:focus-visible, a:focus-visible { outline: 2px solid #a8c2ff; outline-offset: 4px; }
+  .requirements { color: #8f9db7; font: .87rem/1.6 system-ui; }
+  .copy-status { min-height: 1.25rem; color: #b5caff; font: .85rem/1.5 system-ui; }
+  a { color: #b5caff; font: .9rem/1.5 system-ui; text-decoration: underline; text-underline-offset: .25rem; }
+</style>

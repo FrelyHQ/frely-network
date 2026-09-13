@@ -1,3 +1,4 @@
+export {};
 // OptionWheel's arc and exponential smoothing, adapted to Astro and two linked views.
 // Source: https://reactbits.dev/r/OptionWheel-TS-TW.json. No sound is loaded or played.
 const section = document.querySelector<HTMLElement>("#flow")!;

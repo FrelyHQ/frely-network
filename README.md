@@ -117,3 +117,9 @@ milestones, goals, deadlines, and evidence gates. See
 [`docs/architecture.md`](docs/architecture.md) for the Broker execution path
 and [`docs/sponsor-integrations.md`](docs/sponsor-integrations.md) for The
 Graph, ENS, ERC-8004, and Hedera responsibilities.
+
+## Consumer onboarding
+
+The consumer feature source is documented in [Consumer onboarding](docs/consumer-onboarding.md). The [verification record](docs/verification/2026-09-13-consumer-onboarding.md) separates unit tests, browser fixtures and cross-repository fixtures from live acceptance. The [implementation record](docs/superpowers/plans/2026-09-13-consumer-onboarding-implementation.md) records worktree ownership and documentation scope.
+
+The public entry is `/SKILL.md`; the website routes are `/onboarding/` and `/connect/`. The feature requires an enabled consumer gateway, a persistent private SQLite volume and the Frely service configuration. Production MCP calls without consumer authorization are rejected. The demo payment mode is `platform_demo`, not Hedera settlement.

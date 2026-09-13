@@ -1,0 +1,19 @@
+---
+import ConsumerLayout from "../layouts/ConsumerLayout.astro";
+import ConnectAgent from "../components/ConnectAgent.astro";
+---
+<ConsumerLayout title="Connect your agent">
+  <ConnectAgent />
+  <section class="steps" aria-label="Setup overview">
+    <article><span>01</span><h3>Prepare the client</h3><p>Your agent checks its tools and installs the Network client or Skill.</p></article>
+    <article><span>02</span><h3>Connect your wallet</h3><p>Open the link from your agent, compare the request code, and sign in. No transfers or token approvals.</p></article>
+    <article><span>03</span><h3>Ask a question</h3><p>Ask about an Ethereum wallet address. The Network finds a service and returns source-backed risk signals.</p></article>
+  </section>
+</ConsumerLayout>
+<style>
+  .steps { max-width: 1000px; margin: 0 auto 6rem; padding: 0 1.5rem; display: grid; grid-template-columns: repeat(3, 1fr); gap: 2rem; }
+  span { color: #87aaff; font-size: .8rem; }
+  h3 { font-size: 1rem; }
+  p { color: #8f9db7; font-size: .9rem; line-height: 1.7; }
+  @media (max-width: 650px) { .steps { grid-template-columns: 1fr; } }
+</style>

@@ -19,10 +19,11 @@ export function normalizeCapabilities(value: unknown): string[] {
 export function selectVerifiedCandidate(
   candidates: VerifiedCandidate[],
   capabilities: string[],
+  options: { requireX402?: boolean } = {},
 ): VerifiedCandidate {
   const eligible = candidates
     .filter(({ candidate, provider }) =>
-      candidate.supportsX402 &&
+      (options.requireX402 === false || candidate.supportsX402) &&
       provider.verified &&
       (provider.protocol === "responses" || provider.protocol === "a2a") &&
       capabilities.every((capability) => candidate.capabilities.includes(capability)),

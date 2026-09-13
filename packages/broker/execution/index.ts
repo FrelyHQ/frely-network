@@ -166,7 +166,7 @@ export class A2AServiceInvocation implements CapabilityInvocationPort {
 
     let response: Response;
     try {
-      response = await this.fetcher(endpoint, { method: "POST", headers, body });
+      response = await this.fetcher(endpoint, { method: "POST", headers, body, redirect: "error", signal: AbortSignal.timeout(30_000) });
     } catch {
       throw new BrokerError("PROVIDER_REQUEST_FAILED");
     }

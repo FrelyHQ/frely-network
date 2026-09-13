@@ -29,6 +29,7 @@ export async function discoverVerified(
   discovery: ProviderDiscoveryPort,
   identity: ProviderIdentityPort,
   requestedCapabilities: unknown,
+  options: { requireX402?: boolean } = {},
 ): Promise<{ capabilities: string[]; candidates: VerifiedCandidate[] }> {
   const capabilities = normalizeCapabilities(requestedCapabilities);
   let discovered: ProviderCandidate[];
@@ -41,7 +42,7 @@ export async function discoverVerified(
 
   const candidates: VerifiedCandidate[] = [];
   for (const candidate of discovered) {
-    if (!isProviderCandidate(candidate) || !candidate.supportsX402 || !capabilities.every((capability) => candidate.capabilities.includes(capability))) continue;
+    if (!isProviderCandidate(candidate) || (options.requireX402 !== false && !candidate.supportsX402) || !capabilities.every((capability) => candidate.capabilities.includes(capability))) continue;
     try {
       const provider = await identity.resolveProvider(candidate);
       if (provider.verified && (provider.protocol === "responses" || provider.protocol === "a2a")) candidates.push({ candidate, provider });

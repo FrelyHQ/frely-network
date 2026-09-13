@@ -1,0 +1,28 @@
+---
+interface Props { title: string; }
+const { title } = Astro.props;
+---
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <meta name="referrer" content="no-referrer" />
+    <title>{title} — Frely Network</title>
+    <link rel="icon" href="/favicon.png" />
+  </head>
+  <body>
+    <header><a href="/" aria-label="Frely Network home"><img src="/logo.png" width="144" height="38" alt="Frely Network" /></a><a href="/onboarding/">Setup instructions</a></header>
+    <main><slot /></main>
+  </body>
+</html>
+<style is:global>
+  * { box-sizing: border-box; }
+  body { margin: 0; background: #070b15; color: #edf2ff; font-family: system-ui, -apple-system, sans-serif; }
+  header { max-width: 1000px; padding: 1.5rem; margin: auto; display: flex; align-items: center; justify-content: space-between; gap: 1rem; }
+  header img { width: 144px; height: auto; display: block; }
+  header a { color: #b5caff; font-size: .9rem; text-underline-offset: .2rem; }
+  button, input, textarea { font: inherit; }
+  button:disabled { opacity: .45; cursor: not-allowed; }
+  [hidden] { display: none !important; }
+</style>

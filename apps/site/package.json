@@ -10,7 +10,8 @@
     "prebuild": "npm run pitch:build",
     "build": "astro build",
     "preview": "astro preview --port 3040",
-    "shots:pitch": "node scripts/pitch-shots.mjs"
+    "shots:pitch": "node scripts/pitch-shots.mjs",
+    "test:onboarding": "node scripts/onboarding-browser-smoke.mjs"
   },
   "dependencies": {
     "@splinetool/runtime": "2.0.46",
@@ -19,6 +20,7 @@
     "motion": "13.2.0"
   },
   "devDependencies": {
+    "@playwright/test": "1.63.0",
     "@slidev/cli": "^52.19.1",
     "@slidev/theme-default": "^0.25.0",
     "@tailwindcss/vite": "^4.1.11",

@@ -53,7 +53,9 @@ export interface CapabilityResult {
     capabilities: string[];
     protocol: ProviderProtocol;
   };
-  payment: PaymentEvidence;
+  payment?: PaymentEvidence;
+  billing?: { mode: "frely_account" };
+  evidence?: { discoverySource: string; registryChainId?: string; discoveryTimestamp: string; identityVerified: true };
   output: unknown;
   correlationId: string;
 }

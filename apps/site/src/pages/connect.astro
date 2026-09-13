@@ -1,0 +1,55 @@
+---
+import ConsumerLayout from "../layouts/ConsumerLayout.astro";
+---
+<ConsumerLayout title="Authorize your agent">
+  <section class="wallet-card" aria-labelledby="wallet-title">
+    <p class="eyebrow">DEVICE AUTHORIZATION</p>
+    <h1 id="wallet-title">Connect your wallet.<br />Keep control of your funds.</h1>
+    <p class="lead">This signature authorizes your agent to discover services and use platform demo calls. It does not authorize transfers or token spending.</p>
+    <p id="connection-status" role="status" aria-live="polite">Loading the device request…</p>
+    <div id="request-details" hidden>
+      <dl><div><dt>Client</dt><dd id="client-name"></dd></div><div><dt>Request code</dt><dd id="user-code"></dd></div><div><dt>Expires</dt><dd id="request-expiry"></dd></div><div><dt>Payment</dt><dd>Platform demo quota — no wallet charge</dd></div></dl>
+      <label class="confirm-code"><input id="confirm-code" type="checkbox" /> This code matches the code shown by my agent.</label>
+      <button id="connect-wallet" disabled>Connect wallet</button>
+      <div id="signature-preview" hidden>
+        <p id="wallet-address"></p>
+        <h2>Review the sign-in message</h2>
+        <pre id="siwe-message"></pre>
+        <button id="authorize-device" disabled>Sign in and authorize this device</button>
+      </div>
+      <button id="reject-device" class="secondary">Reject request</button>
+    </div>
+    <div id="connection-complete" hidden>
+      <h2>Connection complete</h2>
+      <p>Return to your agent and enter a request. The next client call will retrieve the authorization.</p>
+      <p class="example">“Check this Ethereum mainnet address for scam risk: 0x…”</p>
+    </div>
+    <p class="limit-note">This release supports browser EVM wallets with externally owned accounts. It does not support smart-account signatures or WalletConnect. A wallet connection is not a transfer approval.</p>
+  </section>
+</ConsumerLayout>
+<script>
+  import "../scripts/connect-wallet";
+</script>
+<style>
+  .wallet-card { max-width: 720px; margin: 3rem auto 6rem; padding: 0 1.5rem; }
+  .eyebrow { color: #87aaff; font-size: .75rem; font-weight: 600; letter-spacing: .14em; }
+  h1 { font-size: clamp(2rem, 5vw, 2.8rem); line-height: 1.15; letter-spacing: -.04em; }
+  .lead { color: #bdc9df; line-height: 1.75; }
+  #connection-status { padding: 1rem; border: 1px solid #344363; border-radius: 10px; color: #b5caff; line-height: 1.6; }
+  dl { margin: 1.5rem 0; border-bottom: 1px solid #27324b; padding-bottom: 1rem; }
+  dl div { display: grid; grid-template-columns: 105px 1fr; gap: 1rem; margin: .8rem 0; }
+  dt { color: #8f9db7; font-size: .85rem; }
+  dd { margin: 0; font-size: .9rem; overflow-wrap: anywhere; }
+  #user-code { font-family: ui-monospace, monospace; }
+  .confirm-code { display: flex; gap: .7rem; align-items: flex-start; margin: 1.5rem 0; font-size: .92rem; }
+  input { width: 18px; height: 18px; flex-shrink: 0; }
+  button { padding: .85rem 1.1rem; border-radius: 9px; border: 0; background: #537dff; color: white; font-weight: 600; cursor: pointer; }
+  button:focus-visible { outline: 2px solid #b5caff; outline-offset: 4px; }
+  button.secondary { display: block; background: transparent; border: 1px solid #344363; color: #bdc9df; margin-top: 1rem; }
+  h2 { font-size: 1.15rem; }
+  #signature-preview { margin-top: 2rem; }
+  pre { white-space: pre-wrap; overflow-wrap: anywhere; word-break: break-word; background: #0d1425; padding: 1rem; border: 1px solid #27324b; border-radius: 10px; font: .8rem/1.7 ui-monospace, monospace; }
+  #wallet-address { overflow-wrap: anywhere; font: .85rem/1.5 ui-monospace, monospace; }
+  .limit-note { color: #8f9db7; font-size: .82rem; line-height: 1.65; margin-top: 2.5rem; }
+  .example { background: #0d1425; padding: 1rem; border-radius: 10px; color: #b5caff; line-height: 1.6; }
+</style>

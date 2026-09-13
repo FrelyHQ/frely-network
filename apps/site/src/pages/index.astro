@@ -1,5 +1,6 @@
 ---
 import BaseLayout from "../layouts/BaseLayout.astro";
+import ConnectAgent from "../components/ConnectAgent.astro";
 import Header from "../components/Header.astro";
 import Hero from "../components/Hero.astro";
 import CapabilityFlow from "../components/CapabilityFlow.astro";
@@ -16,6 +17,7 @@ const year = new Date().getFullYear();
     <Header />
     <Hero />
     <div class="after-reveal" data-testid="after-reveal">
+      <ConnectAgent />
       <NetworkArchitecture />
       <ProviderIdentity />
       <CapabilityFlow />
