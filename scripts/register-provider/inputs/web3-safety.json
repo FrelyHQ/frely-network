@@ -1,0 +1,26 @@
+{
+  "manifest": {
+    "name": "web3-safety",
+    "description": "Web3 threat intelligence for wallet addresses and website URLs.",
+    "capabilities": [
+      "web3.address-risk",
+      "web3.url-risk"
+    ],
+    "identity": {
+      "ens": "web3-safety.frely.eth"
+    },
+    "interfaces": [
+      {
+        "protocol": "a2a",
+        "endpoint": "https://api.frely.cloud/a2a",
+        "agentCardUrl": "https://api.frely.cloud/.well-known/agent-card.json"
+      }
+    ],
+    "payment": {
+      "protocol": "x402",
+      "network": "hedera:testnet"
+    }
+  },
+  "active": true,
+  "x402Support": false
+}

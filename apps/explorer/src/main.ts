@@ -26,7 +26,7 @@ const PARENT = "frely.eth";
 const OPERATOR = "0x252Cb90Cf2c190219c1cD09E550efe35B14Ec454" as Address;
 const REGISTRY = "0x3F74E8F31106D4F2E4CD43671B23D0124A1abc91" as Address;
 const RPC_URL = "https://ethereum-sepolia-rpc.publicnode.com";
-const labels = ["vision-basic", "vision-ocr"] as const;
+const labels = ["web3-safety", "vision-basic", "vision-ocr"] as const;
 
 type EthereumProvider = EIP1193Provider;
 
