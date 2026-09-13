@@ -12,10 +12,12 @@ function port(value: string | undefined): number {
 
 const hostname = process.env.HOST?.trim() || "127.0.0.1";
 const runtime = createBrokerRuntimeFromEnv();
-const x402Responses = createFrelyX402ResponsesHandlerFromEnv();
+const x402Responses = process.env.ENABLE_INBOUND_X402 === "true"
+  ? createFrelyX402ResponsesHandlerFromEnv()
+  : undefined;
 const brokerMcpFetch = createBrokerMcpFetch(runtime, {
   ...(x402Responses === undefined ? {} : { x402Responses }),
-  requireX402Responses: process.env.NODE_ENV === "production",
+  requireX402Responses: false,
 });
 const server = Bun.serve({
   hostname,

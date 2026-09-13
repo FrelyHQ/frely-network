@@ -73,7 +73,7 @@ describe("Broker MCP deployment boundary", () => {
     expect(await unavailable.json()).toEqual({ code: "X402_RESOURCE_NOT_CONFIGURED" });
   });
 
-  test("requires the paid resource for production readiness", async () => {
+  test("does not require the optional Web3 resource for production readiness", async () => {
     const runtime = {
       ready: true,
       broker: {
@@ -81,13 +81,12 @@ describe("Broker MCP deployment boundary", () => {
         useCapability: async () => ({ ok: true }),
       },
     };
-    const missing = createBrokerMcpFetch(runtime, { requireX402Responses: true });
+    const missing = createBrokerMcpFetch(runtime, { requireX402Responses: false });
     const unavailable = await missing(new Request("http://service/readyz"));
-    expect(unavailable.status).toBe(503);
-    expect(await unavailable.json()).toMatchObject({ code: "X402_RESOURCE_NOT_CONFIGURED" });
+    expect(unavailable.status).toBe(200);
 
     const configured = createBrokerMcpFetch(runtime, {
-      requireX402Responses: true,
+      requireX402Responses: false,
       x402Responses: async () => Response.json({ ok: true }),
     });
     const ready = await configured(new Request("http://service/readyz"));
