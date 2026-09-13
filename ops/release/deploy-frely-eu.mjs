@@ -31,7 +31,7 @@ const tag = `${IMAGE}:v${version}-${sha.slice(0, 12)}`;
 const manifestPath = resolve(ROOT, `.local/release/${TARGET}-v${version}.json`);
 mkdirSync(resolve(ROOT, ".local/release"), { recursive: true });
 
-run("ssh", [HOST, "node /opt/deploy/bin/deploy-compose-release.mjs --preflight --deployment-target frely-eu --postgres-target frely-eu --expected-host-contract-revision friday-relay.release-host-contract.v35"]);
+run("ssh", [HOST, "node /opt/deploy/bin/deploy-compose-release.mjs --preflight --deployment-target frely-eu --postgres-target frely-eu --expected-host-contract-revision friday-relay.release-host-contract.v36"]);
 
 run("bun", ["ops/release/release-cli.mjs", "--target", TARGET, "--version", version, "--sha", sha, "--stage", "build", "--manifest", manifestPath]);
 const localDigest = JSON.parse(readFileSync(manifestPath, "utf8")).image.digest;
