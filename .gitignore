@@ -5,6 +5,7 @@ coverage/
 ops/release/releases/
 
 .local/
+private/
 .env
 .env.*
 !.env.example

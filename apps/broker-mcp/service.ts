@@ -2,6 +2,7 @@ import {
   BrokerError,
   type CapabilityRequest,
 } from "@frely-network/shared-types";
+import { join, normalize, posix } from "node:path";
 
 const SERVICE = "frely-network-broker-mcp";
 const MCP_PROTOCOL_VERSION = "2024-11-05";
@@ -11,6 +12,7 @@ const X402_RESOURCE_NOT_CONFIGURED = "X402_RESOURCE_NOT_CONFIGURED";
 export interface BrokerMcpServiceOptions {
   readonly x402Responses?: (request: Request) => Response | Promise<Response>;
   readonly requireX402Responses?: boolean;
+  readonly staticRoot?: string;
 }
 
 export interface BrokerService {
@@ -146,6 +148,28 @@ async function handleMcp(request: Request, runtime: BrokerRuntime): Promise<Resp
   }
 }
 
+async function serveStatic(request: Request, root: string | undefined): Promise<Response | undefined> {
+  if (!root || (request.method !== "GET" && request.method !== "HEAD")) return undefined;
+  const url = new URL(request.url);
+  let pathname: string;
+  try {
+    pathname = decodeURIComponent(url.pathname);
+  } catch {
+    return new Response("Not Found", { status: 404 });
+  }
+  const relative = pathname === "/" ? "index.html" : pathname.replace(/^\/+/, "");
+  const candidate = relative.endsWith("/") ? `${relative}index.html` : relative;
+  const normalized = normalize(candidate);
+  if (normalized === "." || normalized.startsWith("..") || normalized.includes(`${posix.sep}..`)) {
+    return new Response("Not Found", { status: 404 });
+  }
+  const file = Bun.file(join(root, normalized));
+  if (!(await file.exists())) return undefined;
+  return new Response(file, {
+    headers: { "cache-control": "public, max-age=3600" },
+  });
+}
+
 export async function brokerMcpFetch(request: Request): Promise<Response> {
   return createBrokerMcpFetch(defaultRuntime)(request);
 }
@@ -176,6 +200,8 @@ export function createBrokerMcpFetch(
       return json({ service: SERVICE, status: "ready" });
     }
     if (request.method === "POST" && url.pathname === "/mcp") return handleMcp(request, runtime);
+    const staticResponse = await serveStatic(request, options.staticRoot);
+    if (staticResponse) return staticResponse;
     return json({ code: "NOT_FOUND" }, 404);
   };
 }

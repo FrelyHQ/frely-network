@@ -58,36 +58,46 @@ configuration is valid. `/mcp` exposes only `find_capability` and
 cross-project startup contract and its readiness gates remain documented so
 that the public snapshot boundary stays explicit.
 
-## Release to ctb-eu
+## Production deployment
 
-Network has its own release target and does not participate in the Friday
-Relay seven-service release. The target contract is
-[`ops/release/release-config.json`](ops/release/release-config.json): it binds
-the `frely-network` Compose project to host `ctb-eu`, the production
-environment file `/etc/frely-network/production.env`, and the public readiness
-URL `https://network.frely.cloud/readyz`.
+Production `frely-network` is hosted on `ctb-eu` as a service owned by the
+`frely-eu` deployment. The authoritative Compose file is
+`/opt/frely-eu/services/frely-network/compose.production.yaml`; the running
+Compose project is `frely-network`. The `ops/release/release-config.json`
+file describes a standalone controller for local release tooling and is not
+the production entry point for this host.
 
-The temporary deployment policy permits an on-host Docker build. A release is
-still identified by both a SemVer and the full 40-character source SHA, and
-the build writes an integrity-checked manifest that deploy and verify must
-consume:
+Do not deploy by creating `/opt/frely-network`, installing a project-specific
+runner, or invoking the local release script directly on `ctb-eu`. A
+production update must use the existing `frely-eu` host-governance release
+controller, its immutable image/manifest flow, and its target-specific
+verification. Read the current deployed manifest before selecting a new
+version or image.
+
+Use the repository wrapper for the complete handoff. It runs the host preflight,
+builds the image, pushes an immutable GHCR tag, and writes a local manifest. By
+default it stops before changing production:
 
 ```bash
-bun run release --target frely-network --version 0.1.0 --sha "$(git rev-parse HEAD)"
+bun run release:frely-eu -- --version 0.1.0 --sha "$(git rev-parse HEAD)"
 ```
 
-For staged operation, use `--stage build`, then pass the generated manifest
-and its `manifest_digest` to `--stage deploy` and `--stage verify`. The build
-manifest is stored under `/var/lib/frely-network/releases` on `ctb-eu`. The
-installed `/usr/local/sbin/release-frely-network` wrapper checks the host
-identity before invoking the release runner. Deployment uses `docker compose
-up -d --no-build --wait`, so it consumes the exact image tag recorded by the
-manifest. The environment file is host-owned and must define the ordinary
-Compose variables required by the service; secret values are not committed.
+After reviewing the reported image and manifest, add `--deploy` to pull that
+same digest on `ctb-eu`, update only the `broker-mcp` service in the existing
+`frely-eu` Compose project, wait for Docker health, and verify `/readyz`:
 
-The release verification is intentionally a public contract check against
-`/readyz`. Routing for `network.frely.cloud` remains an external host
-prerequisite and is not changed by this repository's release command.
+```bash
+bun run release:frely-eu -- --version 0.1.0 --sha "$(git rev-parse HEAD)" --deploy
+```
+
+The command fails closed on a host mismatch, missing registry digest, unhealthy
+container, or failed readiness check. It never changes the shared `frely-eu`
+topology or `frely-swarm` service.
+
+The service verification remains a public contract check against `/readyz`.
+Routing for `network.frely.cloud` and the shared `frely-eu` Compose topology
+remain host-owned prerequisites and are not changed by this repository's local
+release command.
 
 ## Cross-project local integration
 
