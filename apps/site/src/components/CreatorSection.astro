@@ -1,0 +1,36 @@
+---
+const connectionSteps = [
+  { label: 'Your Skill or Agent', icon: 'M8 8 4 12l4 4m8-8 4 4-4 4M14 5l-4 14' },
+  { label: 'Frely service access', icon: 'M14 4h5a1 1 0 0 1 1 1v14a1 1 0 0 1-1 1h-5M4 12h11m-4-4 4 4-4 4' },
+  { label: 'Network identity & discovery', icon: 'M9 12a3 3 0 1 0 6 0 3 3 0 0 0-6 0M12 9V5m0 10v4M9.4 10.5 5.5 8.2m9.1 5.3 3.9 2.3M9.4 13.5l-3.9 2.3m9.1-5.3 3.9-2.3M10.5 3.5a1.5 1.5 0 1 0 3 0 1.5 1.5 0 0 0-3 0m0 17a1.5 1.5 0 1 0 3 0 1.5 1.5 0 0 0-3 0M3 7.5a1.5 1.5 0 1 0 3 0 1.5 1.5 0 0 0-3 0m15 9a1.5 1.5 0 1 0 3 0 1.5 1.5 0 0 0-3 0M3 16.5a1.5 1.5 0 1 0 3 0 1.5 1.5 0 0 0-3 0m15-9a1.5 1.5 0 1 0 3 0 1.5 1.5 0 0 0-3 0' },
+  { label: 'Paid capability calls', icon: 'M13 3 5 14h6l-1 7 9-12h-7l1-6Z' },
+];
+---
+
+<section id="creators" class="story-section creators" aria-labelledby="creators-heading" data-testid="creator-section">
+  <div class="creator-heading-row" data-reveal>
+    <h2 id="creators-heading" class="story-heading">Bring your skill.<br /><span>Keep your code.</span></h2>
+    <div><p class="story-intro">Keep the implementation you have already built. Connect it through Frely to give your capability a verifiable identity, a discovery path and access to per-call payments.</p><a class="creator-link" href="https://github.com/FrelyHQ/frely-network" target="_blank" rel="noreferrer">Explore the project on GitHub<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" aria-hidden="true"><path d="M6 18 18 6M6 6h12v12" /></svg></a></div>
+  </div>
+  <ol class="creator-path" aria-label="Connect an existing capability" data-reveal>
+    {connectionSteps.map((step, index) => (
+      <li style={`--node-delay: ${index * 1.5}s`}>
+        {index < connectionSteps.length - 1 && <div class="creator-connection" aria-hidden="true"><span /></div>}
+        <div class="creator-node" aria-hidden="true">
+          <svg width="30" height="30" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round"><path d={step.icon} /></svg>
+        </div>
+        <div class="creator-step-copy"><span class="creator-step-number">0{index + 1}</span><p>{step.label}</p></div>
+      </li>
+    ))}
+  </ol>
+  <div class="creator-audiences" data-reveal>
+    <div>
+      <span class="story-label"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m16 3 5 5L9 20l-6 1 1-6L16 3ZM13 6l5 5" /></svg>For creators</span>
+      <h3>More reach for what you build.</h3><p>Preserve your private implementation. Make the service discoverable and offer access through payments tied to individual calls.</p>
+    </div>
+    <div>
+      <span class="story-label"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="8" cy="7" r="3" /><rect x="15" y="5" width="6" height="6" rx="1.5" /><path d="M2 20v-2a6 6 0 0 1 12 0v2m2-5h2a4 4 0 0 1 4 4v1M18 3v2" /></svg>For users and agents</span>
+      <h3>More capability for every task.</h3><p>Discover, verify, purchase and combine external capabilities. Extend what your agent can do without rebuilding each skill.</p>
+    </div>
+  </div>
+</section>
