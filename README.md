@@ -120,6 +120,8 @@ Graph, ENS, ERC-8004, and Hedera responsibilities.
 
 ## Consumer onboarding
 
-The consumer feature source is documented in [Consumer onboarding](docs/consumer-onboarding.md). The [verification record](docs/verification/2026-09-13-consumer-onboarding.md) separates unit tests, browser fixtures and cross-repository fixtures from live acceptance. The [implementation record](docs/superpowers/plans/2026-09-13-consumer-onboarding-implementation.md) records worktree ownership and documentation scope.
+The public entry is `/SKILL.md`. Skill v2 is a host-neutral Network contract for chatbots, coding Agents, and local Agents. Native tools, MCP, HTTP/x402 clients, and the Frely CLI are adapters; the CLI is not the protocol.
 
-The public entry is `/SKILL.md`; the website routes are `/onboarding/` and `/connect/`. The feature requires an enabled consumer gateway, a persistent private SQLite volume and the Frely service configuration. Production MCP calls without consumer authorization are rejected. The demo payment mode is `platform_demo`, not Hedera settlement.
+The canonical paid Web3 flow uses the payment wallet as caller identity and follows `discover -> verify -> quote -> settle -> execute`. Frely-hosted Agents route x402 payment to the Network Web3 account; Frely charges the Network Web2 account for execution. Chain-discovered Agents route x402 payment to the verified Offering publisher.
+
+The existing `/connect/`, consumer bearer session, `platform_demo` quota, and CLI 0.4.0 consumer mode form a legacy demo profile. They do not prove caller-funded Web3 settlement. See [Consumer onboarding](docs/consumer-onboarding.md) for the migration contract and [Architecture](docs/architecture.md) for payment ownership.

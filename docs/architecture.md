@@ -129,36 +129,54 @@ All four surfaces are exposed through Frely's public API host. `a2a-service`
 must continue to work when `frely-network` is unavailable; Network is not a
 required runtime hop for A2A execution.
 
-Swarm only executes Agent runtime work. It does not publish user billing facts,
-calculate prices, reserve balances, collect Web2 or Web3 payments, or decide
-what a user owes. Frely derives one virtual-model/MCP invocation's billable
-consumption from the Swarm execution inputs it sent to Frely base-model APIs and
-the Swarm-produced output token count, then applies Frely pricing and performs
-Web2 charging. Swarm remains an internal execution dependency.
+Swarm executes Agent runtime work. It does not publish caller payment facts,
+calculate Network prices, reserve balances, collect Web3 payments, or decide
+what a caller owes. Frely owns Web2 account billing for Frely-hosted Agent
+execution.
 
-Network exposes `POST /x402/frely/responses` as the paid resource. The resource
-uses x402 v2 `exact` requirements. Network configuration owns the x402 amount,
-asset, recipient, expiry, verifier, settlement and replay state. Frely does not
-receive the payment proof or payment protocol headers.
+Network owns the Web3 payment boundary. A paid Web3 caller uses the payment
+wallet as the caller identity. No separate wallet-login step exists in the
+paid Web3 contract. Web2 callers use Frely or adapter account authentication.
 
-The request boundary is:
+Payment routing depends on the selected Agent source:
+
+| Agent source | x402 payee | Execution funding |
+| --- | --- | --- |
+| `frely` | Network Web3 receiving account | Network invokes the Agent with its Frely Web2 account; Frely deducts the Network account balance |
+| `the_graph` | Agent author / Offering publisher payment account | Caller payment funds the external Agent Offering |
+
+For a chain-discovered Agent, `payTo` comes from the verified Offering bound to
+the Agent identity. Chat text, Agent prose, and unverified endpoint responses
+cannot replace the Offering payment destination.
+
+The paid Web3 request boundary is:
 
 ```text
-Client -> Network x402 resource
-       <- PAYMENT-REQUIRED
-Client -> Network payment proof
-       -> verify + replay claim
-Network -> Frely POST /v1/responses with Bearer API key
-Frely   -> Network service response
-Network -> Hedera settlement
-       -> Client service response + PAYMENT-RESPONSE
+Caller -> Network discovery
+       -> Agent + Offering verification
+       <- x402 quote
+Caller wallet -> payment authorization
+Network -> payment verification + replay claim + settlement
+        -> selected Agent execution
+        <- service result
+        -> Caller result + settlement evidence
 ```
 
-A non-success Frely response prevents settlement. Network A2A invocation uses
-Frely's Bearer-authenticated A2A JSON-RPC endpoint and carries no x402 headers.
-The production Compose profile persists replay claims in the `x402-replay`
-volume. A multi-replica deployment requires a shared atomic replay store.
+The paid state machine is `discover -> verify -> quote -> authorize -> settle ->
+execute -> result`. Agent execution starts after settlement. A service failure
+after settlement retains the payment reference and enters a compensation or
+refund policy state; it does not authorize a second payment with a new request
+identifier.
 
+For `source=frely`, Network sends the Agent request to Frely with the Network
+Frely API credential. Payment protocol headers and wallet proof remain inside
+Network. Frely charges the Network Web2 account for the Agent execution.
+
+For `source=the_graph`, Network settles to the verified Offering publisher and
+invokes the verified external Agent endpoint under the Offering contract.
+
+Replay claims and paid-request idempotency require persistent state. A
+multi-replica deployment requires a shared atomic replay and request store.
 The project separation is:
 
 ```text

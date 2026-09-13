@@ -179,29 +179,29 @@ Frely Network verifies the safety Agent. The safety Agent verifies the Web3 dest
 <div class="grid grid-cols-4 gap-3">
 
 <div class="card-panel">
-<strong>1 · INSTALL</strong><br /><br />
+<strong>1 · READ</strong><br /><br />
 Copy one prompt from<br />network.frely.cloud
 </div>
 
 <div class="card-panel">
-<strong>2 · CONNECT</strong><br /><br />
-Frely client opens a wallet sign-in page.
+<strong>2 · ASK</strong><br /><br />
+“Is ethereun.org safe?”
 </div>
 
 <div class="card-panel">
-<strong>3 · ASK</strong><br /><br />
-“Is ethereun.org safe?”
+<strong>3 · PAY</strong><br /><br />
+The wallet approves the x402 Agent call.
 </div>
 
 <div class="card-panel card-panel--accent">
 <strong>4 · RESULT</strong><br /><br />
-Receive a source-backed URL risk report from a discovered Agent.
+Receive a source-backed URL risk report and settlement evidence.
 </div>
 
 </div>
 
 <div class="mt-7 text-center">
-<code>Fetch https://network.frely.cloud/SKILL.md and follow the setup instructions.</code>
+<code>Read https://network.frely.cloud/SKILL.md and use the best Network adapter available in this chat.</code>
 </div>
 
 </div>
@@ -232,31 +232,33 @@ The live operation recording is optional. This is the complete consumer flow.
 
 ```text
 ChatGPT / Agent Host
-        ↓
-Frely CLI + wallet sign-in
-        ↓
+        ↓  reads SKILL.md + uses a Network adapter
 Frely Network Broker
         ↓
 The Graph  →  ENS / ERC-8004  →  web3-safety.frely.eth
  DISCOVER        VERIFY                    ↓
+                                  verified Offering quote
+                                           ↓
+Caller wallet  →  x402 settlement to Offering publisher
+                                           ↓
                                         Frely A2A
                                            ↓
                                      Swarm safety Agent
                                            ↓
-                                  Source-backed URL result
+                         URL result + settlement evidence
 ```
 
 </div>
 
 <div class="slide-foot">
-<div class="tagline">Paid path: x402 → Blocky402 → Hedera settlement</div>
-<div class="text-sm opacity-60">Current onboarding demo uses platform demo quota. Wallet sign-in is authentication, not payment.</div>
+<div class="tagline">Web3 wallet = caller identity + payment authorization</div>
+<div class="text-sm opacity-60">Paid path: discover → verify → quote → settle → execute.</div>
 </div>
 
 </div>
 
 <!--
-口播：用户只提出 URL 风险问题。Broker 负责发现、身份核验和服务调用。钱包登录只做授权；当前 onboarding 演示使用 demo quota。Hedera x402 是独立付费路径。
+口播：用户不需要先做钱包登录。钱包在付费调用中同时承担身份和支付授权。这个案例从 The Graph 发现 Web3 Agent，因此 x402 付款给经过验证的 Offering 发布者；付款结算后才执行 Agent。
 -->
 
 ---
@@ -360,7 +362,6 @@ Discovery says what exists. Identity verification says who controls the service 
 </div>
 
 <div class="slide-body">
-
 ```text
 Request
   ↓
@@ -370,11 +371,11 @@ x402 payment proof
   ↓
 Blocky402 /verify
   ↓
-Agent execution
-  ↓
 Blocky402 /settle
   ↓
-Hedera testnet evidence
+Hedera settlement evidence
+  ↓
+Agent execution
 ```
 
 <div class="kw-row mt-7">
@@ -386,14 +387,14 @@ Hedera testnet evidence
 </div>
 
 <div class="slide-foot">
-<div class="tagline">The payment path is separate from consumer wallet sign-in.</div>
-<div class="text-sm opacity-60">A real Hedera testnet settlement has been verified on the x402 path.</div>
+<div class="tagline">The wallet is the Web3 caller identity and payment authority.</div>
+<div class="text-sm opacity-60">A paid Agent call executes after settlement.</div>
 </div>
 
 </div>
 
 <!--
-口播：Hedera 负责 Pay。x402 让报价、验证和结算进入 Agent 调用流程。不要把 onboarding 的钱包登录说成 Hedera 付款。
+口播：Web3 用户不需要钱包登录步骤。钱包就是身份和支付授权。x402 负责报价与支付证明，Hedera 完成结算，Agent 在结算成功后执行。
 -->
 
 ---
@@ -456,38 +457,36 @@ Consumer wallet data stops at Network. The Provider receives a normal service re
 <div class="slide-body">
 
 <div class="grid grid-cols-2 gap-5">
-
 <div class="card-panel">
-<strong>CONSUMER DEMO PATH</strong><br /><br />
-Prompt onboarding<br />Wallet sign-in<br />web3.url-risk request<br />Platform demo quota<br />Risk level + matched signals
+<strong>HOST CONTRACT</strong><br /><br />
+One SKILL.md for chatbots and Agents<br />Native / MCP / HTTP / CLI adapters<br />Wallet = Web3 identity + payment authority<br />No wallet-login prerequisite
 </div>
 
 <div class="card-panel card-panel--accent">
-<strong>WEB3 PAYMENT PATH</strong><br /><br />
-x402 quote and proof<br />Blocky402 verify / settle<br />Hedera testnet settlement verified<br />Idempotency and recovery states
+<strong>PAID AGENT PATH</strong><br /><br />
+Discover + verify Agent and Offering<br />Source-dependent payment destination<br />x402 + Hedera settlement before execution<br />Idempotency and recovery states
 </div>
 
 </div>
 
 <div class="mt-7 text-center text-base opacity-85">
-Network: 694 tests · CLI: 41 tests · Swarm: 65 tests · Total: 800 tests passed
+Network: 704 tests · CLI: 41 tests · Swarm: 65 tests · Total: 810 tests passed
 </div>
 
 </div>
 
 <div class="slide-foot">
-<div class="tagline">Release gates remain: publish + deploy, live Graph index, target ChatGPT + wallet acceptance.</div>
-<div class="text-sm opacity-60">Fixture success is not presented as a live end-to-end run. No percentage score is used.</div>
+<div class="tagline">Release gates remain: Offering payment routing, paid consumer adapter, publish + deploy, live acceptance.</div>
+<div class="text-sm opacity-60">Legacy platform-demo authorization is not presented as Web3 payment evidence.</div>
 </div>
 
 </div>
 
 <!--
-口播：证据页分开讲 consumer demo path 和 Web3 payment path。当前 URL 风险演示走 platform demo quota；x402/Hedera 是付费路径证据。不要说 fixture 等于 live end-to-end。
+口播：Skill 是跨宿主的 Network 使用协议，不是 CLI 安装器。Web3 钱包同时承担身份和付款。Frely 托管 Agent 收款到 Network；链上发现的 Agent 收款到经过验证的 Offering 发布者。旧 platform_demo 不作为付费链路证据。
 -->
 
 ---
-
 <div class="slide-frame slide-frame--center">
 
 <div class="slide-head">

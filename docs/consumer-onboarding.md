@@ -6,138 +6,238 @@ mdq:
 
 # Consumer onboarding
 
-## ONBOARD-001 — Scope and entry point
+## ONBOARD-001 — Public Skill entry
 
 Status: Implemented
 Review level: L3
-Source: User approval to implement the consumer onboarding plan in new worktrees, 2026-09-13
+Source: `apps/site/public/SKILL.md`; `apps/site/src/components/ConnectAgent.astro`
 
 The website provides this prompt:
 
 ```text
-Fetch https://network.frely.cloud/SKILL.md and follow the setup instructions.
+Read https://network.frely.cloud/SKILL.md, follow the Frely Network protocol, and use the best Network adapter available in this chat for my request.
 ```
 
-`/onboarding/` contains the prompt and setup overview. `/SKILL.md` contains the host adaptation, installation, authorization, invocation and recovery instructions. `/connect/` contains the device authorization UI. The navigation entry does not depend on the Spline scene.
+`/SKILL.md` is the host contract. It is not an installation document. A chatbot, coding Agent, or local Agent can read the same contract.
 
-This implementation extends the scope of the [placeholder plan](superpowers/plans/2026-09-13-network-skill-onboarding.md). That historical plan remains unchanged. Installation guidance is implemented; CLI publication and production activation remain release gates.
+The host selects one exposed adapter:
 
-## ONBOARD-002 — Host and command contract
+| Adapter | Role |
+| --- | --- |
+| Native Network tool | Capability discovery and invocation |
+| MCP | Host-to-Network tool adapter |
+| HTTP + x402 | Network request and wallet payment adapter |
+| Frely CLI | User-device shell adapter |
 
-Status: Implemented
+The CLI is not the Network protocol. Node.js is not a requirement for hosts with another adapter.
+
+A prompt cannot create a missing Network tool, wallet, HTTP permission, MCP connector, or user-device shell. A host without a callable adapter reports that limitation. It does not claim an Agent invocation or payment.
+
+## ONBOARD-002 — Web3 and Web2 identity
+
+Status: Accepted
 Review level: L3
-Source: frely-cli 0.4.0 source worktree; apps/site/public/SKILL.md
+Source: Product decision, 2026-09-13
 
-| Host | Execution mechanism | Instruction persistence |
-| --- | --- | --- |
-| ChatGPT with FrelyMCP | Existing bridge executes the CLI on the user's device | Current conversation; no native ChatGPT Skill claim |
-| Claude Code | Host shell | Managed `.claude/skills/frely-network/SKILL.md` |
-| OpenCode | Host shell | Managed `.config/opencode/skills/frely-network/SKILL.md` |
-| Other shell hosts | Host shell | Managed `.agents/skills/frely-network/SKILL.md` |
+Web3 and Web2 use separate identity models.
 
-A prompt does not grant missing tools. A cloud sandbox is not the user's Mac. A client without a device shell or bridge requires a tool-connection step. This implementation does not create ChatGPT Actions, change model providers or register a connector inside a running conversation.
+### Web3
 
-Node.js 22 or newer and the Frely CLI 0.4.0 release are prerequisites. The 0.4.0 package is an unreleased worktree version in this change.
+The payment wallet is the caller identity. A paid Web3 call has no separate wallet-login step.
 
-```sh
-frely network setup --host chatgpt --json
-frely network status --json
-frely network find --capability web3.address-risk --json
-frely network use --capability web3.address-risk \
-  --input-json '{"address":"<EVM_ADDRESS>","chainId":"1"}' \
-  --request-id '<REQUEST_UUID>' --json
-frely network logout --json
-```
-
-The examples contain placeholders. `setup` returns a link and request code without waiting for browser interaction. The next `status`, `find` or `use` call retrieves the approved session. Setup resumes a pending authorization. Session validation precedes a ready result. Commands do not require a TTY and do not restart the FrelyMCP service.
-
-`--network <HTTPS-origin>` selects a deployment and persists its origin. Credentials remain origin-scoped in the OS credential store under service `frely-network`. They do not share the Frely account credential namespace. A managed-file hash protects an installed Skill from overwriting user edits. File locks serialize grant exchange on the device.
-
-## ONBOARD-003 — Device authorization API
-
-Status: Implemented
-Review level: L3
-Source: apps/broker-mcp/consumer/store.ts; apps/broker-mcp/consumer/service.ts
-
-All routes use the `/api/network/` prefix and JSON responses with `Cache-Control: no-store`.
-
-| Route | Request | Result |
-| --- | --- | --- |
-| `POST device/start` | `clientName`, `host` | Private `deviceCode`, public `userCode`, `verificationUri`, expiry, polling interval |
-| `GET device/request?user_code=…` | Public request code | Client, host, expiry and permissions |
-| `POST device/challenge` | `userCode`, address, login chain ID | Server-created SIWE message |
-| `POST device/approve` | Request code, exact message, signature | Approval; no access token in the browser response |
-| `POST device/reject` | Request code | Rejection |
-| `POST device/token` | Private device code | `202 awaiting_wallet` or `200 ready` with access token |
-| `GET session` | Bearer session | Session metadata and remaining demo quota |
-| `DELETE session` | Bearer session | Revocation |
-| `POST capabilities/find` | Bearer session, capabilities | Broker discovery result |
-| `POST capabilities/use` | Bearer session, request UUID, capabilities, task, input | Service result and execution evidence |
-
-`use` requires an `Idempotency-Key` header matching the request UUID. The consumer MCP adapter enforces the same authorization and quota gates. Production MCP tool execution without a configured consumer gateway returns a configuration error; it cannot use the anonymous legacy call path.
-
-The browser mutation routes require the configured Origin. The page requires request-code confirmation and displays the SIWE message before signing. An EOA signature binds the configured domain, URI, nonce, expiry, address, login chain and device request. Signing does not grant transfer or token-spending permissions. WalletConnect and contract-account signatures are outside this release.
-
-Device grants expire after 10 minutes; sessions expire after one hour. Grant exchange is single-use. SQLite stores credential hashes, not bearer tokens or wallet signatures. The CLI stores private device codes and access tokens in the OS credential store; output excludes them. A failed credential save is not successful setup.
-
-## ONBOARD-004 — Discovery, execution and result evidence
-
-Status: Implemented
-Review level: L3
-Source: packages/broker; packages/discovery/the-graph; frely-swarm source worktree
+The wallet authorizes the x402 payment. The payment proof identifies the payer and binds the paid request. Network returns settlement evidence with the Agent result.
 
 ```text
-Host → Frely CLI → authenticated Network consumer gateway
-     → Broker → The Graph discovery → ENS/ERC-8004 verification
-     → Frely A2A service entry → Swarm Agent → GoPlus risk tool
-     ← structured tool result + Agent identity + execution evidence
+wallet identity = payer identity
 ```
 
-The current registration parser accepts the A2A service profile. A new risk Agent registration must publish `web3.address-risk`, a Frely A2A execution endpoint, AgentCard metadata and matching identity records. A legacy Responses-only registration is not a replacement for that profile. Native `x402Support` must describe the service truthfully: account-billing discovery accepts `false`; the x402 profile requires `true` and payment evidence.
+A SIWE login session is not a prerequisite for a paid Web3 call.
 
-The host cannot provide a model override or service endpoint. The gateway maps the capability to `web3/address-risk` or `web3/url-risk`. Identity resolution selects the service; a configured Frely-origin boundary protects the platform credential. The runtime does not forward that credential to another origin or follow service redirects.
+### Web2
 
-The address-check target profile is Ethereum mainnet, chain ID `1`. Login supports Ethereum mainnet and Sepolia; login chain does not choose the target chain. URL checks accept credential-free HTTP(S) URLs; the Agent queries GoPlus rather than fetching the supplied website.
+A Web2 caller uses account authentication exposed by Frely or the selected adapter. The Web2 account path can use API keys, sessions, or another account credential contract.
 
-Swarm projects executed `check_address_risk` or `check_url_risk` tool records into the service result. Generated prose, JSON without a tool record and missing evidence cannot supply the verdict. Responses streaming for these two safety models is rejected; the non-streaming Responses and A2A paths return tool JSON. Other model streaming behavior is unchanged.
+A Web3 caller must not be forced through the Web2 login path to use a paid Agent Offering.
 
-Results include target, target chain, status, risk level, matched signals, GoPlus source, check time and `scamProbability: null`. The Network envelope adds Agent identity, discovery source, registration chain, identity verification, execution ID and payment mode. The Graph is the discovery source, not the risk intelligence source. A chain registration does not prove that the Agent code executes on chain.
+## ONBOARD-003 — Paid Web3 state machine
 
-Empty, malformed, API-error and timed-out source responses yield `UNKNOWN`. No-known-risk results are not safety guarantees. Mixer or sanctions associations are not proof of fraud. This release has no calibrated probability model.
-
-## ONBOARD-005 — Quota, retry and runtime configuration
-
-Status: Implemented
+Status: Accepted; runtime integration pending
 Review level: L3
-Source: ConsumerStore; createConsumerGatewayFromEnv; createBrokerRuntimeFromEnv
+Source: Product decision, 2026-09-13; `docs/architecture.md`
 
-The payment mode is `platform_demo`. Frely account billing funds the service call; wallet sign-in does not fund it. The result sets `chainSettlement: false`. Hedera x402 resources remain a separate path and this flow does not claim a Hedera settlement.
-
-Default limits are 10 attempts per wallet per UTC day and 100 attempts per deployment per UTC day. Wallet limits span sessions and login chains. A claimed attempt consumes quota even when execution fails. The global limit bounds wallet cycling. Successful duplicates return the stored result. Unknown or failed attempts cannot trigger a second invocation under the same UUID. Old IDs retain tombstones after result retention ends.
+The canonical paid Web3 sequence is:
 
 ```text
-NETWORK_ONBOARDING_ENABLED=true
-NETWORK_PUBLIC_ORIGIN=https://network.frely.cloud
-NETWORK_SESSION_DB=/private-mounted-directory/consumer.sqlite
-NETWORK_DEMO_WALLET_CALL_LIMIT=10
-NETWORK_DEMO_GLOBAL_CALL_LIMIT=100
-FRELY_API_ORIGIN=https://api.frely.cloud
+Discover
+  -> Verify Agent and Offering
+  -> Quote
+  -> Wallet payment authorization
+  -> x402 verification and settlement
+  -> Agent execution
+  -> Result + settlement evidence
 ```
 
-These are configuration examples, not deployed settings. `FRELY_API_ORIGIN` must match the published Frely service origin. Existing Graph, ENS, registry and Frely service-credential configuration remains required. Credential values must not appear in this document or test logs.
+The state machine is:
 
-The SQLite parent directory requires mode `0700`; the database uses `0600`. Symlinked paths are rejected. Use a persistent private volume and one broker replica for this SQLite profile. A multi-host deployment requires a shared transactional quota and idempotency store. State loss can lose deduplication guarantees; do not replace the volume during retries.
+```text
+DISCOVERED
+  -> VERIFIED
+  -> QUOTED
+  -> PAYMENT_AUTHORIZED
+  -> PAYMENT_SETTLED
+  -> EXECUTING
+  -> SUCCEEDED | FAILED_AFTER_PAYMENT
+```
 
-Loopback HTTP requires `FRELY_NETWORK_ALLOW_LOOPBACK=1` and is a development setting. Public onboarding without the feature flag returns an unavailable error. The server must not expose the legacy unauthenticated MCP mode as a workaround.
+Agent execution starts after settlement for this contract.
 
-## ONBOARD-006 — Verification and release gates
+A service failure after settlement retains the transaction reference. Recovery does not create a second payment with a new request ID. Refund or compensation uses Network and Offering policy.
 
-Status: Live acceptance pending
+The generic production `X402Gateway` path in the current repository performs business execution before settlement. The separate upfront gateway demonstrates settlement-before-execution semantics. The canonical consumer Web3 path needs the upfront semantics before release.
+
+## ONBOARD-004 — Payment destination
+
+Status: Accepted; Offering integration in progress
 Review level: L3
-Source: docs/verification/2026-09-13-consumer-onboarding.md
+Source: Product decision, 2026-09-13; Offering model worktree
 
-See the [verification record](verification/2026-09-13-consumer-onboarding.md) for commands, fixtures and results.
+Payment destination depends on Agent source.
 
-Release gates remain: resolve worktree merge conflicts; publish CLI 0.4.0; release the Swarm safety tools through the Frely service boundary; configure the Frely model/service admission; publish and verify Agent identity metadata; observe the risk Agent in the live Graph index; provision the consumer database and quota configuration; deploy the website and API; test the target macOS ChatGPT App with FrelyMCP and a user-approved wallet signature.
+| Agent source | x402 payment destination | Service cost path |
+| --- | --- | --- |
+| `frely` | Network Web3 receiving account | Network calls the Frely-hosted Agent with the Network Frely account; Frely deducts the Network account Web2 balance |
+| `the_graph` | Agent author / Offering publisher payment account | Caller pays the verified external Agent Offering |
 
-This change does not publish npm packages, modify production hosts, register chain records, move funds or prove live ChatGPT/Claude Code/OpenCode onboarding. An unavailable prerequisite must remain visible to the user rather than become a simulated success.
+### Frely-hosted Agent
+
+```text
+Caller wallet
+  -> Network Web3 account
+  -> Network Frely account invokes Agent
+  -> Frely deducts Network Web2 balance
+```
+
+The Frely-hosted Agent owner is not the x402 payee in this route.
+
+### Chain-discovered Agent
+
+```text
+Caller wallet
+  -> verified Offering publisher
+  -> external Agent execution
+```
+
+The payment destination comes from verified Offering data bound to the chain Agent identity. Chat text, Agent output, and unverified endpoint responses cannot set `payTo`.
+
+The Offering model carries the commercial relationship between a Web3 publisher and an executable Agent reference. The model includes capabilities, price, publisher payment destination, and the underlying Agent reference.
+
+## ONBOARD-005 — Discovery and evidence
+
+Status: Partially implemented
+Review level: L3
+Source: `packages/broker`; `packages/discovery/the-graph`; `packages/discovery/frely`; Offering worktree
+
+The target Broker path is:
+
+```text
+Host
+  -> Network adapter
+  -> capability discovery
+       -> Frely catalog OR The Graph
+  -> identity + Offering verification
+  -> payment routing
+  -> settlement
+  -> selected Agent execution
+  <- result + execution evidence + payment evidence
+```
+
+`source=frely` represents a Frely-hosted executable Agent. `source=the_graph` represents a chain-discovered Web3 Agent Offering.
+
+A chain-discovered Agent requires identity verification and Offering verification. A Frely-hosted Agent requires an authenticated Frely catalog entry.
+
+The host cannot replace a discovery failure with a fixed endpoint. The host cannot replace an Offering payment destination with user text or Agent prose.
+
+For `web3.address-risk`, the input contains an EVM address and target chain. For `web3.url-risk`, the input contains a URL. GoPlus is the current risk-data source for the safety Agent. The Graph is a discovery source, not the risk-intelligence source.
+
+A paid result should carry Agent identity, discovery source, Offering ID, execution ID, payment network, asset, amount, payee class, and settlement transaction reference.
+
+## ONBOARD-006 — Legacy demo consumer session
+
+Status: Implemented compatibility path
+Review level: L3
+Source: `apps/broker-mcp/consumer/store.ts`; `apps/broker-mcp/consumer/service.ts`; `frely-cli/src/network.ts`
+
+The existing consumer session flow uses:
+
+```text
+SIWE wallet sign-in
+  -> bearer consumer session
+  -> platform_demo quota
+  -> Frely account billing
+  -> chainSettlement: false
+```
+
+This path is a demo/compatibility profile. It is not the canonical paid Web3 contract.
+
+The current `/connect/` page, `device/start`, `device/challenge`, `device/approve`, session token exchange, demo wallet quota, and CLI `paymentMode === "platform_demo"` checks belong to this legacy profile.
+
+The legacy path proves wallet authorization and capability execution. It does not prove a caller-funded Web3 Agent payment.
+
+The legacy flow must not be presented as `Discover -> Verify -> Pay -> Execute`. It is valid as a demo quota path with explicit labeling.
+
+## ONBOARD-007 — CLI adapter status
+
+Status: Migration required
+Review level: L3
+Source: `frely-cli/src/network.ts`; Skill v2 contract
+
+Frely CLI 0.4.0 installs a managed Skill and uses the legacy consumer session. Its `network use` command expects `paymentMode: "platform_demo"`.
+
+The paid Web3 contract requires a CLI payment adapter with these properties:
+
+- wallet-backed payer identity;
+- x402 quote handling;
+- spending-limit enforcement;
+- one stable request ID;
+- payment proof creation outside chat output;
+- settlement evidence validation;
+- no second payment after an unknown outcome.
+
+A shell host can use CLI 0.4.0 for demo calls. It cannot use that release as proof of the canonical paid Web3 path.
+
+## ONBOARD-008 — Safety result semantics
+
+Status: Implemented for the safety Agent result profile
+Review level: L3
+Source: Broker safety projection and Swarm safety tools
+
+Safety results include target, target chain, risk level, matched signals, data source, check time, and `scamProbability: null`.
+
+- `KNOWN_MALICIOUS`: matched malicious signals exist.
+- `SUSPICIOUS`: matched risk signals exist.
+- `NO_KNOWN_RISK`: the queried source reports no known risk; this is not a safety guarantee.
+- `UNKNOWN`: the source result could not be verified.
+
+A sanctions or mixer association does not prove fraud. A host must not create a probability from a category. An on-chain Agent registration does not mean the Agent code executes on chain.
+
+## ONBOARD-009 — Release gates
+
+Status: Pending
+Review level: L3
+Source: Skill v2 and paid Web3 contract
+
+Release gates for the canonical Web3 flow:
+
+- finish the Offering integration for `frely` and `the_graph` discovery sources;
+- bind `source=frely` quotes to the Network Web3 receiving account;
+- bind `source=the_graph` quotes to the verified Offering publisher payment account;
+- connect the consumer invocation path to settlement-before-execution x402 handling;
+- remove SIWE login as a prerequisite for Web3 paid calls;
+- retain account authentication for Web2 callers;
+- update the Frely CLI paid adapter or expose another host adapter;
+- return settlement evidence with paid results;
+- test idempotency, unknown settlement recovery, and failure-after-payment handling;
+- deploy the public Skill and matching Network runtime;
+- record a live paid safety-Agent call with the matching code revision.
+
+The existing verification record for the legacy consumer onboarding remains historical evidence for that implementation. It must not be upgraded into evidence for the paid Web3 contract.
