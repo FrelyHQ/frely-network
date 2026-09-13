@@ -7,6 +7,7 @@
     "dev": "astro dev --port 3040",
     "pitch:dev": "slidev pitch/slides.md --base /pitch/ --port 3041",
     "pitch:build": "slidev build pitch/slides.md --base /pitch/ --out ../public/pitch",
+    "typecheck": "tsc --noEmit --project tsconfig.json",
     "prebuild": "npm run pitch:build",
     "build": "astro build",
     "preview": "astro preview --port 3040",
