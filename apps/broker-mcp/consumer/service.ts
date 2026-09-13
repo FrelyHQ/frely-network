@@ -87,6 +87,11 @@ export function extractSafetyReport(output: unknown, capability: Capability, inp
   const expectedLevels: Record<string, string> = { KNOWN_MALICIOUS: "HIGH", SUSPICIOUS: "MEDIUM", NO_KNOWN_RISK: "NONE", UNKNOWN: "UNKNOWN" };
   if (found.riskLevel !== expectedLevels[String(found.status)]) throw new ConsumerError("PROVIDER_RESPONSE_INVALID", 502);
   const targetType = capability === "web3.address-risk" ? "ADDRESS" : "URL";
+  const referenceUrl = targetType === "ADDRESS"
+    ? "https://docs.gopluslabs.io/reference/addresscontractusingget_1"
+    : "https://docs.gopluslabs.io/reference/phishingsiteusingget";
+  const suppliedReference = record(found.source) ? found.source.referenceUrl : undefined;
+  if (suppliedReference !== undefined && suppliedReference !== referenceUrl) throw new ConsumerError("PROVIDER_RESPONSE_INVALID", 502);
   const expectedTarget = input.address ?? input.url;
   const actualTarget = targetType === "ADDRESS" ? String(found.target).toLowerCase() : found.target;
   if (found.targetType !== targetType || actualTarget !== expectedTarget ||
@@ -108,7 +113,7 @@ export function extractSafetyReport(output: unknown, capability: Capability, inp
   };
   return { targetType, target: expectedTarget, ...(targetType === "ADDRESS" ? { chainId: input.chainId } : {}),
     status: found.status, riskLevel: found.riskLevel, scamProbability: null, signals,
-    checkedAt: found.checkedAt, source: { provider: "GoPlus" }, disclaimer: disclaimers[String(found.status)],
+    checkedAt: found.checkedAt, source: { provider: "GoPlus", referenceUrl }, disclaimer: disclaimers[String(found.status)],
     ...(found.status === "UNKNOWN" ? { error: { code: "RISK_UNVERIFIED" } } : {}) };
 }
 

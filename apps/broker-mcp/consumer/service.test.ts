@@ -108,3 +108,18 @@ test("report extraction accepts typed Responses output, not prose or inconsisten
   const unknown = extractSafetyReport(makeReport({ status: "UNKNOWN", riskLevel: "UNKNOWN", signals: [] }), "web3.address-risk", input);
   expect(unknown.status).toBe("UNKNOWN"); expect(unknown.scamProbability).toBeNull();
 });
+
+
+test("readiness cannot advertise an unconfigured consumer gateway", async () => {
+  const ctx = create();
+  const handler = createBrokerMcpFetch(ctx.runtime, { requireConsumerAuthorization: true });
+  const response = await handler(new Request(`${ORIGIN}/readyz`));
+  expect(response.status).toBe(503);
+  expect((await response.json()).code).toBe("NETWORK_ONBOARDING_NOT_CONFIGURED");
+});
+
+test("risk report retains the fixed source reference and rejects an injected link", () => {
+  const report = extractSafetyReport(makeReport(), "web3.address-risk", input);
+  expect(report.source).toEqual({provider:"GoPlus",referenceUrl:"https://docs.gopluslabs.io/reference/addresscontractusingget_1"});
+  expect(() => extractSafetyReport(makeReport({ source:{provider:"GoPlus", referenceUrl:"https://attacker.example"} }), "web3.address-risk", input)).toThrow("PROVIDER_RESPONSE_INVALID");
+});

@@ -18,6 +18,8 @@ ENV NODE_ENV=production
 COPY --from=build --chown=bun:bun /app/dist ./dist
 COPY --from=build --chown=bun:bun /app/apps/site/dist ./site
 RUN mkdir -p /var/lib/frely-network/x402-replay \
+    && mkdir -p /var/lib/frely-network/consumer \
+    && chmod 0700 /var/lib/frely-network/consumer \
     && chown -R bun:bun /var/lib/frely-network
 USER bun
 EXPOSE 4100

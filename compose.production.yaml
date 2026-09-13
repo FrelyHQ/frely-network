@@ -14,12 +14,20 @@ services:
       HOST: 0.0.0.0
       PORT: "4100"
       GRAPH_ENDPOINT: ${GRAPH_ENDPOINT:-}
+      NETWORK_ONBOARDING_ENABLED: ${NETWORK_ONBOARDING_ENABLED:-false}
+      NETWORK_PUBLIC_ORIGIN: ${NETWORK_PUBLIC_ORIGIN:-https://network.frely.cloud}
+      NETWORK_SESSION_DB: /var/lib/frely-network/consumer/consumer.sqlite
+      NETWORK_DEMO_WALLET_CALL_LIMIT: ${NETWORK_DEMO_WALLET_CALL_LIMIT:-10}
+      NETWORK_DEMO_GLOBAL_CALL_LIMIT: ${NETWORK_DEMO_GLOBAL_CALL_LIMIT:-100}
+      FRELY_API_ORIGIN: ${FRELY_API_ORIGIN:-https://api.frely.cloud}
       GRAPH_METADATA_GATEWAY: ${GRAPH_METADATA_GATEWAY:-}
       ENS_RPC_URL: ${ENS_RPC_URL:-}
       ERC8004_REGISTRY_ADDRESS: ${ERC8004_REGISTRY_ADDRESS:-}
       FRELY_API_KEY: ${FRELY_API_KEY:-}
       FRELY_A2A_DEFAULT_MODEL: ${FRELY_A2A_DEFAULT_MODEL:-vision-basic}
       FRELY_NETWORK_A2A_AGENT_ID: ${FRELY_NETWORK_A2A_AGENT_ID:-frely-network}
+    volumes:
+      - consumer-data:/var/lib/frely-network/consumer
     ports:
       - "${FRELY_NETWORK_BIND_ADDRESS:-127.0.0.1}:${FRELY_NETWORK_PUBLISHED_PORT:-13600}:4100"
     healthcheck:
@@ -32,3 +40,7 @@ services:
       timeout: 3s
       retries: 5
       start_period: 10s
+
+volumes:
+  consumer-data:
+    name: frely-network-consumer-data

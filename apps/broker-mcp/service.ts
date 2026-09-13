@@ -223,6 +223,7 @@ export function createBrokerMcpFetch(
       return json({ service: SERVICE, status: "ok" });
     }
     if (request.method === "GET" && url.pathname === "/readyz") {
+      if (options.requireConsumerAuthorization && !options.consumerGateway) return json({ service: SERVICE, status: "not_ready", code: "NETWORK_ONBOARDING_NOT_CONFIGURED" }, 503);
       if (!runtime.ready || !runtime.broker) return json({ service: SERVICE, status: "not_ready", code: "BROKER_NOT_READY" }, 503);
       if (options.requireX402Responses && !options.x402Responses) {
         return json({ service: SERVICE, status: "not_ready", code: X402_RESOURCE_NOT_CONFIGURED }, 503);
