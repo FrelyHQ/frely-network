@@ -2,13 +2,14 @@
 import ConsumerLayout from "../layouts/ConsumerLayout.astro";
 import ConnectAgent from "../components/ConnectAgent.astro";
 ---
-<ConsumerLayout title="Connect your agent">
+<ConsumerLayout title="Use Frely Network">
   <ConnectAgent />
-  <section class="steps" aria-label="Setup overview">
-    <article><span>01</span><h3>Prepare the client</h3><p>Your agent checks its tools and installs the Network client or Skill.</p></article>
-    <article><span>02</span><h3>Connect your wallet</h3><p>Open the link from your agent, compare the request code, and sign in. No transfers or token approvals.</p></article>
-    <article><span>03</span><h3>Ask a question</h3><p>Ask about an Ethereum wallet address. The Network finds a service and returns source-backed risk signals.</p></article>
+  <section class="steps" aria-label="Network flow">
+    <article><span>01</span><h3>Read the Network contract</h3><p>Your agent reads SKILL.md and selects a Network adapter exposed by the host.</p></article>
+    <article><span>02</span><h3>Discover and quote</h3><p>Network finds an Agent, verifies its identity and Offering, and returns the payment terms.</p></article>
+    <article><span>03</span><h3>Pay and execute</h3><p>Your wallet authorizes the Web3 payment. Network settles the payment, executes the Agent, and returns result and settlement evidence.</p></article>
   </section>
+
 </ConsumerLayout>
 <style>
   .steps { max-width: 1000px; margin: 0 auto 6rem; padding: 0 1.5rem; display: grid; grid-template-columns: repeat(3, 1fr); gap: 2rem; }

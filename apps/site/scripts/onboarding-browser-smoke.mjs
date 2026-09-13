@@ -53,7 +53,7 @@ try {
   page.on("pageerror", (error) => errors.push(error.message));
   page.on("request", (request) => { if (new URL(request.url()).origin !== metadata.origin) external.push(request.url()); });
   await page.goto(`${metadata.origin}/onboarding/`, { waitUntil: "networkidle" });
-  const prompt = "Fetch https://network.frely.cloud/SKILL.md and follow the setup instructions.";
+  const prompt = "Read https://network.frely.cloud/SKILL.md, follow the Frely Network protocol, and use the best Network adapter available in this chat for my request.";
   assert.equal((await page.locator("#network-install-prompt").inputValue()).trim(), prompt);
   await page.getByTestId("copy-network-prompt").click();
   assert.equal(await page.evaluate(() => window.__frelyCopiedPrompt), prompt);

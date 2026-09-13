@@ -1,21 +1,21 @@
 ---
 import ConsumerLayout from "../layouts/ConsumerLayout.astro";
 ---
-<ConsumerLayout title="Authorize your agent">
+<ConsumerLayout title="Legacy demo authorization">
   <section class="wallet-card" aria-labelledby="wallet-title">
-    <p class="eyebrow">DEVICE AUTHORIZATION</p>
-    <h1 id="wallet-title">Connect your wallet.<br />Keep control of your funds.</h1>
-    <p class="lead">This signature authorizes your agent to discover services and use platform demo calls. It does not authorize transfers or token spending.</p>
+    <p class="eyebrow">LEGACY DEMO AUTHORIZATION</p>
+    <h1 id="wallet-title">Authorize a demo session.</h1>
+    <p class="lead">This page belongs to the platform-demo compatibility flow. The signature creates a demo consumer session. It is not the paid Web3 flow. Paid Web3 calls use the payment wallet as identity and do not require this sign-in step.</p>
     <p id="connection-status" role="status" aria-live="polite">Loading the device request…</p>
     <div id="request-details" hidden>
       <dl><div><dt>Client</dt><dd id="client-name"></dd></div><div><dt>Request code</dt><dd id="user-code"></dd></div><div><dt>Expires</dt><dd id="request-expiry"></dd></div><div><dt>Payment</dt><dd>Platform demo quota — no wallet charge</dd></div></dl>
       <label class="confirm-code"><input id="confirm-code" type="checkbox" /> This code matches the code shown by my agent.</label>
-      <button id="connect-wallet" disabled>Connect wallet</button>
+      <button id="connect-wallet" disabled>Connect demo wallet</button>
       <div id="signature-preview" hidden>
         <p id="wallet-address"></p>
         <h2>Review the sign-in message</h2>
         <pre id="siwe-message"></pre>
-        <button id="authorize-device" disabled>Sign in and authorize this device</button>
+        <button id="authorize-device" disabled>Authorize demo session</button>
       </div>
       <button id="reject-device" class="secondary">Reject request</button>
     </div>

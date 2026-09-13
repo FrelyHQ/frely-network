@@ -55,7 +55,7 @@ async function action(callback: () => Promise<void>): Promise<void> {
 function complete(): void {
   details.hidden = true;
   element<HTMLElement>("connection-complete").hidden = false;
-  status.textContent = "Wallet sign-in approved. No transfer or token approval was requested.";
+  status.textContent = "Legacy demo authorization approved. No Web3 payment was made.";
   message = "";
 }
 compareCode.addEventListener("change", () => {

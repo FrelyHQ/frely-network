@@ -1,19 +1,20 @@
 ---
-const prompt = "Fetch https://network.frely.cloud/SKILL.md and follow the setup instructions.";
+const prompt = "Read https://network.frely.cloud/SKILL.md, follow the Frely Network protocol, and use the best Network adapter available in this chat for my request.";
 ---
 <section class="agent-connect" id="connect-agent" aria-labelledby="connect-agent-title">
   <div class="agent-connect-inner">
-    <p class="eyebrow">CONNECT YOUR AGENT</p>
+
+    <p class="eyebrow">USE FRELY NETWORK</p>
     <h2 id="connect-agent-title">One prompt.<br />An open network of capabilities.</h2>
-    <p class="intro">Paste this prompt into your agent. It will prepare the client and give you a link to connect your wallet.</p>
-    <label for="network-install-prompt">Installation prompt</label>
+    <p class="intro">Paste this prompt into an agent or chatbot. It reads the Network contract, selects an adapter exposed by the host, and uses Network capabilities for your request.</p>
+    <label for="network-install-prompt">Network prompt</label>
     <div class="prompt-card">
-      <textarea id="network-install-prompt" readonly rows="3" spellcheck="false" aria-label="Frely Network installation prompt">{prompt}</textarea>
+      <textarea id="network-install-prompt" readonly rows="4" spellcheck="false" aria-label="Frely Network prompt">{prompt}</textarea>
       <button type="button" data-copy-prompt data-testid="copy-network-prompt">Copy prompt</button>
     </div>
     <p class="copy-status" data-copy-status role="status" aria-live="polite"></p>
-    <p class="requirements">A shell or a connected FrelyMCP is required. ChatGPT uses its existing bridge; Claude Code and OpenCode can use their terminal tools. Node.js 22 or newer is required.</p>
-    <a href="/SKILL.md">Read the setup instructions</a>
+    <p class="requirements">No specific client is required. The host needs a callable Network adapter. A Web3 paid call needs wallet payment capability; the payment wallet is the Web3 identity.</p>
+    <a href="/SKILL.md">Read the Network contract</a>
   </div>
 </section>
 <script>
