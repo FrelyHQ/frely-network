@@ -2,13 +2,10 @@ import { A2AServiceInvocation, Broker, ProtocolInvocation, ResponsesInvocation }
 import { TheGraphDiscovery } from "@frely-network/the-graph";
 import { ViemEnsReader } from "@frely-network/ens";
 import { ProviderIdentityResolver, ViemErc8004Reader } from "@frely-network/erc8004";
-import {
-  createHederaPaymentSigner,
-  HederaX402Client,
-} from "@frely-network/hedera-x402";
 import { isSafePublicHttpUrl } from "@frely-network/shared-types";
 import type { Address } from "viem";
 import type { BrokerRuntime } from "./service.ts";
+import { FrelyAccountBillingClient } from "./frely-account-billing.ts";
 
 type RuntimeEnvironment = Record<string, string | undefined>;
 
@@ -25,15 +22,11 @@ export function createBrokerRuntimeFromEnv(environment: RuntimeEnvironment = pro
   const graphEndpoint = required(environment, "GRAPH_ENDPOINT");
   const ensRpcUrl = required(environment, "ENS_RPC_URL");
   const registryAddress = required(environment, "ERC8004_REGISTRY_ADDRESS");
-  const accountId = required(environment, "X402_ACCOUNT_ID");
-  const privateKey = required(environment, "X402_PRIVATE_KEY");
   const frelyApiKey = required(environment, "FRELY_API_KEY");
   if (
     !graphEndpoint ||
     !ensRpcUrl ||
     !registryAddress ||
-    !accountId ||
-    !privateKey ||
     !frelyApiKey ||
     !isSafePublicHttpUrl(graphEndpoint, { requireHttps: true }) ||
     !isSafePublicHttpUrl(ensRpcUrl, { requireHttps: true })
@@ -42,14 +35,9 @@ export function createBrokerRuntimeFromEnv(environment: RuntimeEnvironment = pro
   if (!registry) return { ready: false };
 
   try {
-    const signer = createHederaPaymentSigner(accountId, privateKey);
-    const responsesPayment = new HederaX402Client({
-      signer,
-      maxAmount: required(environment, "X402_MAX_AMOUNT"),
-    });
     const responses = new ResponsesInvocation({
-      payment: responsesPayment,
-      requirePayment: true,
+      payment: new FrelyAccountBillingClient(frelyApiKey),
+      requirePayment: false,
       headers: { authorization: `Bearer ${frelyApiKey}` },
     });
     const a2a = new A2AServiceInvocation({
