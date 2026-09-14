@@ -60,45 +60,59 @@ that the public snapshot boundary stays explicit.
 
 ## Production deployment
 
-Production `frely-network` is hosted on `ctb-eu` as a service owned by the
-`frely-eu` deployment. The authoritative Compose file is
-`/opt/frely-eu/services/frely-network/compose.production.yaml`; the running
-Compose project is `frely-network`. The `ops/release/release-config.json`
-file describes a standalone controller for local release tooling and is not
-the production entry point for this host.
+## Release and deploy
 
-Do not deploy by creating `/opt/frely-network`, installing a project-specific
-runner, or invoking the local release script directly on `ctb-eu`. A
-production update must use the existing `frely-eu` host-governance release
-controller, its immutable image/manifest flow, and its target-specific
-verification. Read the current deployed manifest before selecting a new
-version or image.
+Production fields:
 
-Use the repository wrapper for the complete handoff. It runs the host preflight,
-builds the image, pushes an immutable GHCR tag, and writes a local manifest. By
-default it stops before changing production:
+| Field | Value |
+| --- | --- |
+| Host | `ctb-eu` |
+| Deployment | `frely-eu` |
+| Compose file | `/opt/frely-eu/services/frely-network/compose.production.yaml` |
+| Compose project | `frely-network` |
+| Service | `broker-mcp` |
+| Health | `https://network.frely.cloud/readyz` |
+
+Entry:
 
 ```bash
-bun run release:frely-eu -- --version 0.1.0 --sha "$(git rev-parse HEAD)"
+./scripts/release-deploy --dry-run
+./scripts/release-deploy
+./scripts/release-deploy --version 0.1.1
 ```
 
-After reviewing the reported image and manifest, add `--deploy` to pull that
-same digest on `ctb-eu`, update only the `broker-mcp` service in the existing
-`frely-eu` Compose project, wait for Docker health, and verify `/readyz`:
+Release fields:
+
+| Field | Value |
+| --- | --- |
+| Branch | `main` |
+| Version source | next patch from `release/ctb-eu/v*` |
+| Release controller | `release:frely-eu` |
+| Image policy | immutable GHCR digest |
+
+Release flow:
+
+```text
+check
+→ Compose contract
+→ release tag
+→ host preflight
+→ GHCR image
+→ immutable digest
+→ broker-mcp update
+→ /readyz
+```
+
+Release gates include clean worktree, `main`, Git ancestry, host identity, registry digest, container health, and readiness.
+
+Controller diagnostics:
 
 ```bash
-bun run release:frely-eu -- --version 0.1.0 --sha "$(git rev-parse HEAD)" --deploy
+bun run release:frely-eu -- --version 0.1.1 --sha "$(git rev-parse HEAD)"
+bun run release:frely-eu -- --version 0.1.1 --sha "$(git rev-parse HEAD)" --deploy
 ```
 
-The command fails closed on a host mismatch, missing registry digest, unhealthy
-container, or failed readiness check. It never changes the shared `frely-eu`
-topology or `frely-swarm` service.
-
-The service verification remains a public contract check against `/readyz`.
-Routing for `network.frely.cloud` and the shared `frely-eu` Compose topology
-remain host-owned prerequisites and are not changed by this repository's local
-release command.
-
+The operator entry is `./scripts/release-deploy`.
 ## Cross-project local integration
 
 Read [`docs/cross-project-integration.md`](docs/cross-project-integration.md)

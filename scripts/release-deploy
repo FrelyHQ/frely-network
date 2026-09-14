@@ -1,0 +1,111 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+cd "$ROOT"
+
+usage() {
+  cat <<'EOF'
+Usage: ./scripts/release-deploy [--version <semver>] [--dry-run]
+
+Release and deploy frely-network to the fixed ctb-eu/frely-eu production target.
+If --version is omitted, the next patch version after the latest release/ctb-eu tag is used.
+EOF
+}
+
+version=""
+dry_run=0
+while (($#)); do
+  case "$1" in
+    --version)
+      [[ $# -ge 2 ]] || { echo "missing value for --version" >&2; exit 2; }
+      version="$2"
+      shift 2
+      ;;
+    --dry-run)
+      dry_run=1
+      shift
+      ;;
+    -h|--help)
+      usage
+      exit 0
+      ;;
+    *)
+      echo "unknown argument: $1" >&2
+      usage >&2
+      exit 2
+      ;;
+  esac
+done
+
+semver_re='^[0-9]+\.[0-9]+\.[0-9]+([+-][0-9A-Za-z.-]+)?$'
+
+require_clean() {
+  local dirty
+  dirty="$(git status --porcelain --untracked-files=all)"
+  [[ -z "$dirty" ]] || {
+    echo "release requires a clean worktree:" >&2
+    printf '%s\n' "$dirty" >&2
+    exit 1
+  }
+}
+
+next_patch_version() {
+  local latest raw major minor patch
+  latest="$(git tag --list 'release/ctb-eu/v*' --sort=-v:refname | head -n 1)"
+  [[ -n "$latest" ]] || { echo "no release/ctb-eu tag found; pass --version" >&2; exit 1; }
+  raw="${latest##*/v}"
+  [[ "$raw" =~ ^([0-9]+)\.([0-9]+)\.([0-9]+)$ ]] || {
+    echo "latest release tag is not a stable SemVer: $latest; pass --version" >&2
+    exit 1
+  }
+  major="${BASH_REMATCH[1]}"
+  minor="${BASH_REMATCH[2]}"
+  patch="${BASH_REMATCH[3]}"
+  printf '%s.%s.%s\n' "$major" "$minor" "$((patch + 1))"
+}
+
+ensure_release_tag() {
+  local tag="release/ctb-eu/v$version" tagged_sha
+  if git rev-parse -q --verify "refs/tags/$tag" >/dev/null; then
+    tagged_sha="$(git rev-list -n 1 "$tag")"
+    [[ "$tagged_sha" == "$sha" ]] || { echo "$tag already points to $tagged_sha" >&2; exit 1; }
+    return
+  fi
+  git tag -a "$tag" "$sha" -m "frely-network ctb-eu v$version"
+  git push origin "refs/tags/$tag"
+}
+
+require_clean
+sha="$(git rev-parse HEAD)"
+[[ "$sha" =~ ^[0-9a-f]{40}$ ]] || { echo "unable to resolve release SHA" >&2; exit 1; }
+if ((dry_run)); then
+  [[ -n "$version" ]] || version="$(next_patch_version)"
+  [[ "$version" =~ $semver_re ]] || { echo "invalid SemVer: $version" >&2; exit 2; }
+  exec bun run release -- --target frely-network --version "$version" --sha "$sha" --stage release --dry-run
+fi
+
+
+
+branch="$(git symbolic-ref --quiet --short HEAD || true)"
+[[ "$branch" == "main" ]] || { echo "production release must run from main; current branch: ${branch:-detached}" >&2; exit 1; }
+
+git fetch origin main --tags
+remote_sha="$(git rev-parse origin/main)"
+git merge-base --is-ancestor "$remote_sha" "$sha" || {
+  echo "local main does not contain origin/main; update main before release" >&2
+  exit 1
+}
+if [[ "$remote_sha" != "$sha" ]]; then
+[[ -n "$version" ]] || version="$(next_patch_version)"
+[[ "$version" =~ $semver_re ]] || { echo "invalid SemVer: $version" >&2; exit 2; }
+
+bun run check
+fi
+
+bun run check
+bun run verify:compose
+ensure_release_tag
+
+printf 'frely-network release: target=ctb-eu/frely-eu version=%s sha=%s\n' "$version" "$sha"
+exec bun run release:frely-eu -- --version "$version" --sha "$sha" --deploy
