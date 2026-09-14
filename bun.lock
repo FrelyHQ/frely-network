@@ -15,6 +15,7 @@
       "dependencies": {
         "@frely-network/broker": "workspace:*",
         "@frely-network/ens": "workspace:*",
+        "@frely-network/erc8004": "workspace:*",
         "@frely-network/frely-discovery": "workspace:*",
         "@frely-network/hedera-x402": "workspace:*",
         "@frely-network/shared-types": "workspace:*",
