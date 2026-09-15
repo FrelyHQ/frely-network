@@ -146,6 +146,14 @@
         "@frely-network/offering": "workspace:*",
       },
     },
+    "packages/payment/web2-fulfillment-client": {
+      "name": "@frely-network/web2-fulfillment-client",
+      "version": "0.0.0",
+      "dependencies": {
+        "@frely-network/shared-types": "workspace:*",
+        "@frely-network/web2-fulfillment-contract": "workspace:*",
+      },
+    },
     "packages/payment/web2-fulfillment-contract": {
       "name": "@frely-network/web2-fulfillment-contract",
       "version": "0.0.0",
@@ -291,6 +299,8 @@
     "@frely-network/vision-basic": ["@frely-network/vision-basic@workspace:examples/vision-basic"],
 
     "@frely-network/vision-ocr": ["@frely-network/vision-ocr@workspace:examples/vision-ocr"],
+
+    "@frely-network/web2-fulfillment-client": ["@frely-network/web2-fulfillment-client@workspace:packages/payment/web2-fulfillment-client"],
 
     "@frely-network/web2-fulfillment-contract": ["@frely-network/web2-fulfillment-contract@workspace:packages/payment/web2-fulfillment-contract"],
 

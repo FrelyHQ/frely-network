@@ -1,0 +1,12 @@
+{
+  "name": "@frely-network/web2-fulfillment-client",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "exports": "./index.ts",
+  "types": "./index.ts",
+  "dependencies": {
+    "@frely-network/web2-fulfillment-contract": "workspace:*",
+    "@frely-network/shared-types": "workspace:*"
+  }
+}
