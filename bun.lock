@@ -142,6 +142,7 @@
       "name": "@frely-network/revenue-provenance",
       "version": "0.0.0",
       "dependencies": {
+        "@frely-network/hedera-x402": "workspace:*",
         "@frely-network/offering": "workspace:*",
       },
     },

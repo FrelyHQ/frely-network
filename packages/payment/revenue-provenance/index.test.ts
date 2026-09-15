@@ -22,7 +22,7 @@ const offering = {
   capabilities: ["web3-safety"],
   price: {
     network: "hedera:testnet",
-    asset: "0.0.456858",
+    asset: "0.0.429274",
     amountAtomic: "1000000",
     publisherPayTo: "0.0.1234",
     networkFeeBps: 500,
@@ -35,7 +35,7 @@ const purchase = (overrides: Partial<RecordWeb3PurchaseInput["payment"]> = {}): 
   offering,
   payment: {
     network: "hedera:testnet",
-    asset: "0.0.456858",
+    asset: "0.0.429274",
     amountAtomic: "1000000",
     transactionId: "0.0.2002@1757910000.000000001",
     paymentReference: "hedera:proof:0123456789abcdef",
@@ -69,7 +69,7 @@ describe("RevenueProvenanceLedger", () => {
       expect(revenue).toMatchObject({
         creatorId: "alice",
         creatorPayTo: "0.0.1234",
-        asset: "0.0.456858",
+        asset: "0.0.429274",
         grossAmountAtomic: "1000000",
         networkFeeAmountAtomic: "50000",
         creatorAmountAtomic: "950000",
@@ -147,9 +147,9 @@ describe("RevenueProvenanceLedger", () => {
       expect(ledger.recordWeb3Purchase(purchase())).toEqual(first);
       expect(() => ledger.recordWeb3Purchase({ ...purchase(), purchaseId: "purchase-2" })).toThrow("PROVENANCE_CONFLICT");
 
-      const firstRevenue = ledger.recordCreatorRevenue({ revenueId: "revenue-1", purchaseId: "purchase-1", networkFeeAmountAtomic: "0", creatorAmountAtomic: "1000000" });
-      expect(ledger.recordCreatorRevenue({ revenueId: "revenue-1", purchaseId: "purchase-1", networkFeeAmountAtomic: "0", creatorAmountAtomic: "1000000" })).toEqual(firstRevenue);
-      expect(() => ledger.recordCreatorRevenue({ revenueId: "revenue-2", purchaseId: "purchase-1", networkFeeAmountAtomic: "0", creatorAmountAtomic: "1000000" })).toThrow("PROVENANCE_CONFLICT");
+      const firstRevenue = ledger.recordCreatorRevenue({ revenueId: "revenue-1", purchaseId: "purchase-1" });
+      expect(ledger.recordCreatorRevenue({ revenueId: "revenue-1", purchaseId: "purchase-1" })).toEqual(firstRevenue);
+      expect(() => ledger.recordCreatorRevenue({ revenueId: "revenue-2", purchaseId: "purchase-1" })).toThrow("PROVENANCE_CONFLICT");
     } finally { ledger.close(); }
   });
 
@@ -182,4 +182,53 @@ describe("RevenueProvenanceLedger", () => {
       expect((await stat(shared)).mode & 0o777).toBe(0o755);
     });
   });
+});
+
+
+test("computes the fee allocation from the Offering snapshot instead of trusting caller amounts", () => {
+  const ledger = new RevenueProvenanceLedger(":memory:");
+  try {
+    ledger.recordWeb3Purchase({
+      ...purchase({ amountAtomic: "1000001" }),
+      offering: { ...offering, price: { ...offering.price, amountAtomic: "1000001" } },
+    });
+    const revenue = ledger.recordCreatorRevenue({ revenueId: "revenue-rounding", purchaseId: "purchase-1" });
+    expect(revenue.networkFeeAmountAtomic).toBe("50000");
+    expect(revenue.creatorAmountAtomic).toBe("950001");
+    expect(() => ledger.recordCreatorRevenue({
+      revenueId: "revenue-bad-assertion", purchaseId: "purchase-1", networkFeeAmountAtomic: "50001", creatorAmountAtomic: "950000",
+    })).toThrow("PROVENANCE_RECONCILIATION_FAILED");
+  } finally { ledger.close(); }
+});
+
+test("blocks non-zero-fee direct USDC revenue because the Network fee has no settlement evidence", () => {
+  const ledger = new RevenueProvenanceLedger(":memory:");
+  try {
+    ledger.recordWeb3Purchase(purchase());
+    ledger.recordCreatorRevenue({ revenueId: "revenue-held", purchaseId: "purchase-1" });
+    expect(ledger.assessCreatorRevenueAvailability("revenue-held")).toEqual({
+      revenueId: "revenue-held", state: "blocked", reason: "fee_settlement_unproven", symbol: "USDC",
+    });
+  } finally { ledger.close(); }
+});
+
+test("recognizes zero-fee publisher-direct USDC as settled directly, not a platform withdrawable balance", () => {
+  const ledger = new RevenueProvenanceLedger(":memory:");
+  try {
+    ledger.recordWeb3Purchase({ ...purchase(), offering: { ...offering, price: { ...offering.price, networkFeeBps: 0 } } });
+    ledger.recordCreatorRevenue({ revenueId: "revenue-direct", purchaseId: "purchase-1" });
+    expect(ledger.assessCreatorRevenueAvailability("revenue-direct")).toEqual({
+      revenueId: "revenue-direct", state: "settled_direct", reason: "direct_settlement", symbol: "USDC",
+    });
+  } finally { ledger.close(); }
+});
+
+test("records non-USDC purchases but rejects them as Creator USDC revenue", () => {
+  const ledger = new RevenueProvenanceLedger(":memory:");
+  try {
+    const hbarOffering = { ...offering, price: { ...offering.price, asset: "0.0.0", networkFeeBps: 0 } };
+    expect(ledger.recordWeb3Purchase({ ...purchase({ asset: "0.0.0" }), offering: hbarOffering }).asset).toBe("0.0.0");
+    expect(() => ledger.recordCreatorRevenue({ revenueId: "revenue-hbar", purchaseId: "purchase-1" }))
+      .toThrow("PROVENANCE_ASSET_NOT_ALLOWED");
+  } finally { ledger.close(); }
 });

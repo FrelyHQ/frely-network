@@ -2,6 +2,8 @@ import { Database } from "bun:sqlite";
 import { chmodSync, existsSync, lstatSync, mkdirSync } from "node:fs";
 import { dirname } from "node:path";
 import { validateOffering, type NetworkOffering } from "@frely-network/offering";
+import { calculateCreatorRevenueAllocation, creatorRevenueAsset } from "./policy.ts";
+export * from "./policy.ts";
 
 const SAFE_REFERENCE = /^[A-Za-z0-9][A-Za-z0-9_.:/-]{0,191}$/u;
 const SAFE_CHAIN_REFERENCE = /^[A-Za-z0-9][A-Za-z0-9_.:@/-]{0,191}$/u;
@@ -60,9 +62,24 @@ export interface Web3PurchaseRecord {
 export interface RecordCreatorRevenueInput {
   readonly revenueId: string;
   readonly purchaseId: string;
-  readonly networkFeeAmountAtomic: string;
-  readonly creatorAmountAtomic: string;
+  /** Optional assertions. The ledger computes the allocation from the Offering snapshot. */
+  readonly networkFeeAmountAtomic?: string;
+  readonly creatorAmountAtomic?: string;
   readonly status?: CreatorRevenueStatus;
+}
+
+export type CreatorRevenueAvailabilityState = "blocked" | "settled_direct";
+export type CreatorRevenueAvailabilityReason =
+  | "asset_not_allowed"
+  | "fee_settlement_unproven"
+  | "direct_settlement"
+  | "voided";
+
+export interface CreatorRevenueAvailability {
+  readonly revenueId: string;
+  readonly state: CreatorRevenueAvailabilityState;
+  readonly reason: CreatorRevenueAvailabilityReason;
+  readonly symbol?: "USDC";
 }
 
 export interface CreatorRevenueRecord {
@@ -378,15 +395,18 @@ export class RevenueProvenanceLedger {
   recordCreatorRevenue(input: RecordCreatorRevenueInput): CreatorRevenueRecord {
     this.assertOpen();
     if (!safeReference(input.revenueId) || !safeReference(input.purchaseId)) throw failure("PROVENANCE_INVALID");
-    const networkFeeAmountAtomic = amount(input.networkFeeAmountAtomic);
-    const creatorAmountAtomic = amount(input.creatorAmountAtomic, true);
     const status = input.status ?? "recorded";
     if (status !== "recorded" && status !== "voided") throw failure("PROVENANCE_INVALID");
     try {
       return this.db.transaction(() => {
         const purchase = this.purchaseById(input.purchaseId);
         if (!purchase || purchase.settlementStatus !== "settled") throw failure("PROVENANCE_SOURCE_MISSING");
-        if (BigInt(networkFeeAmountAtomic) + BigInt(creatorAmountAtomic) !== BigInt(purchase.grossAmountAtomic)) {
+        if (!creatorRevenueAsset(purchase.network, purchase.asset)) throw failure("PROVENANCE_ASSET_NOT_ALLOWED");
+        const allocation = calculateCreatorRevenueAllocation(purchase.grossAmountAtomic, purchase.networkFeeBpsSnapshot);
+        if (input.networkFeeAmountAtomic !== undefined && amount(input.networkFeeAmountAtomic) !== allocation.networkFeeAmountAtomic) {
+          throw failure("PROVENANCE_RECONCILIATION_FAILED");
+        }
+        if (input.creatorAmountAtomic !== undefined && amount(input.creatorAmountAtomic) !== allocation.creatorAmountAtomic) {
           throw failure("PROVENANCE_RECONCILIATION_FAILED");
         }
         const candidate: CreatorRevenueRecord = {
@@ -397,8 +417,8 @@ export class RevenueProvenanceLedger {
           creatorPayTo: purchase.publisherPayTo,
           asset: purchase.asset,
           grossAmountAtomic: purchase.grossAmountAtomic,
-          networkFeeAmountAtomic,
-          creatorAmountAtomic,
+          networkFeeAmountAtomic: allocation.networkFeeAmountAtomic,
+          creatorAmountAtomic: allocation.creatorAmountAtomic,
           status,
           recordedAt: nowIso(this.now),
         };
@@ -501,6 +521,35 @@ export class RevenueProvenanceLedger {
       recorded_at: row.r_recorded_at as string,
     });
     return { sourceKind: CREATOR_REVENUE_SOURCE_KIND, purchase, revenue };
+  }
+
+  assessCreatorRevenueAvailability(revenueId: string): CreatorRevenueAvailability {
+    this.assertOpen();
+    const provenance = this.getRevenueProvenance({ revenueId });
+    if (!provenance) throw failure("PROVENANCE_SOURCE_MISSING");
+    if (provenance.revenue.status === "voided") return { revenueId, state: "blocked", reason: "voided" };
+    const allowed = creatorRevenueAsset(provenance.purchase.network, provenance.purchase.asset);
+    if (!allowed) return { revenueId, state: "blocked", reason: "asset_not_allowed" };
+    const allocation = calculateCreatorRevenueAllocation(
+      provenance.purchase.grossAmountAtomic,
+      provenance.purchase.networkFeeBpsSnapshot,
+    );
+    if (
+      allocation.networkFeeAmountAtomic !== provenance.revenue.networkFeeAmountAtomic ||
+      allocation.creatorAmountAtomic !== provenance.revenue.creatorAmountAtomic
+    ) throw failure("PROVENANCE_RECONCILIATION_FAILED");
+
+    // Current Hedera exact x402 settles the full purchase to one payTo. With a
+    // non-zero Network fee this does not prove fee collection, so no platform
+    // withdrawable balance may be created. Zero-fee revenue is already paid to
+    // the publisher wallet and needs no platform withdrawal.
+    if (allocation.networkFeeAmountAtomic !== "0") {
+      return { revenueId, state: "blocked", reason: "fee_settlement_unproven", symbol: allowed.symbol };
+    }
+    if (provenance.purchase.payeeReference !== provenance.purchase.publisherPayTo) {
+      return { revenueId, state: "blocked", reason: "fee_settlement_unproven", symbol: allowed.symbol };
+    }
+    return { revenueId, state: "settled_direct", reason: "direct_settlement", symbol: allowed.symbol };
   }
 
   close(): void {
