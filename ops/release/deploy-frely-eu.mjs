@@ -10,6 +10,8 @@ const IMAGE = "ghcr.io/frelyhq/frely-network";
 const COMPOSE = "/opt/frely-eu/services/frely-network/compose.production.yaml";
 const ENV_FILE = "/opt/frely-eu/services/frely-network/deployment.env";
 const SERVICE = "broker-mcp";
+const HOST_CONTRACT_REVISION_PATH = "/etc/deploy/friday-relay-contract-revision";
+const HOST_CONTRACT_REVISION = /^friday-relay\.release-host-contract\.v[1-9][0-9]*$/;
 
 function run(command, args, options = {}) {
   process.stdout.write(`$ ${command} ${args.join(" ")}\n`);
@@ -31,7 +33,9 @@ const tag = `${IMAGE}:v${version}-${sha.slice(0, 12)}`;
 const manifestPath = resolve(ROOT, `.local/release/${TARGET}-v${version}.json`);
 mkdirSync(resolve(ROOT, ".local/release"), { recursive: true });
 
-run("ssh", [HOST, "node /opt/deploy/bin/deploy-compose-release.mjs --preflight --deployment-target frely-eu --postgres-target frely-eu --expected-host-contract-revision friday-relay.release-host-contract.v36"]);
+const hostContractRevision = run("ssh", [HOST, `cat ${HOST_CONTRACT_REVISION_PATH}`], { capture: true }).trim();
+if (!HOST_CONTRACT_REVISION.test(hostContractRevision)) throw new Error("invalid host contract revision reported by deployment host");
+run("ssh", [HOST, `node /opt/deploy/bin/deploy-compose-release.mjs --preflight --deployment-target frely-eu --postgres-target frely-eu --expected-host-contract-revision ${hostContractRevision}`]);
 
 run("bun", ["ops/release/release-cli.mjs", "--target", TARGET, "--version", version, "--sha", sha, "--stage", "build", "--manifest", manifestPath]);
 const localDigest = JSON.parse(readFileSync(manifestPath, "utf8")).image.digest;

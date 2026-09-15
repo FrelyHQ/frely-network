@@ -39,6 +39,13 @@ describe("frely-network release contract", () => {
     expect(manifestDigest({ b: 2, a: 1 })).toBe(manifestDigest({ a: 1, b: 2 }));
   });
 
+  test("discovers the deployment host contract revision instead of pinning a revision", () => {
+    const entrypoint = readFileSync(new URL("./deploy-frely-eu.mjs", import.meta.url), "utf8");
+    expect(entrypoint).toContain("/etc/deploy/friday-relay-contract-revision");
+    expect(entrypoint).toContain("--expected-host-contract-revision ${hostContractRevision}");
+    expect(entrypoint).not.toMatch(/--expected-host-contract-revision friday-relay\.release-host-contract\.v[0-9]+/u);
+  });
+
   test("prepares locked dependencies before verification and source push", () => {
     const entrypoint = readFileSync(new URL("../../scripts/release", import.meta.url), "utf8");
     const install = entrypoint.indexOf("bun install --frozen-lockfile");
