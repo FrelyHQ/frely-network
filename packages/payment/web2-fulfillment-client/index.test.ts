@@ -13,6 +13,13 @@ const intent = {
   expiresAt: "2026-09-15T03:15:00.000Z",
 } as const;
 
+const skillIntent = {
+  ...intent,
+  intentId: "intent_skill_1",
+  product: { productId: "skill_1", productVersion: "2", productKind: "official_skill", ownerKind: "frely_owned" },
+  payment: { ...intent.payment, amountAtomic: "2500000" },
+} as const;
+
 function response(value: unknown, status = 200): Response { return Response.json(value, { status }); }
 
 describe("FrelyWeb2FulfillmentClient", () => {
@@ -26,6 +33,17 @@ describe("FrelyWeb2FulfillmentClient", () => {
     });
     expect(await client.createPlanPurchaseIntent({ planId: "plan_1", planVersion: "3", recipientFrelyUserId: "user_1" })).toEqual(intent);
     expect(body).toEqual({ planId: "plan_1", planVersion: "3", recipientFrelyUserId: "user_1" });
+  });
+
+  test("creates an official Skill intent through the dedicated endpoint without amount or recipient override", async () => {
+    let body: Record<string, unknown> | undefined;
+    const client = new FrelyWeb2FulfillmentClient({ origin: "https://frely.example", token }, async (url, init) => {
+      expect(url).toBe("https://frely.example/api/internal/network/web2-purchases/official-skill-intents");
+      body = JSON.parse(String(init.body));
+      return response(skillIntent, 201);
+    });
+    expect(await client.createOfficialSkillPurchaseIntent({ productId: "skill_1", productVersion: "2", recipientFrelyUserId: "user_1" })).toEqual(skillIntent);
+    expect(body).toEqual({ productId: "skill_1", productVersion: "2", recipientFrelyUserId: "user_1" });
   });
 
   test("submits only the frozen intent id and settled payment evidence", async () => {

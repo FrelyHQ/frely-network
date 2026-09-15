@@ -21,6 +21,12 @@ export interface CreatePlanPurchaseIntentInput {
   readonly recipientFrelyUserId: string;
 }
 
+export interface CreateOfficialSkillPurchaseIntentInput {
+  readonly productId: string;
+  readonly productVersion: string;
+  readonly recipientFrelyUserId: string;
+}
+
 
 export interface SettledFrelyWeb2PaymentInput {
   readonly intent: NetworkWeb2PurchaseIntent;
@@ -57,6 +63,12 @@ export class FrelyWeb2FulfillmentClient {
     return validateNetworkWeb2PurchaseIntent(await this.postJson("/api/internal/network/web2-purchases/intents", payload));
   }
 
+
+
+  async createOfficialSkillPurchaseIntent(input: CreateOfficialSkillPurchaseIntentInput): Promise<NetworkWeb2PurchaseIntent> {
+    const payload = exactOfficialSkillIntentInput(input);
+    return validateNetworkWeb2PurchaseIntent(await this.postJson("/api/internal/network/web2-purchases/official-skill-intents", payload));
+  }
 
   async fulfillSettledPayment(input: SettledFrelyWeb2PaymentInput): Promise<NetworkWeb2FulfillmentResponse> {
     const intent = validateNetworkWeb2PurchaseIntent(input.intent);
@@ -117,6 +129,10 @@ function exactPlanIntentInput(value: CreatePlanPurchaseIntentInput): CreatePlanP
   return { planId: reference(value.planId), planVersion: reference(value.planVersion), recipientFrelyUserId: reference(value.recipientFrelyUserId) };
 }
 
+
+function exactOfficialSkillIntentInput(value: CreateOfficialSkillPurchaseIntentInput): CreateOfficialSkillPurchaseIntentInput {
+  return { productId: exactReference(value.productId), productVersion: exactReference(value.productVersion), recipientFrelyUserId: exactReference(value.recipientFrelyUserId) };
+}
 
 function exactReference(value: unknown): string {
   if (typeof value !== "string" || !/^[A-Za-z0-9][A-Za-z0-9_.:/@-]{0,255}$/u.test(value)) throw failure("CONFIG_INVALID");
