@@ -38,7 +38,7 @@ describe("Frely Agent discovery", () => {
       endpoint: "https://api.frely.cloud/a2a",
       model,
       source: "frely",
-      underlyingAgent: { platform: "frely", agentId, model, ownerRef: "user:bob" },
+      underlyingAgent: { platform: "frely", agentId, model, version: "v1", ownerRef: "user:bob" },
     }]);
   });
 
@@ -57,7 +57,7 @@ describe("Frely Agent discovery", () => {
       verified: true,
       model,
       source: "frely",
-      underlyingAgent: { platform: "frely", agentId, model, ownerRef: "user:bob" },
+      underlyingAgent: { platform: "frely", agentId, model, version: "v1", ownerRef: "user:bob" },
     });
   });
 });

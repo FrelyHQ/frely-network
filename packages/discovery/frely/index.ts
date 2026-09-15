@@ -139,6 +139,7 @@ export class FrelyAgentDiscovery {
           platform: "frely",
           agentId: entry.agent_id,
           model: entry.model,
+          version: entry.version,
           ownerRef: entry.owned_by,
         },
       });
