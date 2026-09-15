@@ -27,6 +27,8 @@ import {
   createHederaPreflightTransfer,
   createHederaSignAndSubmitTransaction,
   createHederaVerifyPayerSignature,
+  HEDERA_TESTNET_USDC as X402_HEDERA_TESTNET_USDC,
+  HEDERA_USDC_DECIMALS as X402_HEDERA_USDC_DECIMALS,
   PrivateKey,
   toFacilitatorHederaSigner,
   type FacilitatorHederaSigner,
@@ -36,6 +38,9 @@ import { ExactHederaScheme } from "@x402/hedera/exact/client";
 
 export const HEDERA_TESTNET_NETWORK = "hedera:testnet" as const;
 export const HEDERA_V1_TESTNET_NETWORK = "hedera-testnet" as const;
+/** Circle-issued USDC asset used by the pinned x402 Hedera testnet mechanism. */
+export const HEDERA_TESTNET_USDC_ASSET = X402_HEDERA_TESTNET_USDC;
+export const HEDERA_USDC_DECIMALS = X402_HEDERA_USDC_DECIMALS;
 
 export type X402Version = 1 | 2;
 

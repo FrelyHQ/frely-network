@@ -6,6 +6,8 @@ export interface UnderlyingAgentReference {
   platform: "frely";
   agentId: string;
   model: string;
+  /** Frely catalog version frozen at resolution time when available. */
+  version?: string;
   ownerRef?: string;
 }
 export interface OfferingPriceReference {

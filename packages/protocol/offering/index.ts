@@ -45,8 +45,9 @@ function underlying(value: unknown): UnderlyingAgentReference {
   if (source.platform !== "frely") return invalid();
   const agentId = text(source.agentId, 128);
   const model = text(source.model, 256);
+  const version = source.version === undefined ? undefined : text(source.version, 64);
   const ownerRef = source.ownerRef === undefined ? undefined : text(source.ownerRef, 256);
-  return { platform: "frely", agentId, model, ...(ownerRef === undefined ? {} : { ownerRef }) };
+  return { platform: "frely", agentId, model, ...(version === undefined ? {} : { version }), ...(ownerRef === undefined ? {} : { ownerRef }) };
 }
 function price(value: unknown): OfferingPrice {
   const source = record(value);

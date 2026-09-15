@@ -138,6 +138,14 @@
         "@x402/hedera": "2.25.0",
       },
     },
+    "packages/payment/revenue-provenance": {
+      "name": "@frely-network/revenue-provenance",
+      "version": "0.0.0",
+      "dependencies": {
+        "@frely-network/hedera-x402": "workspace:*",
+        "@frely-network/offering": "workspace:*",
+      },
+    },
     "packages/payment/x402-payer-session": {
       "name": "@frely-network/x402-payer-session",
       "version": "0.0.0",
@@ -265,6 +273,8 @@
     "@frely-network/provider-directory": ["@frely-network/provider-directory@workspace:packages/discovery/provider-directory"],
 
     "@frely-network/register-provider": ["@frely-network/register-provider@workspace:scripts/register-provider"],
+
+    "@frely-network/revenue-provenance": ["@frely-network/revenue-provenance@workspace:packages/payment/revenue-provenance"],
 
     "@frely-network/shared-types": ["@frely-network/shared-types@workspace:packages/protocol/shared-types"],
 

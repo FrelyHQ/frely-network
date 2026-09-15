@@ -29,6 +29,11 @@ describe("Network Offering", () => {
     expect(offeringsFromRegistrationMetadata({ name: "Alice Agent", offerings: [offering] })).toEqual([offering]);
   });
 
+  test("preserves an explicit underlying Frely Agent version for purchase provenance", () => {
+    const versioned = { ...offering, underlyingAgent: { ...offering.underlyingAgent, version: "v1" } };
+    expect(validateOffering(versioned).underlyingAgent.version).toBe("v1");
+  });
+
   test("supports many Offerings for the same underlying Agent", () => {
     const second = { ...offering, id: "off_alice_security_2", capabilities: ["domain-safety"] };
     const result = validateOfferings([offering, second]);
