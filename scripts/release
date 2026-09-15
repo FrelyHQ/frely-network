@@ -167,6 +167,13 @@ if ((dry_run)); then
   exit 0
 fi
 
+# Prepare the exact locked workspace before verification. This keeps the
+# one-command release entrypoint independent of stale local workspace links.
+bun install --frozen-lockfile
+bun run check
+bun run verify:compose
+
+# Push the already-verified source only after all local verification gates pass.
 if ((main_push_required)); then
   git push origin HEAD:main
   [[ "$(git ls-remote origin refs/heads/main | awk '{print $1}')" == "$sha" ]] || {
@@ -174,9 +181,6 @@ if ((main_push_required)); then
     exit 1
   }
 fi
-
-bun run check
-bun run verify:compose
 
 print_plan
 # Existing deploy engine owns host preflight, image build, GHCR push,

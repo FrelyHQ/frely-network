@@ -39,6 +39,16 @@ describe("frely-network release contract", () => {
     expect(manifestDigest({ b: 2, a: 1 })).toBe(manifestDigest({ a: 1, b: 2 }));
   });
 
+  test("prepares locked dependencies before verification and source push", () => {
+    const entrypoint = readFileSync(new URL("../../scripts/release", import.meta.url), "utf8");
+    const install = entrypoint.indexOf("bun install --frozen-lockfile");
+    const verify = entrypoint.indexOf("bun run check");
+    const pushMain = entrypoint.indexOf("git push origin HEAD:main");
+    expect(install).toBeGreaterThan(-1);
+    expect(verify).toBeGreaterThan(install);
+    expect(pushMain).toBeGreaterThan(verify);
+  });
+
   test("does not overwrite an existing manifest with different content", () => {
     const path = join(mkdtempSync(join(tmpdir(), "frely-network-release-")), "manifest.json");
     const first = { release_id: "one" };
