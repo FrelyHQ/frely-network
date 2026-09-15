@@ -1,0 +1,189 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+cd "$ROOT"
+
+PROJECT="frely-network"
+TARGET="frely-network"
+ENVIRONMENT="production"
+IMAGE_REPO="ghcr.io/frelyhq/frely-network"
+DESTINATION="ctb-eu / frely-network"
+TAG_PREFIX="release/frely-network/v"
+LEGACY_TAG_PREFIX="release/ctb-eu/v"
+
+usage() {
+  cat <<'EOF'
+Usage: ./scripts/release [--version <semver>] [--dry-run]
+
+Release frely-network to the fixed ctb-eu production target.
+If --version is omitted, the next patch after the latest formal release is used.
+EOF
+}
+
+version=""
+dry_run=0
+while (($#)); do
+  case "$1" in
+    --version)
+      [[ $# -ge 2 ]] || { echo "missing value for --version" >&2; exit 2; }
+      version="$2"
+      shift 2
+      ;;
+    --dry-run)
+      dry_run=1
+      shift
+      ;;
+    -h|--help)
+      usage
+      exit 0
+      ;;
+    *)
+      echo "unknown argument: $1" >&2
+      usage >&2
+      exit 2
+      ;;
+  esac
+done
+
+semver_re='^(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)(-[0-9A-Za-z.-]+)?(\+[0-9A-Za-z.-]+)?$'
+stable_re='^([0-9]+)\.([0-9]+)\.([0-9]+)$'
+
+require_clean_main() {
+  local dirty branch
+  dirty="$(git status --porcelain --untracked-files=all)"
+  [[ -z "$dirty" ]] || {
+    echo "release requires a clean worktree:" >&2
+    printf '%s\n' "$dirty" >&2
+    exit 1
+  }
+  branch="$(git symbolic-ref --quiet --short HEAD || true)"
+  [[ "$branch" == "main" ]] || {
+    echo "production release must run from main; current branch: ${branch:-detached}" >&2
+    exit 1
+  }
+}
+
+latest_stable_for_prefix() {
+  local prefix="$1" tag raw
+  while IFS= read -r tag; do
+    raw="${tag#${prefix}}"
+    if [[ "$raw" =~ $stable_re ]]; then
+      printf '%s\n' "$raw"
+      return 0
+    fi
+  done < <(git tag --list "${prefix}*" --sort=-v:refname)
+  return 1
+}
+
+semver_gt() {
+  local am an ap bm bn bp
+  IFS=. read -r am an ap <<<"$1"
+  IFS=. read -r bm bn bp <<<"$2"
+  ((10#$am > 10#$bm || (10#$am == 10#$bm && 10#$an > 10#$bn) || (10#$am == 10#$bm && 10#$an == 10#$bn && 10#$ap > 10#$bp)))
+}
+
+next_patch_version() {
+  local current legacy latest major minor patch
+  current="$(latest_stable_for_prefix "$TAG_PREFIX" || true)"
+  legacy="$(latest_stable_for_prefix "$LEGACY_TAG_PREFIX" || true)"
+  latest="$current"
+  if [[ -z "$latest" ]] || { [[ -n "$legacy" ]] && semver_gt "$legacy" "$latest"; }; then
+    latest="$legacy"
+  fi
+  [[ -n "$latest" ]] || { echo "no formal release tag found; pass --version" >&2; exit 1; }
+  IFS=. read -r major minor patch <<<"$latest"
+  printf '%s.%s.%s\n' "$major" "$minor" "$((10#$patch + 1))"
+}
+
+json_plan() {
+  node - "$version" "$sha" "$tag" "$image_tag" "$main_push_required" <<'NODE'
+const [version, sourceSha, tag, imageTag, mainPushRequired] = process.argv.slice(2);
+const plan = {
+  schema: "project-governance.release-plan.v1",
+  project: "frely-network",
+  release_type: "deploy",
+  version,
+  source_sha: sourceSha,
+  target: "frely-network",
+  environment: "production",
+  artifact: "ghcr.io/frelyhq/frely-network image",
+  destination: "ctb-eu / frely-network",
+  verification: ["https://network.frely.cloud/readyz", "frely-network container health"],
+  tag,
+  artifact_ref: imageTag,
+  main_push_required: mainPushRequired === "1",
+};
+process.stdout.write(JSON.stringify(plan));
+NODE
+}
+
+print_plan() {
+  printf '%s\n' "Release plan"
+  printf 'project: %s\n' "$PROJECT"
+  printf 'release type: deploy\n'
+  printf 'version: %s\n' "$version"
+  printf 'source SHA: %s\n' "$sha"
+  printf 'target: %s\n' "$TARGET"
+  printf 'environment: %s\n' "$ENVIRONMENT"
+  printf 'build artifact/image: %s\n' "$image_tag"
+  printf 'deploy destination: %s\n' "$DESTINATION"
+  printf 'verification endpoints: %s\n' 'https://network.frely.cloud/readyz; container health on ctb-eu'
+  printf 'tag: %s\n' "$tag"
+  printf 'RELEASE_PLAN_JSON=%s\n' "$(json_plan)"
+}
+
+require_clean_main
+git fetch origin main --tags
+sha="$(git rev-parse HEAD)"
+[[ "$sha" =~ ^[0-9a-f]{40}$ ]] || { echo "unable to resolve release SHA" >&2; exit 1; }
+remote_sha="$(git rev-parse origin/main)"
+git merge-base --is-ancestor "$remote_sha" "$sha" || {
+  echo "local main does not contain origin/main; update main before release" >&2
+  exit 1
+}
+main_push_required=0
+[[ "$remote_sha" == "$sha" ]] || main_push_required=1
+
+[[ -n "$version" ]] || version="$(next_patch_version)"
+[[ "$version" =~ $semver_re ]] || { echo "invalid SemVer: $version" >&2; exit 2; }
+tag="${TAG_PREFIX}${version}"
+image_tag="$IMAGE_REPO:v${version}-${sha:0:12}"
+
+if git rev-parse -q --verify "refs/tags/$tag" >/dev/null; then
+  echo "release tag already exists: $tag" >&2
+  exit 1
+fi
+if [[ -n "$(git ls-remote origin "refs/tags/$tag")" ]]; then
+  echo "release tag already exists on origin: $tag" >&2
+  exit 1
+fi
+
+# Validate release identity against the existing project release engine.
+bun run release -- --target "$TARGET" --version "$version" --sha "$sha" --stage release --dry-run >/dev/null
+
+if ((dry_run)); then
+  print_plan
+  exit 0
+fi
+
+if ((main_push_required)); then
+  git push origin HEAD:main
+  [[ "$(git ls-remote origin refs/heads/main | awk '{print $1}')" == "$sha" ]] || {
+    echo "origin/main did not advance to the release SHA" >&2
+    exit 1
+  }
+fi
+
+bun run check
+bun run verify:compose
+
+print_plan
+# Existing deploy engine owns host preflight, image build, GHCR push,
+# registry digest resolution, digest-pinned deployment, container health,
+# and the public /readyz verification.
+bun run release:frely-eu -- --version "$version" --sha "$sha" --deploy
+
+git tag -a "$tag" "$sha" -m "frely-network $tag"
+git push origin "refs/tags/$tag"
+printf 'frely-network release completed: version=%s sha=%s tag=%s\n' "$version" "$sha" "$tag"
